@@ -1,0 +1,340 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  backend-checks:
+    name: Backend Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            backend/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy linter
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run cargo check
+        run: cargo check --all-targets --all-features
+
+      - name: Run unit tests
+        run: cargo test --all-features
+
+      - name: Run integration tests
+        run: cargo test --test integration_test
+
+  frontend-checks:
+    name: Frontend Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+        env:
+          # Use placeholder values for tests
+          VITE_USER_POOL_ID: placeholder
+          VITE_USER_POOL_CLIENT_ID: placeholder
+          VITE_USER_POOL_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
+          VITE_API_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
+          VITE_FRONTEND_URL: https://placeholder.cloudfront.net
+          VITE_AWS_REGION: us-east-1
+
+      - name: Build check
+        run: npm run build
+        env:
+          # Use placeholder values for build check
+          VITE_USER_POOL_ID: placeholder
+          VITE_USER_POOL_CLIENT_ID: placeholder
+          VITE_USER_POOL_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
+          VITE_API_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
+          VITE_FRONTEND_URL: https://placeholder.cloudfront.net
+          VITE_AWS_REGION: us-east-1
+
+  summary:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+    if: always()
+
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.backend-checks.result }}" != "success" ] || [ "${{ needs.frontend-checks.result }}" != "success" ]; then
+            echo "❌ Some checks failed"
+            exit 1
+          fi
+          echo "✅ All checks passed"
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+    environment:
+      name: staging
+      url: ${{ steps.get-outputs.outputs.frontend-url }}
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: community-garden-staging-pr-${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_STAGING_ROLE_ARN }}
+          role-session-name: GitHubActions-PR-${{ github.event.pull_request.number }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-gnu
+
+      - name: Install Zig toolchain
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-lambda
+        uses: jaxxstorm/action-install-gh-release@v1.12.0
+        with:
+          repo: cargo-lambda/cargo-lambda
+          tag: v1.2.1
+          chmod: 0755
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            backend/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Deploy backend to staging
+        run: python deploy-and-configure.py --region ${{ env.AWS_REGION }} --stack-name ${{ env.STACK_NAME }} --ci
+
+      - name: Get stack outputs
+        id: get-outputs
+        run: |
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text)
+
+          USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
+            --output text)
+
+          USER_POOL_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" \
+            --output text)
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+
+          FRONTEND_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendUrl'].OutputValue" \
+            --output text)
+
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
+            --output text)
+
+          CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+
+          echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "user-pool-domain=$USER_POOL_DOMAIN" >> $GITHUB_OUTPUT
+          echo "api-url=$API_URL" >> $GITHUB_OUTPUT
+          echo "frontend-url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "frontend-bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront-distribution-id=$CLOUDFRONT_DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_USER_POOL_ID: ${{ steps.get-outputs.outputs.user-pool-id }}
+          VITE_USER_POOL_CLIENT_ID: ${{ steps.get-outputs.outputs.user-pool-client-id }}
+          VITE_USER_POOL_DOMAIN: ${{ steps.get-outputs.outputs.user-pool-domain }}
+          VITE_API_URL: ${{ steps.get-outputs.outputs.api-url }}
+          VITE_FRONTEND_URL: ${{ steps.get-outputs.outputs.frontend-url }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+
+      - name: Deploy frontend to S3
+        run: |
+          aws s3 sync frontend/dist/ "s3://${{ steps.get-outputs.outputs.frontend-bucket }}/" \
+            --region ${{ env.AWS_REGION }} \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html" \
+            --exclude "manifest.json"
+
+          aws s3 cp frontend/dist/index.html "s3://${{ steps.get-outputs.outputs.frontend-bucket }}/index.html" \
+            --region ${{ env.AWS_REGION }} \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html"
+
+          if [ -f "frontend/dist/manifest.json" ]; then
+            aws s3 cp frontend/dist/manifest.json "s3://${{ steps.get-outputs.outputs.frontend-bucket }}/manifest.json" \
+              --region ${{ env.AWS_REGION }} \
+              --cache-control "no-cache, no-store, must-revalidate" \
+              --content-type "application/json"
+          fi
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID="${{ steps.get-outputs.outputs.cloudfront-distribution-id }}"
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "$DISTRIBUTION_ID" \
+              --paths "/*"
+          fi
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Staging Deployment Complete! 🚀
+
+            **Environment:** \`staging-pr-${{ github.event.pull_request.number }}\`
+            **Stack:** \`${{ env.STACK_NAME }}\`
+
+            🌐 **Frontend URL:** ${{ steps.get-outputs.outputs.frontend-url }}
+            🔌 **API URL:** ${{ steps.get-outputs.outputs.api-url }}
+
+            The staging environment will be automatically cleaned up when the PR is closed.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  cleanup-staging:
+    name: Cleanup Staging Environment
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: community-garden-staging-pr-${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_STAGING_ROLE_ARN }}
+          role-session-name: GitHubActions-Cleanup-PR-${{ github.event.pull_request.number }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete CloudFormation stack
+        run: |
+          if aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --region ${{ env.AWS_REGION }} &>/dev/null; then
+            echo "Deleting stack ${{ env.STACK_NAME }}..."
+            aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }} --region ${{ env.AWS_REGION }}
+            echo "✓ Stack deletion initiated"
+          else
+            echo "Stack ${{ env.STACK_NAME }} does not exist, nothing to clean up"
+          fi

@@ -1,0 +1,20 @@
+# Clippy configuration for community-garden backend
+# https://doc.rust-lang.org/clippy/lint_configuration.html
+
+# Enforce stricter linting for production code
+msrv = "1.70.0"
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 15
+
+# Disallow TODO comments in production
+disallowed-names = ["todo", "fixme"]
+
+# Enforce documentation
+missing-docs-in-crate-items = false
+
+# Type complexity threshold
+type-complexity-threshold = 250
+
+# Single char binding names allowed in closures
+single-char-binding-names-threshold = 4
