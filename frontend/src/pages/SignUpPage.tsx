@@ -26,10 +26,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
 
   if (showVerification) {
     return (
-      <AuthLayout
-        title="Verify Your Email"
-        subtitle="Check your email for a verification code"
-      >
+      <AuthLayout subtitle="Check your email for a verification code">
         <VerifyEmailForm
           email={email}
           onSuccess={handleVerificationSuccess}
@@ -39,10 +36,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
   }
 
   return (
-    <AuthLayout
-      title="Create Account"
-      subtitle="Join the community food coordination platform"
-    >
+    <AuthLayout>
       <SignUpForm onSuccess={handleSignUpSuccess} />
       {onNavigateToLogin && (
         <div className="mt-6 text-center text-sm">

@@ -14,6 +14,19 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Mock matchMedia for PlantLoader
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
   });
 
   it('shows loading state while checking authentication', () => {
@@ -47,7 +60,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
   });
 
@@ -83,11 +96,11 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /sign up/i }));
 
-    expect(screen.getByText(/create account/i)).toBeInTheDocument();
+    expect(screen.getByText(/already have an account/i)).toBeInTheDocument();
   });
 
   it('navigates to forgot password page', async () => {
@@ -105,11 +118,11 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /forgot your password/i }));
 
-    expect(screen.getByText(/reset password/i)).toBeInTheDocument();
+    expect(screen.getByText(/we'll help you get back into your account/i)).toBeInTheDocument();
   });
 
   it('navigates back to login from signup', async () => {
@@ -129,11 +142,11 @@ describe('App', () => {
 
     // Navigate to signup
     await user.click(screen.getByRole('button', { name: /sign up/i }));
-    expect(screen.getByText(/create account/i)).toBeInTheDocument();
+    expect(screen.getByText(/already have an account/i)).toBeInTheDocument();
 
     // Navigate back to login
     await user.click(screen.getByRole('button', { name: /sign in/i }));
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
   });
 
   it('navigates back to login from forgot password', async () => {
@@ -153,11 +166,11 @@ describe('App', () => {
 
     // Navigate to forgot password
     await user.click(screen.getByRole('button', { name: /forgot your password/i }));
-    expect(screen.getByText(/reset password/i)).toBeInTheDocument();
+    expect(screen.getByText(/we'll help you get back into your account/i)).toBeInTheDocument();
 
     // Navigate back to login
     await user.click(screen.getByRole('button', { name: /back to login/i }));
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
   });
 
   it('prevents access to protected content when not authenticated', () => {
@@ -175,7 +188,7 @@ describe('App', () => {
     render(<App />);
 
     // Should show login page, not profile
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
     expect(screen.queryByText(/profile view/i)).not.toBeInTheDocument();
   });
 
@@ -193,7 +206,7 @@ describe('App', () => {
 
     const { rerender } = render(<App />);
 
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
 
     // Simulate successful authentication
     mockUseAuth.mockReturnValue({
@@ -209,7 +222,9 @@ describe('App', () => {
 
     rerender(<App />);
 
-    expect(screen.queryByText(/welcome back/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/good roots network/i)).not.toBeInTheDocument();
     expect(screen.getByText(/profile view/i)).toBeInTheDocument();
   });
 });
+
+

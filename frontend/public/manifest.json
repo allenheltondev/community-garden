@@ -1,21 +1,22 @@
 {
-  "name": "Community Food Coordination",
-  "short_name": "Food Coord",
-  "description": "Connect growers and searchers in your community",
+  "name": "Good Roots Network",
+  "short_name": "GRN",
+  "description": "Local food. Grown with care. Connect growers and searchers in your community.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#F7F5EF",
+  "theme_color": "#3F7D3A",
   "orientation": "portrait-primary",
+  "categories": ["food", "lifestyle", "social"],
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
+      "src": "/icons/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512x512.png",
+      "src": "/icons/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

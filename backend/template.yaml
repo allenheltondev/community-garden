@@ -24,7 +24,7 @@ Globals:
   Api:
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+      AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
       AllowOrigin: !Sub "'${DomainProtocol}://${DomainName}'"
   Function:
     Architectures: [ arm64 ]
@@ -228,11 +228,8 @@ Resources:
       StageName: api
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !If
-          - DeployCustomDomain
-          - !Sub "${DomainProtocol}://${DomainName}"
-          - !Sub "'https://${FrontendDistribution.DomainName}'"
+        AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: !Sub "'${DomainProtocol}://${DomainName}'"
       Auth:
         DefaultAuthorizer: LambdaAuthorizer
         AddDefaultAuthorizerToCorsPreflight: false
@@ -452,10 +449,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref CoreTable
           EVENT_BUS_NAME: !Ref EventBus
-          ORIGIN: !If
-              - DeployCustomDomain
-              - !Sub "${DomainProtocol}://${DomainName}"
-              - !Sub "https://${FrontendDistribution.DomainName}"
+          ORIGIN: !Sub "${DomainProtocol}://${DomainName}"
           RUST_LOG: info
           RUST_BACKTRACE: "1"
       Events:

@@ -19,7 +19,7 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     if let Ok(value) = "GET,POST,PUT,DELETE,OPTIONS".parse() {
         headers.insert("Access-Control-Allow-Methods", value);
     }
-    if let Ok(value) = "Content-Type,Authorization,Idempotency-Key,X-Correlation-Id".parse() {
+    if let Ok(value) = "Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token".parse() {
         headers.insert("Access-Control-Allow-Headers", value);
     }
     if let Ok(value) = "3600".parse() {

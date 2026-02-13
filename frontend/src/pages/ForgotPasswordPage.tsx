@@ -12,10 +12,7 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({
   onNavigateToLogin,
 }) => {
   return (
-    <AuthLayout
-      title="Reset Password"
-      subtitle="We'll help you get back into your account"
-    >
+    <AuthLayout subtitle="We'll help you get back into your account">
       <ForgotPasswordForm onSuccess={onSuccess} />
       {onNavigateToLogin && (
         <div className="mt-6 text-center text-sm">

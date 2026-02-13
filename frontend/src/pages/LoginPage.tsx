@@ -29,10 +29,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   if (showVerification) {
     return (
-      <AuthLayout
-        title="Verify Your Email"
-        subtitle="Check your email for a verification code"
-      >
+      <AuthLayout subtitle="Check your email for a verification code">
         <VerifyEmailForm
           email={email}
           onSuccess={handleVerificationSuccess}
@@ -50,10 +47,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   }
 
   return (
-    <AuthLayout
-      title="Welcome Back"
-      subtitle="Sign in to your account"
-    >
+    <AuthLayout subtitle="Sign in to your account">
       <LoginForm
         onSuccess={onSuccess}
         onUnverified={handleUnverified}

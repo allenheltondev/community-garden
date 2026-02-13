@@ -20,8 +20,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/enter your password/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/confirm your password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
   });
 
@@ -42,7 +42,7 @@ describe('SignUpForm', () => {
     const user = userEvent.setup();
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
-    const passwordInput = screen.getByPlaceholderText(/enter your password/i);
+    const passwordInput = screen.getByLabelText(/^password$/i);
     await user.type(passwordInput, 'weak');
     await user.tab();
 
@@ -55,8 +55,8 @@ describe('SignUpForm', () => {
     const user = userEvent.setup();
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
-    const passwordInput = screen.getByPlaceholderText(/enter your password/i);
-    const confirmInput = screen.getByPlaceholderText(/confirm your password/i);
+    const passwordInput = screen.getByLabelText(/^password$/i);
+    const confirmInput = screen.getByLabelText(/confirm password/i);
 
     await user.type(passwordInput, 'Password123');
     await user.type(confirmInput, 'Password456');
@@ -85,8 +85,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
-    await user.type(screen.getByPlaceholderText(/confirm your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign up/i }));
 
     await waitFor(() => {
@@ -112,8 +112,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} onError={mockOnError} />);
 
     await user.type(screen.getByLabelText(/email/i), 'existing@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
-    await user.type(screen.getByPlaceholderText(/confirm your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign up/i }));
 
     await waitFor(() => {
@@ -131,8 +131,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} onError={mockOnError} />);
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
-    await user.type(screen.getByPlaceholderText(/confirm your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign up/i }));
 
     await waitFor(() => {
@@ -149,8 +149,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
-    await user.type(screen.getByPlaceholderText(/confirm your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Password123');
 
     await waitFor(() => {
       expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument();
@@ -172,8 +172,8 @@ describe('SignUpForm', () => {
     render(<SignUpForm onSuccess={mockOnSuccess} />);
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
-    await user.type(screen.getByPlaceholderText(/confirm your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Password123');
 
     await waitFor(() => {
       expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument();
