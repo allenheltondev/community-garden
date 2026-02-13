@@ -15,9 +15,25 @@ jobs:
   backend-checks:
     name: Backend Lint & Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: community_garden_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/community_garden_ci
 
     steps:
       - name: Checkout code
@@ -41,6 +57,13 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run database migrations
+        run: ./db/migrate.sh
+
 
       - name: Check code formatting
         run: cargo fmt --all -- --check
