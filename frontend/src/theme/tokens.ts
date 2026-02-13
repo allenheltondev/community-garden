@@ -75,7 +75,7 @@ export const background = '#F7F5EF';
 // Typography Tokens
 export const typography = {
   fontFamily: {
-    sans: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    sans: 'Nunito, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   },
   fontSize: {

@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage'
 import { SignUpPage } from './pages/SignUpPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ProfileView } from './components/Profile/ProfileView'
+import { PlantLoader } from './components/branding/PlantLoader'
 import './App.css'
 
 type AuthView = 'login' | 'signup' | 'forgot-password';
@@ -23,8 +24,8 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-          <p className="text-gray-600">Loading...</p>
+          <PlantLoader size="md" />
+          <p className="text-gray-600 mt-4">Loading...</p>
         </div>
       </div>
     )

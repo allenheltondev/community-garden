@@ -35,10 +35,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary: `
-        bg-gradient-to-br from-primary-500 to-primary-600
+        bg-primary-600
         text-white
         shadow-md hover:shadow-lg
-        hover:from-primary-600 hover:to-primary-700
+        hover:bg-primary-700
         active:shadow-base
         focus:ring-primary-500
       `.trim().replace(/\s+/g, ' '),
@@ -54,7 +54,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
       outline: `
         bg-transparent
-        border-2 border-primary-500
+        border-2 border-primary-600
         text-primary-600
         hover:bg-primary-50
         active:bg-primary-100

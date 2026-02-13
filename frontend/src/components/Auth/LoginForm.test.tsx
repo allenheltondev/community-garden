@@ -26,7 +26,7 @@ describe('LoginForm', () => {
     );
 
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/enter your password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
@@ -57,7 +57,7 @@ describe('LoginForm', () => {
       />
     );
 
-    const passwordInput = screen.getByPlaceholderText(/enter your password/i);
+    const passwordInput = screen.getByLabelText(/^password$/i);
     await user.click(passwordInput);
     // Type something then delete it to trigger validation
     await user.type(passwordInput, 'a');
@@ -83,7 +83,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -110,7 +110,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'WrongPassword');
+    await user.type(screen.getByLabelText(/^password$/i), 'WrongPassword');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -133,7 +133,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'unverified@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -157,7 +157,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'nonexistent@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -181,7 +181,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -203,7 +203,7 @@ describe('LoginForm', () => {
     );
 
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByPlaceholderText(/enter your password/i), 'Password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -211,3 +211,4 @@ describe('LoginForm', () => {
     });
   });
 });
+
