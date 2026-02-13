@@ -156,7 +156,11 @@ def deploy_backend(
         return True
     else:
         print_error("Backend deployment failed")
-        print(stderr)
+        if stdout.strip():
+            print(stdout)
+        if stderr.strip():
+            print(stderr, file=sys.stderr)
+        print_error(f"Command: {' '.join(cmd)}")
         return False
 
 
@@ -289,15 +293,18 @@ def main():
         if not build_backend(backend_dir, args.profile):
             return 1
 
+    # Treat GitHub Actions and other CI environments as CI mode automatically.
+    ci_mode = args.ci or os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+
     if not args.skip_deploy:
-        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, args.ci):
+        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, ci_mode):
             return 1
 
     outputs = get_stack_outputs(args.stack_name, args.profile, args.region)
     if not outputs:
         return 1
 
-    if not args.ci:
+    if not ci_mode:
         if not create_env_file(frontend_dir, outputs, args.region):
             return 1
 
