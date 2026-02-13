@@ -1,12 +1,13 @@
 use lambda_http::{run, service_fn, Body, Error, Request, Response};
 
+mod db;
 mod handlers;
 mod middleware;
 mod models;
 mod router;
 
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    router::route_request(&event)
+    router::route_request(&event).await
 }
 
 #[tokio::main]

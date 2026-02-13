@@ -124,11 +124,17 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
         return False
 
 
-def deploy_backend(backend_dir: Path, profile: Optional[str] = None, region: Optional[str] = None, stack_name: Optional[str] = None) -> bool:
+def deploy_backend(
+    backend_dir: Path,
+    profile: Optional[str] = None,
+    region: Optional[str] = None,
+    stack_name: Optional[str] = None,
+    ci: bool = False
+) -> bool:
     """Deploy the SAM application."""
     print_step("Deploying backend...")
 
-    cmd = ['sam', 'deploy']
+    cmd = ['sam', 'deploy', '--resolve-s3', '--capabilities', 'CAPABILITY_IAM']
 
     if profile:
         cmd.extend(['--profile', profile])
@@ -136,6 +142,8 @@ def deploy_backend(backend_dir: Path, profile: Optional[str] = None, region: Opt
         cmd.extend(['--region', region])
     if stack_name:
         cmd.extend(['--stack-name', stack_name])
+    if ci:
+        cmd.extend(['--no-confirm-changeset', '--no-fail-on-empty-changeset'])
 
     env = os.environ.copy()
     if profile:
@@ -148,7 +156,11 @@ def deploy_backend(backend_dir: Path, profile: Optional[str] = None, region: Opt
         return True
     else:
         print_error("Backend deployment failed")
-        print(stderr)
+        if stdout.strip():
+            print(stdout)
+        if stderr.strip():
+            print(stderr, file=sys.stderr)
+        print_error(f"Command: {' '.join(cmd)}")
         return False
 
 
@@ -231,7 +243,7 @@ VITE_AWS_REGION={region}
 def main():
     """Main execution function."""
     parser = argparse.ArgumentParser(description='Deploy backend and configure frontend environment')
-    parser.add_argument('--profile', help='AWS profile to use (default: from samconfig.toml or default profile)')
+    parser.add_argument('--profile', help='AWS profile to use (default: AWS SDK/CLI default chain)')
     parser.add_argument('--region', default='us-east-1', help='AWS region (default: us-east-1)')
     parser.add_argument('--stack-name', default='community-garden', help='CloudFormation stack name (default: community-garden)')
     parser.add_argument('--skip-build', action='store_true', help='Skip the build step (use existing build)')
@@ -281,15 +293,18 @@ def main():
         if not build_backend(backend_dir, args.profile):
             return 1
 
+    # Treat GitHub Actions and other CI environments as CI mode automatically.
+    ci_mode = args.ci or os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+
     if not args.skip_deploy:
-        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name):
+        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, ci_mode):
             return 1
 
     outputs = get_stack_outputs(args.stack_name, args.profile, args.region)
     if not outputs:
         return 1
 
-    if not args.ci:
+    if not ci_mode:
         if not create_env_file(frontend_dir, outputs, args.region):
             return 1
 

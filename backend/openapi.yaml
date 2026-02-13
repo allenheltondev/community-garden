@@ -1,0 +1,481 @@
+openapi: 3.1.0
+info:
+  title: Community Garden API
+  version: 1.1.0
+  description: |
+    REST API for authenticated user profile management, user crop library CRUD,
+    and synchronous catalog reads.
+servers:
+  - url: https://api.example.com
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Get current authenticated user's profile and grower configuration
+      operationId: getMe
+      responses:
+        '200':
+          description: Profile payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeProfileResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      summary: Create or update current user's profile and grower configuration
+      operationId: putMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertMeProfileRequest'
+      responses:
+        '200':
+          description: Upserted profile payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeProfileResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /users/{userId}:
+    get:
+      summary: Get public user profile
+      operationId: getPublicUser
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Public user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicUserResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /crops:
+    get:
+      summary: List current user's grower crop library entries
+      operationId: listMyCropLibrary
+      responses:
+        '200':
+          description: Crop library rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GrowerCropItem'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      summary: Create a crop library entry for current user
+      operationId: createMyCropLibraryItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertGrowerCropRequest'
+      responses:
+        '201':
+          description: Created crop library row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowerCropItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /crops/{cropLibraryId}:
+    parameters:
+      - in: path
+        name: cropLibraryId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Read one crop library row by id
+      operationId: getMyCropLibraryItem
+      responses:
+        '200':
+          description: Crop library row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowerCropItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      summary: Update one crop library row
+      operationId: updateMyCropLibraryItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertGrowerCropRequest'
+      responses:
+        '200':
+          description: Updated crop library row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowerCropItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      summary: Delete one crop library row
+      operationId: deleteMyCropLibraryItem
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /catalog/crops:
+    get:
+      security: []
+      summary: List catalog crops
+      operationId: listCatalogCrops
+      responses:
+        '200':
+          description: Catalog crops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogCrop'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /catalog/crops/{cropId}/varieties:
+    get:
+      security: []
+      summary: List catalog varieties for a crop
+      operationId: listCatalogCropVarieties
+      parameters:
+        - in: path
+          name: cropId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Catalog varieties for crop
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogVariety'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    ErrorResponse:
+      description: Error payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    GrowerProfile:
+      type: object
+      required: [share_radius_km, units]
+      properties:
+        home_zone:
+          type: string
+          nullable: true
+        geo_key:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        share_radius_km:
+          type: string
+        units:
+          type: string
+          enum: [imperial, metric]
+        locale:
+          type: string
+          nullable: true
+
+    UserRatingSummary:
+      type: object
+      required: [avg_score, rating_count]
+      properties:
+        avg_score:
+          type: string
+        rating_count:
+          type: integer
+
+    MeProfileResponse:
+      type: object
+      required: [id, is_verified, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          nullable: true
+        display_name:
+          type: string
+          nullable: true
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        grower_profile:
+          $ref: '#/components/schemas/GrowerProfile'
+          nullable: true
+        rating_summary:
+          $ref: '#/components/schemas/UserRatingSummary'
+          nullable: true
+
+    PublicUserResponse:
+      type: object
+      required: [id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        grower_profile:
+          $ref: '#/components/schemas/GrowerProfile'
+          nullable: true
+        rating_summary:
+          $ref: '#/components/schemas/UserRatingSummary'
+          nullable: true
+
+    UpsertMeProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          nullable: true
+        display_name:
+          type: string
+          nullable: true
+        grower_profile:
+          type: object
+          nullable: true
+          properties:
+            home_zone:
+              type: string
+              nullable: true
+            geo_key:
+              type: string
+              nullable: true
+            lat:
+              type: number
+              nullable: true
+            lng:
+              type: number
+              nullable: true
+            share_radius_km:
+              type: string
+              nullable: true
+            units:
+              type: string
+              enum: [imperial, metric]
+              nullable: true
+            locale:
+              type: string
+              nullable: true
+
+    GrowerCropItem:
+      type: object
+      required:
+        - id
+        - user_id
+        - crop_id
+        - status
+        - visibility
+        - surplus_enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        crop_id:
+          type: string
+          format: uuid
+        variety_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [interested, planning, growing, paused]
+        visibility:
+          type: string
+          enum: [private, local, public]
+        surplus_enabled:
+          type: boolean
+        nickname:
+          type: string
+          nullable: true
+        default_unit:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpsertGrowerCropRequest:
+      type: object
+      required: [crop_id, status, visibility, surplus_enabled]
+      properties:
+        crop_id:
+          type: string
+          format: uuid
+        variety_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [interested, planning, growing, paused]
+        visibility:
+          type: string
+          enum: [private, local, public]
+        surplus_enabled:
+          type: boolean
+        nickname:
+          type: string
+          nullable: true
+        default_unit:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    CatalogCrop:
+      type: object
+      required: [id, slug, common_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        common_name:
+          type: string
+        scientific_name:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    CatalogVariety:
+      type: object
+      required: [id, crop_id, slug, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        crop_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
