@@ -28,9 +28,12 @@ pub async fn list_my_crops(
             &[&user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
-    let items = rows.into_iter().map(row_to_item).collect::<Vec<_>>();
+    let items = rows
+        .into_iter()
+        .map(|row| row_to_item(&row))
+        .collect::<Vec<_>>();
     json_response(200, &items)
 }
 
@@ -54,10 +57,10 @@ pub async fn get_my_crop(
             &[&id, &user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if let Some(row) = maybe_row {
-        return json_response(200, &row_to_item(row));
+        return json_response(200, &row_to_item(&row));
     }
 
     json_response(
@@ -105,7 +108,7 @@ pub async fn create_my_crop(
             ],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     info!(
         correlation_id = correlation_id,
@@ -114,7 +117,7 @@ pub async fn create_my_crop(
         "Created grower crop library item"
     );
 
-    json_response(201, &row_to_item(row))
+    json_response(201, &row_to_item(&row))
 }
 
 pub async fn update_my_crop(
@@ -164,7 +167,7 @@ pub async fn update_my_crop(
             ],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if let Some(row) = maybe_row {
         info!(
@@ -173,7 +176,7 @@ pub async fn update_my_crop(
             crop_library_id = %id,
             "Updated grower crop library item"
         );
-        return json_response(200, &row_to_item(row));
+        return json_response(200, &row_to_item(&row));
     }
 
     json_response(
@@ -199,7 +202,7 @@ pub async fn delete_my_crop(
             &[&id, &user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if deleted == 0 {
         return json_response(
@@ -272,7 +275,7 @@ async fn validate_catalog_links(
             &[&crop_id],
         )
         .await
-        .map_err(db_error)?
+        .map_err(|error| db_error(&error))?
         .get::<_, bool>(0);
 
     if !crop_exists {
@@ -288,7 +291,7 @@ async fn validate_catalog_links(
                 &[&variety, &crop_id],
             )
             .await
-            .map_err(db_error)?
+            .map_err(|error| db_error(&error))?
             .get::<_, bool>(0);
 
         if !matches {
@@ -327,7 +330,7 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
     }
 }
 
-fn row_to_item(row: Row) -> GrowerCropItem {
+fn row_to_item(row: &Row) -> GrowerCropItem {
     GrowerCropItem {
         id: row.get::<_, Uuid>("id").to_string(),
         user_id: row.get::<_, Uuid>("user_id").to_string(),
@@ -350,7 +353,7 @@ fn row_to_item(row: Row) -> GrowerCropItem {
     }
 }
 
-fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
+fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 

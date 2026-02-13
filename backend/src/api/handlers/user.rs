@@ -22,7 +22,7 @@ pub async fn get_current_user(
             &[&user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if let Some(row) = user_row {
         return json_response(200, &to_me_response(&client, row).await?);
@@ -62,7 +62,7 @@ pub async fn upsert_current_user(
             &[&user_id, &email, &payload.display_name],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if let Some(grower_profile) = payload.grower_profile {
         let share_radius_km = grower_profile
@@ -101,7 +101,7 @@ pub async fn upsert_current_user(
                 ],
             )
             .await
-            .map_err(db_error)?;
+            .map_err(|error| db_error(&error))?;
     }
 
     json_response(200, &to_me_response(&client, user_row).await?)
@@ -117,7 +117,7 @@ pub async fn get_public_user(user_id: &str) -> Result<Response<Body>, lambda_htt
             &[&user_uuid],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     if let Some(user_row) = row {
         let response = PublicUserResponse {
@@ -223,7 +223,7 @@ async fn load_grower_profile(
             &[&user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     Ok(row.map(|grower| GrowerProfile {
         home_zone: grower.get("home_zone"),
@@ -246,7 +246,7 @@ async fn load_rating_summary(
             &[&user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     Ok(row.map(|rating| UserRatingSummary {
         avg_score: rating.get("avg_score"),
@@ -273,7 +273,7 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
     }
 }
 
-fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
+fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 

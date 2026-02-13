@@ -13,7 +13,7 @@ pub async fn list_catalog_crops() -> Result<Response<Body>, lambda_http::Error> 
             &[],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     let crops = rows
         .into_iter()
@@ -42,7 +42,7 @@ pub async fn list_catalog_varieties(crop_id: &str) -> Result<Response<Body>, lam
             &[&crop_uuid],
         )
         .await
-        .map_err(db_error)?
+        .map_err(|error| db_error(&error))?
         .get::<_, bool>(0);
 
     if !exists {
@@ -60,7 +60,7 @@ pub async fn list_catalog_varieties(crop_id: &str) -> Result<Response<Body>, lam
             &[&crop_uuid],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|error| db_error(&error))?;
 
     let varieties = rows
         .into_iter()
@@ -76,7 +76,7 @@ pub async fn list_catalog_varieties(crop_id: &str) -> Result<Response<Body>, lam
     json_response(200, &varieties)
 }
 
-fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
+fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 
