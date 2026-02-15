@@ -209,6 +209,8 @@ jobs:
 
       - name: Deploy backend to staging
         run: python deploy-and-configure.py --region ${{ env.AWS_REGION }} --stack-name ${{ env.STACK_NAME }} --ci
+        env:
+          SAM_CLI_TELEMETRY: "0"
 
       - name: Get stack outputs
         id: get-outputs

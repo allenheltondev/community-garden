@@ -242,6 +242,11 @@ VITE_AWS_REGION={region}
 
 def main():
     """Main execution function."""
+    # Ensure SAM does not prompt in non-interactive environments (e.g., CI runners).
+    os.environ.setdefault('SAM_CLI_TELEMETRY', '0')
+    # Avoid AWS CLI paging behavior in CI logs.
+    os.environ.setdefault('AWS_PAGER', '')
+
     parser = argparse.ArgumentParser(description='Deploy backend and configure frontend environment')
     parser.add_argument('--profile', help='AWS profile to use (default: AWS SDK/CLI default chain)')
     parser.add_argument('--region', default='us-east-1', help='AWS region (default: us-east-1)')
