@@ -103,11 +103,13 @@ def check_prerequisites() -> bool:
     return all_present
 
 
-def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
+def build_backend(backend_dir: Path, profile: Optional[str] = None, ci: bool = False) -> bool:
     """Build the SAM application."""
     print_step("Building backend...")
 
     cmd = ['sam', 'build']
+    if ci:
+        cmd.append('--debug')
 
     env = os.environ.copy()
     if profile:
@@ -120,7 +122,11 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
         return True
     else:
         print_error("Backend build failed")
-        print(stderr)
+        if stdout.strip():
+            print(stdout)
+        if stderr.strip():
+            print(stderr, file=sys.stderr)
+        print_error(f"Command: {' '.join(cmd)}")
         return False
 
 
@@ -294,12 +300,12 @@ def main():
         print_error("Missing required tools. Please install them and try again.")
         return 1
 
-    if not args.skip_build and not args.skip_deploy:
-        if not build_backend(backend_dir, args.profile):
-            return 1
-
     # Treat GitHub Actions and other CI environments as CI mode automatically.
     ci_mode = args.ci or os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+
+    if not args.skip_build and not args.skip_deploy:
+        if not build_backend(backend_dir, args.profile, ci_mode):
+            return 1
 
     if not args.skip_deploy:
         if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, ci_mode):
