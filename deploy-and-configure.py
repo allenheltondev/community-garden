@@ -109,11 +109,14 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None, ci: bool = F
 
     cmd = ['sam', 'build']
     if ci:
-        cmd.append('--debug')
+        cmd.extend(['--debug', '--no-cached'])
 
     env = os.environ.copy()
     if profile:
         env['AWS_PROFILE'] = profile
+
+    # Tell SAM to not send telemetry
+    env['SAM_CLI_TELEMETRY'] = '0'
 
     success, stdout, stderr = run_command(cmd, cwd=backend_dir, env=env)
 

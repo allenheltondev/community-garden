@@ -44,6 +44,40 @@ aws configure
 aws configure --profile sandbox
 ```
 
+### SAM Configuration
+
+The repository includes a `backend/samconfig.template.toml` file that serves as a template for SAM CLI configuration.
+
+**For CI/CD**: The GitHub Actions workflow automatically generates `samconfig.toml` from the template by substituting environment-specific values:
+- `{{STACK_NAME}}` - CloudFormation stack name (e.g., `community-garden-prod`)
+- `{{REGION}}` - AWS region (e.g., `us-east-1`)
+- `{{DATABASE_URL}}` - PostgreSQL connection string from secrets
+
+**For local development**: Create your own `backend/samconfig.toml` (which is gitignored):
+
+```toml
+version = 0.1
+
+[default.build.parameters]
+beta_features = true
+
+[default.deploy.parameters]
+stack_name = "community-garden"
+resolve_s3 = true
+s3_prefix = "community-garden"
+region = "us-east-1"
+profile = "sandbox"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+  "DatabaseUrl=postgresql://user:pass@host:5432/dbname"
+]
+
+[default.global.parameters]
+region = "us-east-1"
+```
+
+The deployment script (`deploy-and-configure.py`) works with or without `samconfig.toml` since it passes all necessary parameters via command-line arguments.
+
 ## Quick Start
 
 ### Deploy Everything (Build + Deploy + Configure)

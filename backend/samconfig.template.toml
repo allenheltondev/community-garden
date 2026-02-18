@@ -1,0 +1,17 @@
+version = 0.1
+
+[default.build.parameters]
+beta_features = true
+
+[default.deploy.parameters]
+stack_name = "{{STACK_NAME}}"
+resolve_s3 = true
+s3_prefix = "{{STACK_NAME}}"
+region = "{{REGION}}"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+  "DatabaseUrl={{DATABASE_URL}}"
+]
+
+[default.global.parameters]
+region = "{{REGION}}"

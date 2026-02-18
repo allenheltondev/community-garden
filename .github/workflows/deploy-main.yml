@@ -182,6 +182,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Generate samconfig.toml from template
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ env.ENVIRONMENT == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_STAGING }}
+        run: |
+          sed -e "s|{{STACK_NAME}}|${{ env.STACK_NAME }}|g" \
+              -e "s|{{REGION}}|${{ env.AWS_REGION }}|g" \
+              -e "s|{{DATABASE_URL}}|${DATABASE_URL}|g" \
+              samconfig.template.toml > samconfig.toml
+          echo "✓ Generated samconfig.toml for CI"
+
       - name: Run database migrations
         run: |
           DATABASE_URL="${{ env.ENVIRONMENT == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_STAGING }}"
@@ -191,12 +202,10 @@ jobs:
 
       - name: Deploy backend with Python script
         run: |
-          DATABASE_URL="${{ env.ENVIRONMENT == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_STAGING }}"
           python deploy-and-configure.py \
             --region ${{ env.AWS_REGION }} \
             --stack-name ${{ env.STACK_NAME }} \
-            --ci \
-            --parameter-overrides "DatabaseUrl=$DATABASE_URL"
+            --ci
         env:
           SAM_CLI_TELEMETRY: "0"
 
