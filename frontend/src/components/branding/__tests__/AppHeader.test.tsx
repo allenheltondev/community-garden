@@ -4,11 +4,8 @@ import { AppHeader } from '../AppHeader';
 
 describe('AppHeader', () => {
   it('should render logo', () => {
-    const { container } = render(<AppHeader />);
-
-    const logo = container.querySelector('img[alt="Good Roots Network logo"]') ||
-                 container.querySelector('[role="img"][aria-label="Good Roots Network logo"]');
-    expect(logo).toBeTruthy();
+    render(<AppHeader />);
+    expect(screen.getByRole('button', { name: /go to home/i })).toBeInTheDocument();
   });
 
   it('should render menu button when showMenu is true', () => {

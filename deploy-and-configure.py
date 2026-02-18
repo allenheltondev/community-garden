@@ -103,7 +103,7 @@ def check_prerequisites() -> bool:
     return all_present
 
 
-def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
+def build_backend(backend_dir: Path, profile: Optional[str] = None, ci: bool = False) -> bool:
     """Build the SAM application."""
     print_step("Building backend...")
 
@@ -113,6 +113,9 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
     if profile:
         env['AWS_PROFILE'] = profile
 
+    # Tell SAM to not send telemetry
+    env['SAM_CLI_TELEMETRY'] = '0'
+
     success, stdout, stderr = run_command(cmd, cwd=backend_dir, env=env)
 
     if success:
@@ -120,22 +123,37 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None) -> bool:
         return True
     else:
         print_error("Backend build failed")
-        print(stderr)
+        if stdout.strip():
+            print(stdout)
+        if stderr.strip():
+            print(stderr, file=sys.stderr)
+        print_error(f"Command: {' '.join(cmd)}")
         return False
 
 
-def deploy_backend(backend_dir: Path, profile: Optional[str] = None, region: Optional[str] = None, stack_name: Optional[str] = None) -> bool:
+def deploy_backend(
+    backend_dir: Path,
+    profile: Optional[str] = None,
+    region: Optional[str] = None,
+    stack_name: Optional[str] = None,
+    parameter_overrides: Optional[str] = None,
+    ci: bool = False
+) -> bool:
     """Deploy the SAM application."""
     print_step("Deploying backend...")
 
+    # Use minimal command - let samconfig.toml handle the configuration
     cmd = ['sam', 'deploy']
 
+    # Only override if explicitly provided (for local dev without samconfig.toml)
     if profile:
         cmd.extend(['--profile', profile])
     if region:
         cmd.extend(['--region', region])
     if stack_name:
         cmd.extend(['--stack-name', stack_name])
+    if parameter_overrides:
+        cmd.extend(['--parameter-overrides', parameter_overrides])
 
     env = os.environ.copy()
     if profile:
@@ -148,7 +166,11 @@ def deploy_backend(backend_dir: Path, profile: Optional[str] = None, region: Opt
         return True
     else:
         print_error("Backend deployment failed")
-        print(stderr)
+        if stdout.strip():
+            print(stdout)
+        if stderr.strip():
+            print(stderr, file=sys.stderr)
+        print_error(f"Command: {' '.join(cmd)}")
         return False
 
 
@@ -230,10 +252,16 @@ VITE_AWS_REGION={region}
 
 def main():
     """Main execution function."""
+    # Ensure SAM does not prompt in non-interactive environments (e.g., CI runners).
+    os.environ.setdefault('SAM_CLI_TELEMETRY', '0')
+    # Avoid AWS CLI paging behavior in CI logs.
+    os.environ.setdefault('AWS_PAGER', '')
+
     parser = argparse.ArgumentParser(description='Deploy backend and configure frontend environment')
-    parser.add_argument('--profile', help='AWS profile to use (default: from samconfig.toml or default profile)')
+    parser.add_argument('--profile', help='AWS profile to use (default: AWS SDK/CLI default chain)')
     parser.add_argument('--region', default='us-east-1', help='AWS region (default: us-east-1)')
     parser.add_argument('--stack-name', default='community-garden', help='CloudFormation stack name (default: community-garden)')
+    parser.add_argument('--parameter-overrides', help='CloudFormation parameter overrides (e.g., "DatabaseUrl=postgres://...")')
     parser.add_argument('--skip-build', action='store_true', help='Skip the build step (use existing build)')
     parser.add_argument('--skip-deploy', action='store_true', help='Skip deployment (only update .env from existing stack)')
     parser.add_argument('--config-only', action='store_true', help='Only update frontend .env from existing stack (same as --skip-build --skip-deploy)')
@@ -277,19 +305,22 @@ def main():
         print_error("Missing required tools. Please install them and try again.")
         return 1
 
+    # Treat GitHub Actions and other CI environments as CI mode automatically.
+    ci_mode = args.ci or os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+
     if not args.skip_build and not args.skip_deploy:
-        if not build_backend(backend_dir, args.profile):
+        if not build_backend(backend_dir, args.profile, ci_mode):
             return 1
 
     if not args.skip_deploy:
-        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name):
+        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, args.parameter_overrides, ci_mode):
             return 1
 
     outputs = get_stack_outputs(args.stack_name, args.profile, args.region)
     if not outputs:
         return 1
 
-    if not args.ci:
+    if not ci_mode:
         if not create_env_file(frontend_dir, outputs, args.region):
             return 1
 

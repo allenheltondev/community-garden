@@ -17,8 +17,7 @@ describe('Button Component', () => {
       const button = screen.getByRole('button', { name: /primary button/i });
 
       expect(button).toBeInTheDocument();
-      expect(button.className).toContain('from-primary-500');
-      expect(button.className).toContain('to-primary-600');
+      expect(button.className).toContain('bg-primary-600');
       expect(button.className).toContain('text-white');
       expect(button.className).toContain('shadow-md');
     });
@@ -39,7 +38,7 @@ describe('Button Component', () => {
 
       expect(button.className).toContain('bg-transparent');
       expect(button.className).toContain('border-2');
-      expect(button.className).toContain('border-primary-500');
+      expect(button.className).toContain('border-primary-600');
       expect(button.className).toContain('text-primary-600');
     });
 
@@ -55,7 +54,7 @@ describe('Button Component', () => {
       render(<Button>Default Button</Button>);
       const button = screen.getByRole('button', { name: /default button/i });
 
-      expect(button.className).toContain('from-primary-500');
+      expect(button.className).toContain('bg-primary-600');
     });
   });
 
@@ -285,7 +284,7 @@ describe('Button Component', () => {
       const button = screen.getByRole('button', { name: /custom button/i });
 
       expect(button.className).toContain('custom-class');
-      expect(button.className).toContain('from-primary-500');
+      expect(button.className).toContain('bg-primary-600');
     });
   });
 

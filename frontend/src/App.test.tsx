@@ -3,17 +3,29 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import * as useAuthModule from './hooks/useAuth';
+import * as useUserModule from './hooks/useUser';
 
 vi.mock('./hooks/useAuth');
+vi.mock('./hooks/useUser');
 vi.mock('./components/Profile/ProfileView', () => ({
   ProfileView: () => <div>Profile View</div>,
 }));
 
 describe('App', () => {
   const mockUseAuth = vi.mocked(useAuthModule.useAuth);
+  const mockUseUser = vi.mocked(useUserModule.useUser);
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default mock for useUser
+    mockUseUser.mockReturnValue({
+      user: null,
+      isLoading: false,
+      error: null,
+      refreshUser: vi.fn(),
+      clearError: vi.fn(),
+    });
 
     // Mock matchMedia for PlantLoader
     Object.defineProperty(window, 'matchMedia', {
@@ -74,6 +86,24 @@ describe('App', () => {
       signOut: vi.fn(),
       clearError: vi.fn(),
       refreshAuth: vi.fn(),
+    });
+
+    mockUseUser.mockReturnValue({
+      user: {
+        userId: '123',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        tier: 'neighbor',
+        userType: 'grower',
+        onboardingCompleted: true,
+        growerProfile: null,
+        gathererProfile: null,
+      },
+      isLoading: false,
+      error: null,
+      refreshUser: vi.fn(),
+      clearError: vi.fn(),
     });
 
     render(<App />);
@@ -218,6 +248,24 @@ describe('App', () => {
       signOut: vi.fn(),
       clearError: vi.fn(),
       refreshAuth: vi.fn(),
+    });
+
+    mockUseUser.mockReturnValue({
+      user: {
+        userId: '123',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        tier: 'neighbor',
+        userType: 'grower',
+        onboardingCompleted: true,
+        growerProfile: null,
+        gathererProfile: null,
+      },
+      isLoading: false,
+      error: null,
+      refreshUser: vi.fn(),
+      clearError: vi.fn(),
     });
 
     rerender(<App />);
