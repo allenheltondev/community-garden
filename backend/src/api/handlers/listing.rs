@@ -7,13 +7,44 @@ use chrono::{DateTime, Utc};
 use lambda_http::{Body, Request, Response};
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{Client, Row};
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 const ALLOWED_PICKUP_DISCLOSURE_POLICY: [&str; 3] =
     ["immediate", "after_confirmed", "after_accepted"];
 const ALLOWED_CONTACT_PREF: [&str; 3] = ["app_message", "phone", "knock"];
 const ALLOWED_LISTING_STATUS: [&str; 5] = ["active", "pending", "claimed", "expired", "completed"];
+const UPDATE_LISTING_SQL: &str = "
+            update surplus_listings
+            set crop_id = $1,
+                variety_id = $2,
+                title = $3,
+                unit = $4,
+                quantity_total = $5,
+                quantity_remaining = least(coalesce(quantity_remaining, $5), $5),
+                available_start = $6,
+                available_end = $7,
+                status = $8::listing_status,
+                pickup_location_text = $9,
+                pickup_address = $10,
+                pickup_disclosure_policy = $11::pickup_disclosure_policy,
+                pickup_notes = $12,
+                contact_pref = $13::contact_preference,
+                geo_key = $14,
+                lat = $15,
+                lng = $16
+            where id = $17
+              and user_id = $18
+              and deleted_at is null
+            returning id, user_id, crop_id, variety_id, title,
+                      quantity_total::text as quantity_total,
+                      quantity_remaining::text as quantity_remaining,
+                      unit, available_start, available_end, status::text,
+                      pickup_location_text, pickup_address,
+                      pickup_disclosure_policy::text as pickup_disclosure_policy,
+                      pickup_notes, contact_pref::text as contact_pref,
+                      geo_key, lat, lng, created_at
+            ";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -134,7 +165,7 @@ pub async fn create_listing(
         .await
         .map_err(|error| db_error(&error))?;
 
-    emit_listing_event("listing.created", &row, correlation_id).await?;
+    emit_listing_event_best_effort("listing.created", &row, correlation_id).await;
 
     info!(
         correlation_id = correlation_id,
@@ -166,37 +197,7 @@ pub async fn update_listing(
 
     let maybe_row = client
         .query_opt(
-            "
-            update surplus_listings
-            set crop_id = $1,
-                variety_id = $2,
-                title = $3,
-                unit = $4,
-                quantity_total = $5,
-                quantity_remaining = $5,
-                available_start = $6,
-                available_end = $7,
-                status = $8::listing_status,
-                pickup_location_text = $9,
-                pickup_address = $10,
-                pickup_disclosure_policy = $11::pickup_disclosure_policy,
-                pickup_notes = $12,
-                contact_pref = $13::contact_preference,
-                geo_key = $14,
-                lat = $15,
-                lng = $16
-            where id = $17
-              and user_id = $18
-              and deleted_at is null
-            returning id, user_id, crop_id, variety_id, title,
-                      quantity_total::text as quantity_total,
-                      quantity_remaining::text as quantity_remaining,
-                      unit, available_start, available_end, status::text,
-                      pickup_location_text, pickup_address,
-                      pickup_disclosure_policy::text as pickup_disclosure_policy,
-                      pickup_notes, contact_pref::text as contact_pref,
-                      geo_key, lat, lng, created_at
-            ",
+            UPDATE_LISTING_SQL,
             &[
                 &normalized.crop_id,
                 &normalized.variety_id,
@@ -222,7 +223,7 @@ pub async fn update_listing(
         .map_err(|error| db_error(&error))?;
 
     if let Some(row) = maybe_row {
-        emit_listing_event("listing.updated", &row, correlation_id).await?;
+        emit_listing_event_best_effort("listing.updated", &row, correlation_id).await;
 
         info!(
             correlation_id = correlation_id,
@@ -404,6 +405,22 @@ async fn emit_listing_event(
     Ok(())
 }
 
+async fn emit_listing_event_best_effort(
+    detail_type: &str,
+    listing_row: &Row,
+    correlation_id: &str,
+) {
+    if let Err(error) = emit_listing_event(detail_type, listing_row, correlation_id).await {
+        error!(
+            correlation_id = correlation_id,
+            listing_id = %listing_row.get::<_, Uuid>("id"),
+            detail_type = detail_type,
+            error = %error,
+            "Failed to emit listing event after successful write"
+        );
+    }
+}
+
 fn parse_datetime(value: &str, field_name: &str) -> Result<DateTime<Utc>, lambda_http::Error> {
     let parsed = DateTime::parse_from_rfc3339(value).map_err(|_| {
         lambda_http::Error::from(format!("{field_name} must be a valid RFC3339 timestamp"))
@@ -580,5 +597,12 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Invalid contactPref"));
+    }
+
+    #[test]
+    fn update_listing_sql_preserves_existing_remaining_inventory() {
+        assert!(UPDATE_LISTING_SQL.contains("quantity_remaining = least("));
+        assert!(UPDATE_LISTING_SQL.contains("coalesce(quantity_remaining, $5)"));
+        assert!(!UPDATE_LISTING_SQL.contains("quantity_remaining = $5,"));
     }
 }
