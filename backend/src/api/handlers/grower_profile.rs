@@ -320,7 +320,9 @@ fn get_number_attr(
     let value = item
         .get(key)
         .and_then(|attr| attr.as_n().ok())
-        .ok_or_else(|| lambda_http::Error::from(format!("Missing or invalid number field: {key}")))?;
+        .ok_or_else(|| {
+            lambda_http::Error::from(format!("Missing or invalid number field: {key}"))
+        })?;
 
     value
         .parse::<f64>()
@@ -369,7 +371,8 @@ fn json_response<T: serde::Serialize>(
     status: u16,
     payload: &T,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let body = serde_json::to_string(payload).map_err(|e| lambda_http::Error::from(e.to_string()))?;
+    let body =
+        serde_json::to_string(payload).map_err(|e| lambda_http::Error::from(e.to_string()))?;
 
     Response::builder()
         .status(status)
@@ -378,7 +381,10 @@ fn json_response<T: serde::Serialize>(
         .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
-fn error_response(status: u16, payload: ErrorResponse) -> Result<Response<Body>, lambda_http::Error> {
+fn error_response(
+    status: u16,
+    payload: ErrorResponse,
+) -> Result<Response<Body>, lambda_http::Error> {
     json_response(status, &payload)
 }
 
@@ -400,7 +406,8 @@ fn fallback_error_response(status: u16, error: &str, message: &str) -> Response<
         "{{\"error\":\"{error}\",\"message\":\"{message}\"}}"
     )));
 
-    *response.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    *response.status_mut() =
+        StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     response
         .headers_mut()
         .insert("content-type", HeaderValue::from_static("application/json"));
@@ -464,7 +471,10 @@ mod tests {
     fn parse_profile_item_extracts_expected_fields() {
         let mut item = HashMap::new();
         item.insert("homeZone".to_string(), AttributeValue::S("8a".to_string()));
-        item.insert("shareRadiusKm".to_string(), AttributeValue::N("4.5".to_string()));
+        item.insert(
+            "shareRadiusKm".to_string(),
+            AttributeValue::N("4.5".to_string()),
+        );
         item.insert("units".to_string(), AttributeValue::S("metric".to_string()));
         item.insert("locale".to_string(), AttributeValue::S("en-US".to_string()));
 
