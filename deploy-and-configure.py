@@ -108,8 +108,6 @@ def build_backend(backend_dir: Path, profile: Optional[str] = None, ci: bool = F
     print_step("Building backend...")
 
     cmd = ['sam', 'build']
-    if ci:
-        cmd.extend(['--debug', '--no-cached'])
 
     env = os.environ.copy()
     if profile:
@@ -144,8 +142,10 @@ def deploy_backend(
     """Deploy the SAM application."""
     print_step("Deploying backend...")
 
-    cmd = ['sam', 'deploy', '--resolve-s3', '--capabilities', 'CAPABILITY_IAM']
+    # Use minimal command - let samconfig.toml handle the configuration
+    cmd = ['sam', 'deploy']
 
+    # Only override if explicitly provided (for local dev without samconfig.toml)
     if profile:
         cmd.extend(['--profile', profile])
     if region:
@@ -154,8 +154,6 @@ def deploy_backend(
         cmd.extend(['--stack-name', stack_name])
     if parameter_overrides:
         cmd.extend(['--parameter-overrides', parameter_overrides])
-    if ci:
-        cmd.extend(['--no-confirm-changeset', '--no-fail-on-empty-changeset'])
 
     env = os.environ.copy()
     if profile:
