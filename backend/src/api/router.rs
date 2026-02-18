@@ -175,9 +175,5 @@ fn map_api_error_to_response(
         return crop::error_response(403, &message);
     }
 
-    if message.contains("not found") || message.contains("not Found") {
-        return crop::error_response(404, &message);
-    }
-
     crop::error_response(500, &message)
 }
