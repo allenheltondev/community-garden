@@ -41,6 +41,15 @@ If guidance conflicts, prefer the more specific document for the file you are ch
 - Keep logs structured and actionable.
 - Log at appropriate levels; avoid noisy logs.
 
+## Branching and PR policy
+
+When working on an issue:
+- Never push issue implementation work directly to `main`.
+- Create a new branch from latest `main`.
+- Keep commits scoped to the issue.
+- Open a PR when work is complete and checks are green.
+- Merge only through PR flow.
+
 ## Frontend standards (TypeScript/PWA)
 
 - Default to mobile-first UX and low-friction flows.
@@ -120,5 +129,6 @@ Before finishing, confirm:
 - Idempotency/replay behavior is not regressed.
 - Tests were added/updated for impacted behavior.
 - Required pre-PR quality gates are passing.
+- Work was done on a feature branch (not `main`) and submitted via PR.
 - Documentation or issue dependencies were updated if scope changed.
 - Any post-PR workflow failures were diagnosed and fixed, or explicitly documented if externally blocked.
