@@ -29,6 +29,21 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: community_garden_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -65,8 +80,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/community_garden_test
+        run: ./db/migrate.sh
+
       - name: Backend - Run tests
         working-directory: backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/community_garden_test
         run: cargo test --all-features
 
       # Frontend checks
@@ -154,8 +177,26 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run database migrations
+        run: |
+          DATABASE_URL="${{ env.ENVIRONMENT == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_STAGING }}"
+          export DATABASE_URL
+          cd backend
+          ./db/migrate.sh
+
       - name: Deploy backend with Python script
-        run: python deploy-and-configure.py --region ${{ env.AWS_REGION }} --stack-name ${{ env.STACK_NAME }} --ci
+        run: |
+          DATABASE_URL="${{ env.ENVIRONMENT == 'prod' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_STAGING }}"
+          python deploy-and-configure.py \
+            --region ${{ env.AWS_REGION }} \
+            --stack-name ${{ env.STACK_NAME }} \
+            --ci \
+            --parameter-overrides "DatabaseUrl=$DATABASE_URL"
         env:
           SAM_CLI_TELEMETRY: "0"
 

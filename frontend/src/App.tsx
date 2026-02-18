@@ -5,6 +5,7 @@ import { SignUpPage } from './pages/SignUpPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ProfileView } from './components/Profile/ProfileView'
 import { PlantLoader } from './components/branding/PlantLoader'
+import { OnboardingGuard } from './components/Onboarding/OnboardingGuard'
 import './App.css'
 
 type AuthView = 'login' | 'signup' | 'forgot-password';
@@ -63,8 +64,10 @@ function App() {
     )
   }
 
-  // Show authenticated view with ProfileView component
-  return <ProfileView />
-}
-
-export default App
+  // Show authenticated view with ProfileView component wrapped in OnboardingGuard
+  return (
+    <OnboardingGuard>
+      <ProfileView />
+    </OnboardingGuard>
+  )
+}export default App

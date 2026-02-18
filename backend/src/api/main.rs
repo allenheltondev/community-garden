@@ -1,5 +1,6 @@
 use lambda_http::{run, service_fn, Body, Error, Request, Response};
 
+mod auth;
 mod db;
 mod handlers;
 mod middleware;

@@ -135,6 +135,7 @@ def deploy_backend(
     profile: Optional[str] = None,
     region: Optional[str] = None,
     stack_name: Optional[str] = None,
+    parameter_overrides: Optional[str] = None,
     ci: bool = False
 ) -> bool:
     """Deploy the SAM application."""
@@ -148,6 +149,8 @@ def deploy_backend(
         cmd.extend(['--region', region])
     if stack_name:
         cmd.extend(['--stack-name', stack_name])
+    if parameter_overrides:
+        cmd.extend(['--parameter-overrides', parameter_overrides])
     if ci:
         cmd.extend(['--no-confirm-changeset', '--no-fail-on-empty-changeset'])
 
@@ -257,6 +260,7 @@ def main():
     parser.add_argument('--profile', help='AWS profile to use (default: AWS SDK/CLI default chain)')
     parser.add_argument('--region', default='us-east-1', help='AWS region (default: us-east-1)')
     parser.add_argument('--stack-name', default='community-garden', help='CloudFormation stack name (default: community-garden)')
+    parser.add_argument('--parameter-overrides', help='CloudFormation parameter overrides (e.g., "DatabaseUrl=postgres://...")')
     parser.add_argument('--skip-build', action='store_true', help='Skip the build step (use existing build)')
     parser.add_argument('--skip-deploy', action='store_true', help='Skip deployment (only update .env from existing stack)')
     parser.add_argument('--config-only', action='store_true', help='Only update frontend .env from existing stack (same as --skip-build --skip-deploy)')
@@ -308,7 +312,7 @@ def main():
             return 1
 
     if not args.skip_deploy:
-        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, ci_mode):
+        if not deploy_backend(backend_dir, args.profile, args.region, args.stack_name, args.parameter_overrides, ci_mode):
             return 1
 
     outputs = get_stack_outputs(args.stack_name, args.profile, args.region)

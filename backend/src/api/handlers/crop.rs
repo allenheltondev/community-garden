@@ -1,9 +1,10 @@
+use crate::auth::{extract_auth_context, require_grower};
 use crate::db;
 use crate::models::crop::{ErrorResponse, GrowerCropItem, UpsertGrowerCropRequest};
-use lambda_http::{Body, Request, RequestExt, Response};
+use lambda_http::{Body, Request, Response};
 use serde::Serialize;
 use tokio_postgres::{Client, Row};
-use tracing::{error, info};
+use tracing::info;
 use uuid::Uuid;
 
 const ALLOWED_STATUS: [&str; 4] = ["interested", "planning", "growing", "paused"];
@@ -11,9 +12,14 @@ const ALLOWED_VISIBILITY: [&str; 3] = ["private", "local", "public"];
 
 pub async fn list_my_crops(
     request: &Request,
-    correlation_id: &str,
+    _correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let user_id = extract_user_id(request, correlation_id)?;
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context(request)?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let client = db::connect().await?;
 
     let rows = client
@@ -39,10 +45,15 @@ pub async fn list_my_crops(
 
 pub async fn get_my_crop(
     request: &Request,
-    correlation_id: &str,
+    _correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let user_id = extract_user_id(request, correlation_id)?;
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context(request)?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let id = parse_uuid(crop_library_id, "crop library id")?;
     let client = db::connect().await?;
 
@@ -75,7 +86,12 @@ pub async fn create_my_crop(
     request: &Request,
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let user_id = extract_user_id(request, correlation_id)?;
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context(request)?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let payload: UpsertGrowerCropRequest = parse_json_body(request)?;
     validate_upsert_payload(&payload)?;
 
@@ -125,7 +141,12 @@ pub async fn update_my_crop(
     correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let user_id = extract_user_id(request, correlation_id)?;
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context(request)?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let payload: UpsertGrowerCropRequest = parse_json_body(request)?;
     validate_upsert_payload(&payload)?;
 
@@ -192,7 +213,12 @@ pub async fn delete_my_crop(
     correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let user_id = extract_user_id(request, correlation_id)?;
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context(request)?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let id = parse_uuid(crop_library_id, "crop library id")?;
     let client = db::connect().await?;
 
@@ -224,24 +250,6 @@ pub async fn delete_my_crop(
         .status(204)
         .body(Body::Empty)
         .map_err(|e| lambda_http::Error::from(e.to_string()))
-}
-
-fn extract_user_id(request: &Request, correlation_id: &str) -> Result<Uuid, lambda_http::Error> {
-    let request_context = request.request_context();
-    let authorizer = request_context.authorizer();
-
-    let user_id = authorizer
-        .and_then(|auth| auth.fields.get("userId"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            error!(
-                correlation_id = correlation_id,
-                "Missing userId in authorizer context"
-            );
-            lambda_http::Error::from("Missing userId in authorizer context".to_string())
-        })?;
-
-    parse_uuid(user_id, "userId")
 }
 
 fn validate_upsert_payload(payload: &UpsertGrowerCropRequest) -> Result<(), lambda_http::Error> {

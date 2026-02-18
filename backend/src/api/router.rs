@@ -1,4 +1,4 @@
-use crate::handlers::{catalog, crop, user};
+use crate::handlers::{catalog, claim, crop, listing, request, user};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };
@@ -55,6 +55,10 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
+
+        ("POST", "/listings") => handle(listing::create_listing(event, &correlation_id).await)?,
+        ("POST", "/requests") => handle(request::create_request(event, &correlation_id).await)?,
+        ("POST", "/claims") => handle(claim::create_claim(event, &correlation_id).await)?,
 
         ("GET", "/catalog/crops") => handle(catalog::list_catalog_crops().await)?,
 
@@ -151,6 +155,10 @@ fn map_api_error_to_response(
 
     if message.contains("Missing userId in authorizer context") {
         return crop::error_response(401, &message);
+    }
+
+    if message.contains("Forbidden:") {
+        return crop::error_response(403, &message);
     }
 
     crop::error_response(500, &message)

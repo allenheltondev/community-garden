@@ -12,7 +12,15 @@ security:
 paths:
   /me:
     get:
-      summary: Get current authenticated user's profile and grower configuration
+      summary: Get current authenticated user's profile with onboarding status
+      description: |
+        Returns the authenticated user's profile including user type (grower or gatherer),
+        onboarding completion status, and role-specific profile data.
+
+        **Authorization**: Requires valid JWT token
+
+        **Onboarding Support**: Returns userType even when onboardingCompleted is false
+        to support resumable onboarding flows.
       operationId: getMe
       responses:
         '200':
@@ -28,7 +36,30 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse'
     put:
-      summary: Create or update current user's profile and grower configuration
+      summary: Update user profile, user type, and role-specific configuration
+      description: |
+        Updates the authenticated user's profile. This single endpoint handles:
+        - User type selection (grower or gatherer)
+        - Grower-specific profile data (homeZone, location, shareRadiusKm, etc.)
+        - Gatherer-specific profile data (location, searchRadiusKm, organizationAffiliation, etc.)
+        - Onboarding completion (automatically set when required profile data is provided)
+
+        **Authorization**: Requires valid JWT token. Users can only update their own profile.
+
+        **Validation Rules**:
+        - Exactly one of growerProfile or gathererProfile should be provided per request
+        - Profile type must match userType
+        - shareRadiusKm and searchRadiusKm must be > 0
+        - lat must be in range [-90, 90]
+        - lng must be in range [-180, 180]
+        - units must be 'metric' or 'imperial'
+        - homeZone format must be valid (for growers)
+
+        **Idempotency**: This endpoint uses upsert semantics. Repeated requests with
+        the same payload are safe and will not cause duplicate data.
+
+        **Server-side Processing**: The server computes geoKey (geohash) from lat/lng
+        and persists it automatically.
       operationId: putMe
       requestBody:
         required: true
@@ -38,15 +69,36 @@ paths:
               $ref: '#/components/schemas/UpsertMeProfileRequest'
       responses:
         '200':
-          description: Upserted profile payload
+          description: Updated profile payload
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MeProfileResponse'
         '400':
-          $ref: '#/components/responses/ErrorResponse'
+          description: |
+            Validation error. Possible causes:
+            - Invalid userType value (must be 'grower' or 'gatherer')
+            - Missing required fields for selected userType
+            - Both growerProfile and gathererProfile provided
+            - Profile type doesn't match userType
+            - Radius values <= 0
+            - Latitude outside [-90, 90]
+            - Longitude outside [-180, 180]
+            - Invalid homeZone format
+            - Invalid units value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+        '403':
+          description: |
+            Authorization error. User attempted to update another user's profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -239,6 +291,14 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    UserType:
+      type: string
+      enum: [grower, gatherer]
+      description: |
+        User participation mode:
+        - grower: Users who grow food and share surplus with the community
+        - gatherer: Users (individuals, non-profits, social workers, organizations) who look for and collect available food
+
     GrowerProfile:
       type: object
       required: [share_radius_km, units]
@@ -246,23 +306,77 @@ components:
         home_zone:
           type: string
           nullable: true
+          description: USDA hardiness zone or equivalent growing zone identifier
         geo_key:
           type: string
           nullable: true
+          description: Geohash computed from lat/lng for proximity queries (server-generated)
         lat:
           type: number
+          format: double
           nullable: true
+          minimum: -90
+          maximum: 90
+          description: Latitude of grower's location
         lng:
           type: number
+          format: double
           nullable: true
+          minimum: -180
+          maximum: 180
+          description: Longitude of grower's location
         share_radius_km:
           type: string
+          description: Maximum distance (in km) the grower is willing to share within
         units:
           type: string
           enum: [imperial, metric]
+          description: Preferred unit system for measurements
         locale:
           type: string
           nullable: true
+          description: Locale preference (e.g., 'en-US', 'es-MX')
+
+    GathererProfile:
+      type: object
+      required: [search_radius_km, units]
+      properties:
+        geo_key:
+          type: string
+          nullable: true
+          description: Geohash computed from lat/lng for proximity queries (server-generated)
+        lat:
+          type: number
+          format: double
+          nullable: true
+          minimum: -90
+          maximum: 90
+          description: Latitude of gatherer's location
+        lng:
+          type: number
+          format: double
+          nullable: true
+          minimum: -180
+          maximum: 180
+          description: Longitude of gatherer's location
+        search_radius_km:
+          type: number
+          format: double
+          description: Maximum search distance (in km) for finding available food
+          minimum: 0
+          exclusiveMinimum: true
+        organization_affiliation:
+          type: string
+          nullable: true
+          description: Optional organization name (e.g., 'SF Food Bank', 'Community Kitchen')
+        units:
+          type: string
+          enum: [imperial, metric]
+          description: Preferred unit system for measurements
+        locale:
+          type: string
+          nullable: true
+          description: Locale preference (e.g., 'en-US', 'es-MX')
 
     UserRatingSummary:
       type: object
@@ -275,29 +389,50 @@ components:
 
     MeProfileResponse:
       type: object
-      required: [id, is_verified, created_at]
+      required: [id, is_verified, created_at, onboarding_completed]
       properties:
         id:
           type: string
           format: uuid
+          description: Unique user identifier
         email:
           type: string
           format: email
           nullable: true
+          description: User's email address
         display_name:
           type: string
           nullable: true
+          description: User's display name
+        user_type:
+          allOf:
+            - $ref: '#/components/schemas/UserType'
+          nullable: true
+          description: User participation mode (grower or gatherer). May be null for users who haven't completed onboarding.
+        onboarding_completed:
+          type: boolean
+          description: Whether the user has completed the onboarding flow
         is_verified:
           type: boolean
+          description: Whether the user's email has been verified
         created_at:
           type: string
           format: date-time
+          description: Account creation timestamp
         grower_profile:
-          $ref: '#/components/schemas/GrowerProfile'
+          allOf:
+            - $ref: '#/components/schemas/GrowerProfile'
           nullable: true
+          description: Grower-specific profile data (present only for growers)
+        gatherer_profile:
+          allOf:
+            - $ref: '#/components/schemas/GathererProfile'
+          nullable: true
+          description: Gatherer-specific profile data (present only for gatherers)
         rating_summary:
           $ref: '#/components/schemas/UserRatingSummary'
           nullable: true
+          description: User rating summary (if available)
 
     PublicUserResponse:
       type: object
@@ -306,18 +441,34 @@ components:
         id:
           type: string
           format: uuid
+          description: Unique user identifier
         display_name:
           type: string
           nullable: true
+          description: User's display name
+        user_type:
+          allOf:
+            - $ref: '#/components/schemas/UserType'
+          nullable: true
+          description: User participation mode (grower or gatherer)
         created_at:
           type: string
           format: date-time
+          description: Account creation timestamp
         grower_profile:
-          $ref: '#/components/schemas/GrowerProfile'
+          allOf:
+            - $ref: '#/components/schemas/GrowerProfile'
           nullable: true
+          description: Grower-specific profile data (present only for growers)
+        gatherer_profile:
+          allOf:
+            - $ref: '#/components/schemas/GathererProfile'
+          nullable: true
+          description: Gatherer-specific profile data (present only for gatherers)
         rating_summary:
           $ref: '#/components/schemas/UserRatingSummary'
           nullable: true
+          description: User rating summary (if available)
 
     UpsertMeProfileRequest:
       type: object
@@ -326,35 +477,97 @@ components:
           type: string
           format: email
           nullable: true
+          description: User's email address
         display_name:
           type: string
           nullable: true
+          description: User's display name
+        user_type:
+          allOf:
+            - $ref: '#/components/schemas/UserType'
+          nullable: true
+          description: |
+            User participation mode. Required if onboarding is incomplete.
+            Once set, determines which profile type should be provided.
         grower_profile:
           type: object
           nullable: true
+          description: |
+            Grower-specific profile data. Should only be provided when userType is 'grower'.
+            Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
           properties:
             home_zone:
               type: string
               nullable: true
-            geo_key:
-              type: string
-              nullable: true
+              description: USDA hardiness zone or equivalent
             lat:
               type: number
+              format: double
               nullable: true
+              minimum: -90
+              maximum: 90
+              description: Latitude of grower's location
             lng:
               type: number
+              format: double
               nullable: true
+              minimum: -180
+              maximum: 180
+              description: Longitude of grower's location
             share_radius_km:
               type: string
               nullable: true
+              description: Maximum sharing distance in kilometers (must be > 0)
             units:
               type: string
               enum: [imperial, metric]
               nullable: true
+              description: Preferred unit system
             locale:
               type: string
               nullable: true
+              description: Locale preference (e.g., 'en-US')
+        gatherer_profile:
+          type: object
+          nullable: true
+          description: |
+            Gatherer-specific profile data. Should only be provided when userType is 'gatherer'.
+            Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
+          properties:
+            lat:
+              type: number
+              format: double
+              nullable: true
+              minimum: -90
+              maximum: 90
+              description: Latitude of gatherer's location
+            lng:
+              type: number
+              format: double
+              nullable: true
+              minimum: -180
+              maximum: 180
+              description: Longitude of gatherer's location
+            search_radius_km:
+              type: number
+              format: double
+              nullable: true
+              minimum: 0
+              exclusiveMinimum: true
+              description: Maximum search distance in kilometers (must be > 0)
+            organization_affiliation:
+              type: string
+              nullable: true
+              description: Optional organization name
+            units:
+              type: string
+              enum: [imperial, metric]
+              nullable: true
+              description: Preferred unit system
+            locale:
+              type: string
+              nullable: true
+              description: Locale preference (e.g., 'en-US')
 
     GrowerCropItem:
       type: object

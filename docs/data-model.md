@@ -1,3 +1,4 @@
+```mermaid
 erDiagram
   USERS ||--|| GROWER_PROFILES : has
   USERS ||--o{ GROWER_CROP_LIBRARY : maintains
@@ -231,3 +232,4 @@ erDiagram
     timestamptz created_at
     timestamptz resolved_at
   }
+```

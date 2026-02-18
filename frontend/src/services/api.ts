@@ -1,7 +1,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { getApiEndpoint } from '../config/amplify';
-import type { UserProfile } from '../types/user';
+import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../types/user';
 
 /**
  * API Client for the Community Food Coordination Platform
@@ -139,6 +139,41 @@ export async function getMe(): Promise<UserProfile> {
       );
     }
     throw new ApiError('An unexpected error occurred while fetching user profile');
+  }
+}
+
+/**
+ * Request payload for updating user profile
+ */
+export interface UpdateUserProfileRequest {
+  displayName?: string;
+  userType?: UserType;
+  growerProfile?: Omit<GrowerProfile, 'geoKey' | 'createdAt' | 'updatedAt'>;
+  gathererProfile?: Omit<GathererProfile, 'geoKey' | 'createdAt' | 'updatedAt'>;
+}
+
+/**
+ * Update the current user's profile
+ *
+ * @param data - Profile update data including userType and role-specific profile
+ * @returns Promise<UserProfile> The updated user profile
+ * @throws ApiError if the request fails
+ */
+export async function updateMe(data: UpdateUserProfileRequest): Promise<UserProfile> {
+  try {
+    return await apiFetch<UserProfile>('/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new ApiError(
+        `Failed to update user profile: ${error.message}`,
+        error.statusCode,
+        error.correlationId
+      );
+    }
+    throw new ApiError('An unexpected error occurred while updating user profile');
   }
 }
 
