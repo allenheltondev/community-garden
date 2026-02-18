@@ -10,7 +10,8 @@ use tokio_postgres::{Client, Row};
 use tracing::info;
 use uuid::Uuid;
 
-const ALLOWED_PICKUP_DISCLOSURE_POLICY: [&str; 3] = ["immediate", "after_confirmed", "after_accepted"];
+const ALLOWED_PICKUP_DISCLOSURE_POLICY: [&str; 3] =
+    ["immediate", "after_confirmed", "after_accepted"];
 const ALLOWED_CONTACT_PREF: [&str; 3] = ["app_message", "phone", "knock"];
 const ALLOWED_LISTING_STATUS: [&str; 5] = ["active", "pending", "claimed", "expired", "completed"];
 
@@ -236,7 +237,9 @@ pub async fn update_listing(
     error_response(404, "Listing not found")
 }
 
-fn normalize_payload(payload: &UpsertListingRequest) -> Result<NormalizedListingInput, lambda_http::Error> {
+fn normalize_payload(
+    payload: &UpsertListingRequest,
+) -> Result<NormalizedListingInput, lambda_http::Error> {
     if payload.title.trim().is_empty() {
         return Err(lambda_http::Error::from("title is required"));
     }
@@ -383,8 +386,7 @@ async fn emit_listing_event(
         .source("community-garden.api")
         .detail_type(detail_type)
         .detail(detail.to_string())
-        .build()
-        .map_err(|e| lambda_http::Error::from(format!("Failed to build event entry: {e}")))?;
+        .build();
 
     let response = client
         .put_events()
@@ -393,7 +395,7 @@ async fn emit_listing_event(
         .await
         .map_err(|e| lambda_http::Error::from(format!("Failed to emit listing event: {e}")))?;
 
-    if response.failed_entry_count().unwrap_or(0) > 0 {
+    if response.failed_entry_count() > 0 {
         return Err(lambda_http::Error::from(
             "Failed to emit listing event: one or more entries were rejected",
         ));
@@ -436,8 +438,7 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
 }
 
 fn calculate_geohash(lat: f64, lng: f64) -> String {
-    geohash::encode(geohash::Coord { x: lng, y: lat }, 7)
-        .unwrap_or_else(|_| String::from(""))
+    geohash::encode(geohash::Coord { x: lng, y: lat }, 7).unwrap_or_else(|_| String::new())
 }
 
 fn row_to_write_response(row: &Row) -> ListingWriteResponse {
@@ -445,17 +446,15 @@ fn row_to_write_response(row: &Row) -> ListingWriteResponse {
         id: row.get::<_, Uuid>("id").to_string(),
         user_id: row.get::<_, Uuid>("user_id").to_string(),
         crop_id: row.get::<_, Uuid>("crop_id").to_string(),
-        variety_id: row.get::<_, Option<Uuid>>("variety_id").map(|v| v.to_string()),
+        variety_id: row
+            .get::<_, Option<Uuid>>("variety_id")
+            .map(|v| v.to_string()),
         title: row.get("title"),
         quantity_total: row.get("quantity_total"),
         quantity_remaining: row.get("quantity_remaining"),
         unit: row.get("unit"),
-        available_start: row
-            .get::<_, DateTime<Utc>>("available_start")
-            .to_rfc3339(),
-        available_end: row
-            .get::<_, DateTime<Utc>>("available_end")
-            .to_rfc3339(),
+        available_start: row.get::<_, DateTime<Utc>>("available_start").to_rfc3339(),
+        available_end: row.get::<_, DateTime<Utc>>("available_end").to_rfc3339(),
         status: row.get("status"),
         pickup_location_text: row.get("pickup_location_text"),
         pickup_address: row.get("pickup_address"),
