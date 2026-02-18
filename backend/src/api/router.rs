@@ -98,6 +98,7 @@ async fn route_dynamic_routes(
     if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
         let result = match event.method().as_str() {
             "GET" => listing::get_listing(event, correlation_id, listing_id).await,
+            "PUT" => listing::update_listing(event, correlation_id, listing_id).await,
             _ => method_not_allowed(),
         };
         return handle(result);
@@ -157,6 +158,15 @@ fn map_api_error_to_response(
         || message.contains("Invalid listing status")
         || message.contains("Invalid limit")
         || message.contains("Invalid offset")
+        || message.contains("Invalid pickupDisclosurePolicy")
+        || message.contains("Invalid contactPref")
+        || message.contains("quantityTotal")
+        || message.contains("availableStart")
+        || message.contains("availableEnd")
+        || message.contains("title is required")
+        || message.contains("unit is required")
+        || message.contains("lat must be")
+        || message.contains("lng must be")
         || message.contains("does not reference an existing catalog crop")
         || message.contains("must belong to the specified crop_id")
         || message.contains("Request body is required")
