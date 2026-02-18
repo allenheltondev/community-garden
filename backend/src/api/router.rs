@@ -1,4 +1,4 @@
-use crate::handlers::{catalog, claim, crop, grower_profile, listing, request, user};
+use crate::handlers::{catalog, claim, crop, listing, request, user};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };
@@ -52,13 +52,6 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
     let response = match (event.method().as_str(), event.uri().path()) {
         ("GET", "/me") => handle(user::get_current_user(event, &correlation_id).await)?,
         ("PUT", "/me") => handle(user::upsert_current_user(event, &correlation_id).await)?,
-
-        ("GET", "/grower-profile") => {
-            handle(grower_profile::get_grower_profile(event, &correlation_id).await)?
-        }
-        ("PUT", "/grower-profile") => {
-            handle(grower_profile::put_grower_profile(event, &correlation_id).await)?
-        }
 
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
