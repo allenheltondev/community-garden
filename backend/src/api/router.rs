@@ -95,9 +95,16 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
+    if let Some(listing_id) = event.uri().path().strip_prefix("/my/listings/") {
         let result = match event.method().as_str() {
             "GET" => listing::get_listing(event, correlation_id, listing_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
+    if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
+        let result = match event.method().as_str() {
             "PUT" => listing::update_listing(event, correlation_id, listing_id).await,
             _ => method_not_allowed(),
         };
