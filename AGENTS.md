@@ -102,6 +102,15 @@ Before submitting any PR, all of the following must pass:
 
 If any required check cannot be run in the current environment, explicitly state that blocker in the PR description and ask for guidance before merging.
 
+## Post-PR workflow failure policy
+
+If a PR is opened and any workflow fails:
+- Immediately inspect failed jobs/logs and identify the root cause.
+- Implement and push a fix without waiting for manual follow-up.
+- Re-run the relevant local checks before pushing when possible.
+- Repeat until workflows pass or a hard external blocker is confirmed.
+- If blocked by external factors (service outage, missing secret, permission), document the blocker clearly in the PR with next actions.
+
 ## Pull request checklist for agents
 
 Before finishing, confirm:
@@ -112,3 +121,4 @@ Before finishing, confirm:
 - Tests were added/updated for impacted behavior.
 - Required pre-PR quality gates are passing.
 - Documentation or issue dependencies were updated if scope changed.
+- Any post-PR workflow failures were diagnosed and fixed, or explicitly documented if externally blocked.
