@@ -49,6 +49,7 @@ When working on an issue:
 - Keep commits scoped to the issue.
 - Open a PR when work is complete and checks are green.
 - Merge only through PR flow.
+- Never merge a PR into `main` without explicit approval for that specific PR.
 
 ## Frontend standards (TypeScript/PWA)
 
