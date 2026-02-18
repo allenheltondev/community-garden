@@ -207,6 +207,29 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run database migrations
+        run: |
+          DATABASE_URL="${{ secrets.DATABASE_URL_STAGING }}"
+          export DATABASE_URL
+          cd backend
+          ./db/migrate.sh
+
+      - name: Generate samconfig.toml from template
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+        run: |
+          sed -e "s|{{STACK_NAME}}|${{ env.STACK_NAME }}|g" \
+              -e "s|{{REGION}}|${{ env.AWS_REGION }}|g" \
+              -e "s|{{DATABASE_URL}}|${DATABASE_URL}|g" \
+              samconfig.template.toml > samconfig.toml
+          echo "✓ Generated samconfig.toml for CI"
+
       - name: Deploy backend to staging
         run: python deploy-and-configure.py --region ${{ env.AWS_REGION }} --stack-name ${{ env.STACK_NAME }} --ci
         env:
