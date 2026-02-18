@@ -1,16 +1,15 @@
+use crate::db;
 use crate::models::grower_profile::{
     ErrorResponse, GrowerProfile, UpsertGrowerProfileRequest, ValidationIssue,
 };
-use aws_sdk_dynamodb::{types::AttributeValue, Client as DynamoClient};
 use lambda_http::http::{HeaderValue, StatusCode};
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
+use tokio_postgres::Row;
 use tracing::{error, info};
-
-const PROFILE_SK: &str = "GROWER_PROFILE";
+use uuid::Uuid;
 
 pub async fn get_grower_profile(
     request: &Request,
@@ -21,7 +20,7 @@ pub async fn get_grower_profile(
         "Processing GET /grower-profile request"
     );
 
-    let Some(user_id) = extract_user_id(request) else {
+    let Some(raw_user_id) = extract_user_id(request) else {
         return error_response(
             401,
             &ErrorResponse {
@@ -32,90 +31,34 @@ pub async fn get_grower_profile(
         );
     };
 
-    let table_name = match env::var("TABLE_NAME") {
+    let user_id = match parse_authenticated_user_id(&raw_user_id, correlation_id) {
         Ok(value) => value,
-        Err(err) => {
-            error!(
-                correlation_id = correlation_id,
-                error = %err,
-                "TABLE_NAME is not set"
-            );
+        Err(response) => return Ok(*response),
+    };
+
+    let client = match connect_profile_store(correlation_id, &raw_user_id).await {
+        Ok(value) => value,
+        Err(response) => return Ok(*response),
+    };
+
+    let profile = match load_grower_profile(&client, user_id, correlation_id).await {
+        Ok(Some(profile)) => profile,
+        Ok(None) => {
             return error_response(
-                500,
+                404,
                 &ErrorResponse {
-                    error: "InternalServerError".to_string(),
-                    message: "Server configuration error".to_string(),
+                    error: "NotFound".to_string(),
+                    message: "Grower profile not found".to_string(),
                     details: None,
                 },
             );
         }
-    };
-
-    let config = aws_config::load_from_env().await;
-    let client = DynamoClient::new(&config);
-
-    let result = client
-        .get_item()
-        .table_name(table_name)
-        .key("pk", AttributeValue::S(user_pk(&user_id)))
-        .key("sk", AttributeValue::S(PROFILE_SK.to_string()))
-        .send()
-        .await;
-
-    let item = match result {
-        Ok(output) => output.item,
-        Err(err) => {
-            error!(
-                correlation_id = correlation_id,
-                user_id = user_id.as_str(),
-                error = %err,
-                "Failed to read grower profile from DynamoDB"
-            );
-            return error_response(
-                500,
-                &ErrorResponse {
-                    error: "InternalServerError".to_string(),
-                    message: "Failed to read profile".to_string(),
-                    details: None,
-                },
-            );
-        }
-    };
-
-    let Some(item) = item else {
-        return error_response(
-            404,
-            &ErrorResponse {
-                error: "NotFound".to_string(),
-                message: "Grower profile not found".to_string(),
-                details: None,
-            },
-        );
-    };
-
-    let profile = match parse_profile_item(&item) {
-        Ok(profile) => profile,
-        Err(err) => {
-            error!(
-                correlation_id = correlation_id,
-                user_id = user_id.as_str(),
-                error = %err,
-                "Stored grower profile is invalid"
-            );
-            return error_response(
-                500,
-                &ErrorResponse {
-                    error: "InternalServerError".to_string(),
-                    message: "Stored profile is invalid".to_string(),
-                    details: None,
-                },
-            );
-        }
+        Err(response) => return Ok(*response),
     };
 
     info!(
         correlation_id = correlation_id,
-        user_id = user_id.as_str(),
+        user_id = %user_id,
         "Successfully retrieved grower profile"
     );
 
@@ -131,7 +74,7 @@ pub async fn put_grower_profile(
         "Processing PUT /grower-profile request"
     );
 
-    let Some(user_id) = extract_user_id(request) else {
+    let Some(raw_user_id) = extract_user_id(request) else {
         return error_response(
             401,
             &ErrorResponse {
@@ -140,6 +83,11 @@ pub async fn put_grower_profile(
                 details: None,
             },
         );
+    };
+
+    let user_id = match parse_authenticated_user_id(&raw_user_id, correlation_id) {
+        Ok(value) => value,
+        Err(response) => return Ok(*response),
     };
 
     let payload: UpsertGrowerProfileRequest = match parse_json_body(request) {
@@ -159,25 +107,6 @@ pub async fn put_grower_profile(
         );
     }
 
-    let table_name = match env::var("TABLE_NAME") {
-        Ok(value) => value,
-        Err(err) => {
-            error!(
-                correlation_id = correlation_id,
-                error = %err,
-                "TABLE_NAME is not set"
-            );
-            return error_response(
-                500,
-                &ErrorResponse {
-                    error: "InternalServerError".to_string(),
-                    message: "Server configuration error".to_string(),
-                    details: None,
-                },
-            );
-        }
-    };
-
     let profile = GrowerProfile {
         home_zone: payload.home_zone.trim().to_string(),
         share_radius_km: payload.share_radius_km,
@@ -185,45 +114,18 @@ pub async fn put_grower_profile(
         locale: payload.locale.trim().to_string(),
     };
 
-    let config = aws_config::load_from_env().await;
-    let client = DynamoClient::new(&config);
+    let client = match connect_profile_store(correlation_id, &raw_user_id).await {
+        Ok(value) => value,
+        Err(response) => return Ok(*response),
+    };
 
-    let write_result = client
-        .put_item()
-        .table_name(table_name)
-        .item("pk", AttributeValue::S(user_pk(&user_id)))
-        .item("sk", AttributeValue::S(PROFILE_SK.to_string()))
-        .item("entityType", AttributeValue::S(PROFILE_SK.to_string()))
-        .item("homeZone", AttributeValue::S(profile.home_zone.clone()))
-        .item(
-            "shareRadiusKm",
-            AttributeValue::N(profile.share_radius_km.to_string()),
-        )
-        .item("units", AttributeValue::S(profile.units.clone()))
-        .item("locale", AttributeValue::S(profile.locale.clone()))
-        .send()
-        .await;
-
-    if let Err(err) = write_result {
-        error!(
-            correlation_id = correlation_id,
-            user_id = user_id.as_str(),
-            error = %err,
-            "Failed to write grower profile to DynamoDB"
-        );
-        return error_response(
-            500,
-            &ErrorResponse {
-                error: "InternalServerError".to_string(),
-                message: "Failed to save profile".to_string(),
-                details: None,
-            },
-        );
+    if let Err(response) = save_grower_profile(&client, user_id, &profile, correlation_id).await {
+        return Ok(*response);
     }
 
     info!(
         correlation_id = correlation_id,
-        user_id = user_id.as_str(),
+        user_id = %user_id,
         "Successfully saved grower profile"
     );
 
@@ -287,50 +189,149 @@ fn extract_user_id(request: &Request) -> Option<String> {
         })
 }
 
-fn parse_profile_item(
-    item: &HashMap<String, AttributeValue>,
-) -> Result<GrowerProfile, lambda_http::Error> {
-    let home_zone = get_string_attr(item, "homeZone")?;
-    let share_radius_km = get_number_attr(item, "shareRadiusKm")?;
-    let units = get_string_attr(item, "units")?;
-    let locale = get_string_attr(item, "locale")?;
+fn parse_profile_row(row: &Row) -> Result<GrowerProfile, lambda_http::Error> {
+    let home_zone = row
+        .get::<_, Option<String>>("home_zone")
+        .ok_or_else(|| lambda_http::Error::from("Missing home_zone".to_string()))?;
+    let locale = row
+        .get::<_, Option<String>>("locale")
+        .ok_or_else(|| lambda_http::Error::from("Missing locale".to_string()))?;
 
     Ok(GrowerProfile {
         home_zone,
-        share_radius_km,
-        units,
+        share_radius_km: row.get("share_radius_km"),
+        units: row.get("units"),
         locale,
     })
 }
 
-fn get_string_attr(
-    item: &HashMap<String, AttributeValue>,
-    key: &str,
-) -> Result<String, lambda_http::Error> {
-    item.get(key)
-        .and_then(|value| value.as_s().ok())
-        .map(ToString::to_string)
-        .ok_or_else(|| lambda_http::Error::from(format!("Missing or invalid string field: {key}")))
+fn parse_authenticated_user_id(
+    raw_user_id: &str,
+    correlation_id: &str,
+) -> Result<Uuid, Box<Response<Body>>> {
+    let Ok(user_id) = Uuid::parse_str(raw_user_id) else {
+        error!(
+            correlation_id = correlation_id,
+            user_id = raw_user_id,
+            "Invalid userId in authenticated user context"
+        );
+        return Err(Box::new(build_error_response(
+            401,
+            "Unauthorized",
+            "Invalid authenticated user context",
+        )));
+    };
+
+    Ok(user_id)
 }
 
-fn get_number_attr(
-    item: &HashMap<String, AttributeValue>,
-    key: &str,
-) -> Result<f64, lambda_http::Error> {
-    let value = item
-        .get(key)
-        .and_then(|attr| attr.as_n().ok())
-        .ok_or_else(|| {
-            lambda_http::Error::from(format!("Missing or invalid number field: {key}"))
+async fn connect_profile_store(
+    correlation_id: &str,
+    user_id: &str,
+) -> Result<tokio_postgres::Client, Box<Response<Body>>> {
+    db::connect().await.map_err(|err| {
+        error!(
+            correlation_id = correlation_id,
+            user_id = user_id,
+            error = %err,
+            "Failed to connect to Postgres"
+        );
+        Box::new(build_error_response(
+            500,
+            "InternalServerError",
+            "Failed to connect to profile store",
+        ))
+    })
+}
+
+async fn load_grower_profile(
+    client: &tokio_postgres::Client,
+    user_id: Uuid,
+    correlation_id: &str,
+) -> Result<Option<GrowerProfile>, Box<Response<Body>>> {
+    let row = client
+        .query_opt(
+            "
+            select home_zone, share_radius_km::double precision as share_radius_km, units::text as units, locale
+            from grower_profiles
+            where user_id = $1
+            ",
+            &[&user_id],
+        )
+        .await
+        .map_err(|err| {
+            error!(
+                correlation_id = correlation_id,
+                user_id = %user_id,
+                error = %err,
+                "Failed to read grower profile from Postgres"
+            );
+            Box::new(build_error_response(
+                500,
+                "InternalServerError",
+                "Failed to read profile",
+            ))
         })?;
 
-    value
-        .parse::<f64>()
-        .map_err(|_| lambda_http::Error::from(format!("Invalid numeric field: {key}")))
+    row.map_or(Ok(None), |profile_row| {
+        parse_profile_row(&profile_row).map(Some).map_err(|err| {
+            error!(
+                correlation_id = correlation_id,
+                user_id = %user_id,
+                error = %err,
+                "Stored grower profile is invalid"
+            );
+            Box::new(build_error_response(
+                500,
+                "InternalServerError",
+                "Stored profile is invalid",
+            ))
+        })
+    })
 }
 
-fn user_pk(user_id: &str) -> String {
-    format!("USER#{user_id}")
+async fn save_grower_profile(
+    client: &tokio_postgres::Client,
+    user_id: Uuid,
+    profile: &GrowerProfile,
+    correlation_id: &str,
+) -> Result<(), Box<Response<Body>>> {
+    client
+        .execute(
+            "
+            insert into grower_profiles (user_id, home_zone, share_radius_km, units, locale)
+            values ($1, $2, $3, $4::units_system, $5)
+            on conflict (user_id) do update
+            set home_zone = excluded.home_zone,
+                share_radius_km = excluded.share_radius_km,
+                units = excluded.units,
+                locale = excluded.locale,
+                updated_at = now()
+            ",
+            &[
+                &user_id,
+                &profile.home_zone,
+                &profile.share_radius_km,
+                &profile.units,
+                &profile.locale,
+            ],
+        )
+        .await
+        .map_err(|err| {
+            error!(
+                correlation_id = correlation_id,
+                user_id = %user_id,
+                error = %err,
+                "Failed to write grower profile to Postgres"
+            );
+            Box::new(build_error_response(
+                500,
+                "InternalServerError",
+                "Failed to save profile",
+            ))
+        })?;
+
+    Ok(())
 }
 
 fn parse_json_body<T: DeserializeOwned>(request: &Request) -> Result<T, Box<Response<Body>>> {
@@ -460,29 +461,5 @@ mod tests {
         let issues = validate_profile_payload(&payload);
 
         assert!(issues.is_empty());
-    }
-
-    #[test]
-    fn parse_profile_item_extracts_expected_fields() {
-        let mut item = HashMap::new();
-        item.insert("homeZone".to_string(), AttributeValue::S("8a".to_string()));
-        item.insert(
-            "shareRadiusKm".to_string(),
-            AttributeValue::N("4.5".to_string()),
-        );
-        item.insert("units".to_string(), AttributeValue::S("metric".to_string()));
-        item.insert("locale".to_string(), AttributeValue::S("en-US".to_string()));
-
-        let profile = parse_profile_item(&item).unwrap();
-
-        assert_eq!(profile.home_zone, "8a");
-        assert!((profile.share_radius_km - 4.5).abs() < f64::EPSILON);
-        assert_eq!(profile.units, "metric");
-        assert_eq!(profile.locale, "en-US");
-    }
-
-    #[test]
-    fn user_pk_prefixes_user_id() {
-        assert_eq!(user_pk("abc"), "USER#abc");
     }
 }
