@@ -15,6 +15,21 @@ export interface CatalogVariety {
   description: string | null;
 }
 
+export interface GrowerCropItem {
+  id: string;
+  userId: string;
+  cropId: string;
+  varietyId: string | null;
+  status: string;
+  visibility: string;
+  surplusEnabled: boolean;
+  nickname: string | null;
+  defaultUnit: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Listing {
   id: string;
   userId: string;

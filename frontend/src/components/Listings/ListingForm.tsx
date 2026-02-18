@@ -8,11 +8,22 @@ import type {
   UpsertListingRequest,
 } from '../../types/listing';
 
+export interface ListingQuickPickOption {
+  id: string;
+  label: string;
+  cropId: string;
+  varietyId?: string;
+  defaultUnit?: string;
+  suggestedTitle: string;
+}
+
 interface ListingFormProps {
   mode: 'create' | 'edit';
   crops: CatalogCrop[];
   varieties: CatalogVariety[];
+  quickPickOptions?: ListingQuickPickOption[];
   isLoadingVarieties: boolean;
+  isLoadingQuickPicks?: boolean;
   initialListing?: Listing | null;
   defaultLat?: number;
   defaultLng?: number;
@@ -109,7 +120,9 @@ export function ListingForm({
   mode,
   crops,
   varieties,
+  quickPickOptions = [],
   isLoadingVarieties,
+  isLoadingQuickPicks = false,
   initialListing,
   defaultLat,
   defaultLng,
@@ -121,6 +134,7 @@ export function ListingForm({
   onCancelEdit,
 }: ListingFormProps) {
   const [errors, setErrors] = useState<ListingFormErrors>({});
+  const [selectedQuickPickId, setSelectedQuickPickId] = useState<string>('');
 
   const initialState = useMemo(() => {
     if (mode === 'edit' && initialListing) {
@@ -134,6 +148,7 @@ export function ListingForm({
   useEffect(() => {
     setFormState(initialState);
     setErrors({});
+    setSelectedQuickPickId('');
   }, [initialState]);
 
   const validateForm = (): boolean => {
@@ -188,6 +203,35 @@ export function ListingForm({
     return Object.keys(nextErrors).length === 0;
   };
 
+  const handleQuickPickChange = (quickPickId: string) => {
+    setSelectedQuickPickId(quickPickId);
+
+    if (!quickPickId) {
+      return;
+    }
+
+    const selected = quickPickOptions.find((option) => option.id === quickPickId);
+    if (!selected) {
+      return;
+    }
+
+    setFormState((current) => ({
+      ...current,
+      title: selected.suggestedTitle,
+      cropId: selected.cropId,
+      varietyId: selected.varietyId ?? '',
+      unit: selected.defaultUnit ?? current.unit,
+    }));
+
+    onCropChange(selected.cropId);
+
+    setErrors((current) => ({
+      ...current,
+      title: undefined,
+      cropId: undefined,
+    }));
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -217,6 +261,33 @@ export function ListingForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {mode === 'create' && (
+        <div className="space-y-1">
+          <label htmlFor="quick-pick-select" className="text-sm font-medium text-neutral-700">
+            Share something you already grow
+          </label>
+          <select
+            id="quick-pick-select"
+            value={selectedQuickPickId}
+            onChange={(event) => handleQuickPickChange(event.target.value)}
+            className="w-full rounded-base border-2 border-primary-200 bg-primary-50 px-4 py-2 text-base text-neutral-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            disabled={isLoadingQuickPicks || quickPickOptions.length === 0}
+          >
+            <option value="">
+              {isLoadingQuickPicks ? 'Loading your crops...' : 'Select from my crop library'}
+            </option>
+            {quickPickOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {!isLoadingQuickPicks && quickPickOptions.length === 0 && (
+            <p className="text-sm text-neutral-600">No saved grower crops yet. Fill the form manually below.</p>
+          )}
+        </div>
+      )}
+
       <Input
         label="Listing title"
         value={formState.title}

@@ -5,6 +5,7 @@ import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../t
 import type {
   CatalogCrop,
   CatalogVariety,
+  GrowerCropItem,
   Listing,
   ListMyListingsResponse,
   UpsertListingRequest,
@@ -54,12 +55,10 @@ async function apiFetch<T>(
   const correlationId = uuidv4();
   const baseURL = getApiEndpoint();
 
-  // Build headers
   const headers = new Headers(fetchOptions.headers);
   headers.set('Content-Type', 'application/json');
   headers.set('X-Correlation-Id', correlationId);
 
-  // Add JWT token
   try {
     const session = await fetchAuthSession();
     const token = session.tokens?.accessToken?.toString();
@@ -68,10 +67,8 @@ async function apiFetch<T>(
     }
   } catch (error) {
     console.error('Failed to get auth session:', error);
-    // Continue without token - let the API return 401 if needed
   }
 
-  // Create abort controller for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -84,21 +81,19 @@ async function apiFetch<T>(
 
     clearTimeout(timeoutId);
 
-    // Handle 401 errors
     if (response.status === 401) {
       console.error('Unauthorized request - redirecting to sign in');
       window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       throw new ApiError('Unauthorized', 401, correlationId);
     }
 
-    // Handle other error responses
     if (!response.ok) {
       let message = response.statusText;
       try {
         const errorData = await response.json();
         message = errorData.message || errorData.error || message;
       } catch {
-        // If response body isn't JSON, use statusText
+        // noop
       }
 
       throw new ApiError(
@@ -108,7 +103,6 @@ async function apiFetch<T>(
       );
     }
 
-    // Parse JSON response
     return await response.json();
   } catch (error) {
     clearTimeout(timeoutId);
@@ -128,12 +122,6 @@ async function apiFetch<T>(
   }
 }
 
-/**
- * Get the current user's profile
- *
- * @returns Promise<UserProfile> The authenticated user's profile
- * @throws ApiError if the request fails
- */
 export async function getMe(): Promise<UserProfile> {
   try {
     return await apiFetch<UserProfile>('/me');
@@ -149,9 +137,6 @@ export async function getMe(): Promise<UserProfile> {
   }
 }
 
-/**
- * Request payload for updating user profile
- */
 export interface UpdateUserProfileRequest {
   displayName?: string;
   userType?: UserType;
@@ -159,13 +144,6 @@ export interface UpdateUserProfileRequest {
   gathererProfile?: Omit<GathererProfile, 'geoKey' | 'createdAt' | 'updatedAt'>;
 }
 
-/**
- * Update the current user's profile
- *
- * @param data - Profile update data including userType and role-specific profile
- * @returns Promise<UserProfile> The updated user profile
- * @throws ApiError if the request fails
- */
 export async function updateMe(data: UpdateUserProfileRequest): Promise<UserProfile> {
   try {
     return await apiFetch<UserProfile>('/me', {
@@ -199,6 +177,21 @@ interface RawCatalogVariety {
   slug: string;
   name: string;
   description: string | null;
+}
+
+interface RawGrowerCropItem {
+  id: string;
+  user_id: string;
+  crop_id: string;
+  variety_id: string | null;
+  status: string;
+  visibility: string;
+  surplus_enabled: boolean;
+  nickname: string | null;
+  default_unit: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface RawListingItem {
@@ -277,6 +270,23 @@ function mapCatalogVariety(raw: RawCatalogVariety): CatalogVariety {
   };
 }
 
+function mapGrowerCropItem(raw: RawGrowerCropItem): GrowerCropItem {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    cropId: raw.crop_id,
+    varietyId: raw.variety_id,
+    status: raw.status,
+    visibility: raw.visibility,
+    surplusEnabled: raw.surplus_enabled,
+    nickname: raw.nickname,
+    defaultUnit: raw.default_unit,
+    notes: raw.notes,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
 function mapListingItem(raw: RawListingItem): Listing {
   return {
     id: raw.id,
@@ -339,6 +349,11 @@ export async function listCatalogVarieties(cropId: string): Promise<CatalogVarie
   return response.map(mapCatalogVariety);
 }
 
+export async function listMyCrops(): Promise<GrowerCropItem[]> {
+  const response = await apiFetch<RawGrowerCropItem[]>('/crops');
+  return response.map(mapGrowerCropItem);
+}
+
 export async function listMyListings(
   limit = 20,
   offset = 0,
@@ -384,7 +399,4 @@ export async function updateListing(listingId: string, data: UpsertListingReques
   return mapWriteResponse(response);
 }
 
-/**
- * Export the fetch wrapper for direct use if needed
- */
 export default apiFetch;

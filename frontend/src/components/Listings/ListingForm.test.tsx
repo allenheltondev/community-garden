@@ -44,6 +44,41 @@ describe('ListingForm', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it('prefills from quick pick selection', async () => {
+    const user = userEvent.setup();
+    const onCropChange = vi.fn();
+
+    render(
+      <ListingForm
+        mode="create"
+        crops={crops}
+        varieties={[]}
+        quickPickOptions={[
+          {
+            id: 'grower-crop-1',
+            label: 'Patio Tomatoes',
+            cropId: 'crop-1',
+            defaultUnit: 'kg',
+            suggestedTitle: 'Patio Tomatoes',
+          },
+        ]}
+        isLoadingVarieties={false}
+        isSubmitting={false}
+        isOffline={false}
+        submitError={null}
+        onCropChange={onCropChange}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    await user.selectOptions(screen.getByLabelText(/share something you already grow/i), 'grower-crop-1');
+
+    expect(screen.getByLabelText(/listing title/i)).toHaveValue('Patio Tomatoes');
+    expect(screen.getByLabelText(/crop/i)).toHaveValue('crop-1');
+    expect(screen.getByLabelText(/unit/i)).toHaveValue('kg');
+    expect(onCropChange).toHaveBeenCalledWith('crop-1');
+  });
+
   it('submits valid payload when required fields are complete', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);

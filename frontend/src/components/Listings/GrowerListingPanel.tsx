@@ -5,13 +5,14 @@ import {
   getMyListing,
   listCatalogCrops,
   listCatalogVarieties,
+  listMyCrops,
   listMyListings,
   updateListing,
 } from '../../services/api';
 import type { Listing, UpsertListingRequest } from '../../types/listing';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { ListingForm } from './ListingForm';
+import { ListingForm, type ListingQuickPickOption } from './ListingForm';
 import { createLogger } from '../../utils/logging';
 
 const logger = createLogger('grower-listings');
@@ -20,6 +21,13 @@ interface GrowerListingPanelProps {
   defaultLat?: number;
   defaultLng?: number;
 }
+
+const quickPickRank: Record<string, number> = {
+  growing: 0,
+  planning: 1,
+  interested: 2,
+  paused: 3,
+};
 
 export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPanelProps) {
   const queryClient = useQueryClient();
@@ -33,6 +41,12 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     queryKey: ['catalogCrops'],
     queryFn: listCatalogCrops,
     staleTime: 10 * 60 * 1000,
+  });
+
+  const growerCropsQuery = useQuery({
+    queryKey: ['myCrops'],
+    queryFn: listMyCrops,
+    staleTime: 5 * 60 * 1000,
   });
 
   const listingsQuery = useQuery({
@@ -99,6 +113,39 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+  const cropNameById = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const crop of cropsQuery.data ?? []) {
+      byId.set(crop.id, crop.commonName);
+    }
+    return byId;
+  }, [cropsQuery.data]);
+
+  const quickPickOptions = useMemo<ListingQuickPickOption[]>(() => {
+    const items = growerCropsQuery.data ?? [];
+
+    return items
+      .map((item) => {
+        const cropName = cropNameById.get(item.cropId) ?? 'Saved crop';
+        const baseTitle = item.nickname?.trim() || cropName;
+        const statusTag = item.status === 'growing' ? '' : ` (${item.status})`;
+
+        return {
+          id: item.id,
+          label: `${baseTitle}${statusTag}`,
+          cropId: item.cropId,
+          varietyId: item.varietyId ?? undefined,
+          defaultUnit: item.defaultUnit ?? undefined,
+          suggestedTitle: baseTitle,
+        };
+      })
+      .sort((left, right) => {
+        const leftRank = quickPickRank[left.label.match(/\(([^)]+)\)$/)?.[1] ?? 'growing'] ?? 99;
+        const rightRank = quickPickRank[right.label.match(/\(([^)]+)\)$/)?.[1] ?? 'growing'] ?? 99;
+        return leftRank - rightRank;
+      });
+  }, [growerCropsQuery.data, cropNameById]);
+
   const handleCreateMode = () => {
     setEditingListingId(null);
     setSelectedCropId('');
@@ -149,7 +196,7 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             {editingListingId ? 'Edit listing' : 'Create listing'}
           </h2>
           <p className="text-sm text-neutral-600">
-            Fast mobile flow: title, crop, quantity, time window, and location.
+            Start from something you already grow, then post in seconds.
           </p>
         </div>
 
@@ -160,6 +207,12 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
         {cropsQuery.isError && (
           <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
             {cropsQuery.error instanceof Error ? cropsQuery.error.message : 'Failed to load crops'}
+          </p>
+        )}
+
+        {growerCropsQuery.isError && (
+          <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
+            Could not load your crop library. You can still post manually.
           </p>
         )}
 
@@ -174,7 +227,9 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             mode={editingListingId ? 'edit' : 'create'}
             crops={cropsQuery.data ?? []}
             varieties={varietiesQuery.data ?? []}
+            quickPickOptions={quickPickOptions}
             isLoadingVarieties={varietiesQuery.isLoading}
+            isLoadingQuickPicks={growerCropsQuery.isLoading}
             initialListing={activeEditListing}
             defaultLat={defaultLat}
             defaultLng={defaultLng}
