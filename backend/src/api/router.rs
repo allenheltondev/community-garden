@@ -1,4 +1,4 @@
-use crate::handlers::user;
+use crate::handlers::{grower_profile, user};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };
@@ -29,7 +29,7 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     response
 }
 
-pub fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Error> {
+pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Error> {
     // Extract or generate correlation ID
     let correlation_id = extract_or_generate_correlation_id(event);
 
@@ -56,6 +56,12 @@ pub fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Err
     // Route based on method and path
     let response = match (event.method().as_str(), event.uri().path()) {
         ("GET", "/me") => user::get_current_user(event, &correlation_id)?,
+        ("GET", "/grower-profile") => {
+            grower_profile::get_grower_profile(event, &correlation_id).await?
+        }
+        ("PUT", "/grower-profile") => {
+            grower_profile::put_grower_profile(event, &correlation_id).await?
+        }
         _ => {
             // Catch-all route - return 404 Not Found
             Response::builder()

@@ -6,7 +6,7 @@ mod models;
 mod router;
 
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    router::route_request(&event)
+    router::route_request(&event).await
 }
 
 #[tokio::main]
