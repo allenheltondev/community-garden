@@ -92,6 +92,14 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
+    if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
+        let result = match event.method().as_str() {
+            "PUT" => listing::update_listing(event, correlation_id, listing_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
     if let Some(user_id) = event.uri().path().strip_prefix("/users/") {
         return if event.method().as_str() == "GET" {
             handle(user::get_public_user(user_id).await)
@@ -143,6 +151,15 @@ fn map_api_error_to_response(
         || message.contains("must be a valid UUID")
         || message.contains("Invalid status")
         || message.contains("Invalid visibility")
+        || message.contains("Invalid pickupDisclosurePolicy")
+        || message.contains("Invalid contactPref")
+        || message.contains("quantityTotal")
+        || message.contains("availableStart")
+        || message.contains("availableEnd")
+        || message.contains("title is required")
+        || message.contains("unit is required")
+        || message.contains("lat must be")
+        || message.contains("lng must be")
         || message.contains("does not reference an existing catalog crop")
         || message.contains("must belong to the specified crop_id")
         || message.contains("Request body is required")
