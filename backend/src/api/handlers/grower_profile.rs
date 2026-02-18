@@ -2,6 +2,7 @@ use crate::models::grower_profile::{
     ErrorResponse, GrowerProfile, UpsertGrowerProfileRequest, ValidationIssue,
 };
 use aws_sdk_dynamodb::{types::AttributeValue, Client as DynamoClient};
+use lambda_http::http::{HeaderValue, StatusCode};
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -94,11 +95,11 @@ pub async fn get_grower_profile(
 
     let profile = match parse_profile_item(&item) {
         Ok(profile) => profile,
-        Err(message) => {
+        Err(err) => {
             error!(
                 correlation_id = correlation_id,
                 user_id = user_id.as_str(),
-                error = message.as_str(),
+                error = %err,
                 "Stored grower profile is invalid"
             );
             return error_response(
@@ -307,9 +308,9 @@ fn get_string_attr(
     key: &str,
 ) -> Result<String, lambda_http::Error> {
     item.get(key)
-        .and_then(AttributeValue::as_s)
+        .and_then(|value| value.as_s().ok())
         .map(ToString::to_string)
-        .map_err(|_| lambda_http::Error::from(format!("Missing or invalid string field: {key}")))
+        .ok_or_else(|| lambda_http::Error::from(format!("Missing or invalid string field: {key}")))
 }
 
 fn get_number_attr(
@@ -318,8 +319,8 @@ fn get_number_attr(
 ) -> Result<f64, lambda_http::Error> {
     let value = item
         .get(key)
-        .and_then(AttributeValue::as_n)
-        .map_err(|_| lambda_http::Error::from(format!("Missing or invalid number field: {key}")))?;
+        .and_then(|attr| attr.as_n().ok())
+        .ok_or_else(|| lambda_http::Error::from(format!("Missing or invalid number field: {key}")))?;
 
     value
         .parse::<f64>()
@@ -336,56 +337,31 @@ fn parse_json_body<T: DeserializeOwned>(request: &Request) -> Result<T, Response
         Body::Binary(bytes) => match String::from_utf8(bytes.clone()) {
             Ok(text) => text,
             Err(_) => {
-                return error_response_sync(
+                return Err(build_error_response(
                     400,
-                    ErrorResponse {
-                        error: "ValidationError".to_string(),
-                        message: "Request body must be valid UTF-8 JSON".to_string(),
-                        details: None,
-                    },
-                );
+                    "ValidationError",
+                    "Request body must be valid UTF-8 JSON",
+                ));
             }
         },
         Body::Empty => {
-            return error_response_sync(
+            return Err(build_error_response(
                 400,
-                ErrorResponse {
-                    error: "ValidationError".to_string(),
-                    message: "Request body is required".to_string(),
-                    details: None,
-                },
-            );
+                "ValidationError",
+                "Request body is required",
+            ));
         }
         _ => {
-            return error_response_sync(
+            return Err(build_error_response(
                 400,
-                ErrorResponse {
-                    error: "ValidationError".to_string(),
-                    message: "Unsupported request body type".to_string(),
-                    details: None,
-                },
-            );
+                "ValidationError",
+                "Unsupported request body type",
+            ));
         }
     };
 
     serde_json::from_str::<T>(&body).map_err(|_| {
-        error_response_sync(
-            400,
-            ErrorResponse {
-                error: "ValidationError".to_string(),
-                message: "Request body must be valid JSON".to_string(),
-                details: None,
-            },
-        )
-        .unwrap_or_else(|_| {
-            Response::builder()
-                .status(400)
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"error":"ValidationError","message":"Request body must be valid JSON"}"#,
-                ))
-                .expect("hardcoded response must be valid")
-        })
+        build_error_response(400, "ValidationError", "Request body must be valid JSON")
     })
 }
 
@@ -406,25 +382,30 @@ fn error_response(status: u16, payload: ErrorResponse) -> Result<Response<Body>,
     json_response(status, &payload)
 }
 
-fn error_response_sync(status: u16, payload: ErrorResponse) -> Result<Response<Body>, Response<Body>> {
+fn build_error_response(status: u16, error: &str, message: &str) -> Response<Body> {
+    let payload = ErrorResponse {
+        error: error.to_string(),
+        message: message.to_string(),
+        details: None,
+    };
+
     match json_response(status, &payload) {
-        Ok(response) => Ok(response),
-        Err(err) => {
-            error!(error = %err, "Failed to build error response");
-            Response::builder()
-                .status(500)
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"error":"InternalServerError","message":"Failed to build error response"}"#,
-                ))
-                .map_err(|_| {
-                    Response::builder()
-                        .status(500)
-                        .body(Body::from("Internal error"))
-                        .expect("hardcoded response must be valid")
-                })
-        }
+        Ok(response) => response,
+        Err(_) => fallback_error_response(status, error, message),
     }
+}
+
+fn fallback_error_response(status: u16, error: &str, message: &str) -> Response<Body> {
+    let mut response = Response::new(Body::from(format!(
+        "{{\"error\":\"{error}\",\"message\":\"{message}\"}}"
+    )));
+
+    *response.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    response
+        .headers_mut()
+        .insert("content-type", HeaderValue::from_static("application/json"));
+
+    response
 }
 
 #[cfg(test)]
