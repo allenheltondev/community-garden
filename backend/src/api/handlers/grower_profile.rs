@@ -22,14 +22,14 @@ pub async fn get_grower_profile(
     );
 
     let Some(user_id) = extract_user_id(request) else {
-            return error_response(
-                401,
-                &ErrorResponse {
-                    error: "Unauthorized".to_string(),
-                    message: "Missing authenticated user context".to_string(),
-                    details: None,
-                },
-            );
+        return error_response(
+            401,
+            &ErrorResponse {
+                error: "Unauthorized".to_string(),
+                message: "Missing authenticated user context".to_string(),
+                details: None,
+            },
+        );
     };
 
     let table_name = match env::var("TABLE_NAME") {
@@ -132,14 +132,14 @@ pub async fn put_grower_profile(
     );
 
     let Some(user_id) = extract_user_id(request) else {
-            return error_response(
-                401,
-                &ErrorResponse {
-                    error: "Unauthorized".to_string(),
-                    message: "Missing authenticated user context".to_string(),
-                    details: None,
-                },
-            );
+        return error_response(
+            401,
+            &ErrorResponse {
+                error: "Unauthorized".to_string(),
+                message: "Missing authenticated user context".to_string(),
+                details: None,
+            },
+        );
     };
 
     let payload: UpsertGrowerProfileRequest = match parse_json_body(request) {
