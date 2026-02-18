@@ -29,7 +29,6 @@ if_same_then_else = "allow"
 [dependencies]
 aws-config = { workspace = true }
 aws-sdk-cognitoidentityprovider = { workspace = true }
-aws-sdk-dynamodb = { workspace = true }
 aws-sdk-eventbridge = { workspace = true }
 aws_lambda_events = { workspace = true }
 jsonwebtoken = { workspace = true }
@@ -65,7 +64,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 aws-config = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-cognitoidentityprovider = "1"
-aws-sdk-dynamodb = "1"
 aws-sdk-s3 = "1"
 aws-sdk-cloudwatchlogs = "1"
 aws-sdk-sesv2 = "1"
