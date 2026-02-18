@@ -16,6 +16,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Route 53 Hosted Zone Id for the front end custom domain
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: PostgreSQL connection string for Neon database
 
 Conditions:
   DeployCustomDomain: !Not [!Equals [!Ref DomainHostedZoneId, ""]]
@@ -172,49 +176,8 @@ Resources:
       Roles:
         authenticated: !GetAtt CognitoAuthenticatedRole.Arn
 
-  CoreTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      KeySchema:
-        - AttributeName: pk
-          KeyType: HASH
-        - AttributeName: sk
-          KeyType: RANGE
-      AttributeDefinitions:
-        - AttributeName: pk
-          AttributeType: S
-        - AttributeName: sk
-          AttributeType: S
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-      SSESpecification:
-        SSEEnabled: true
-
-  DerivedTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      KeySchema:
-        - AttributeName: pk
-          KeyType: HASH
-        - AttributeName: sk
-          KeyType: RANGE
-      AttributeDefinitions:
-        - AttributeName: pk
-          AttributeType: S
-        - AttributeName: sk
-          AttributeType: S
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-      SSESpecification:
-        SSEEnabled: true
+  # Database connection is managed externally via Neon Postgres
+  # DATABASE_URL is provided as an environment variable to Lambda functions
 
   EventBus:
     Type: AWS::Events::EventBus
@@ -406,16 +369,11 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt CoreTable.Arn
-            - Effect: Allow
-              Action:
                 - cognito-idp:AdminListGroupsForUser
               Resource: !GetAtt UserPool.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref CoreTable
+          DATABASE_URL: !Ref DatabaseUrl
           USER_POOL_ID: !Ref UserPool
           USER_POOL_CLIENT_ID: !Ref UserPoolClient
 
@@ -436,18 +394,11 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-                - dynamodb:UpdateItem
-                - dynamodb:Query
-              Resource: !GetAtt CoreTable.Arn
-            - Effect: Allow
-              Action:
                 - events:PutEvents
               Resource: !GetAtt EventBus.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref CoreTable
+          DATABASE_URL: !Ref DatabaseUrl
           EVENT_BUS_NAME: !Ref EventBus
           ORIGIN: !Sub "${DomainProtocol}://${DomainName}"
           RUST_LOG: info
@@ -466,18 +417,6 @@ Outputs:
     Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api"
     Export:
       Name: !Sub "${AWS::StackName}-ApiUrl"
-
-  CoreTableName:
-    Description: Name of the DynamoDB core table
-    Value: !Ref CoreTable
-    Export:
-      Name: !Sub "${AWS::StackName}-CoreTableName"
-
-  DerivedTableName:
-    Description: Name of the DynamoDB derived table
-    Value: !Ref DerivedTable
-    Export:
-      Name: !Sub "${AWS::StackName}-DerivedTableName"
 
   EventBusName:
     Description: Name of the EventBridge custom bus

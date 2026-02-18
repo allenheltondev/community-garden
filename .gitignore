@@ -49,6 +49,8 @@ backend/.cargo/
 backend/.aws-sam/
 .aws-sam/
 samconfig.toml
+# Allow the template to be committed
+!samconfig.template.toml
 
 # Terraform (if used later)
 *.tfstate

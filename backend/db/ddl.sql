@@ -68,11 +68,14 @@ create table if not exists users (
   email citext unique,
   display_name text,
   is_verified boolean not null default false,
+  user_type text check (user_type in ('grower', 'gatherer')),
+  onboarding_completed boolean not null default false,
   created_at timestamptz not null default now(),
   deleted_at timestamptz
 );
 
 create index if not exists idx_users_deleted_at on users(deleted_at);
+create index if not exists idx_users_user_type on users(user_type) where user_type is not null;
 
 -- Cached rating summary (derived, but stored)
 create table if not exists user_rating_summary (
@@ -105,6 +108,28 @@ create table if not exists grower_profiles (
 );
 
 create index if not exists idx_grower_profiles_geo_key on grower_profiles(geo_key);
+
+-- ============================
+-- GATHERER PROFILES
+-- ============================
+create table if not exists gatherer_profiles (
+  user_id uuid primary key references users(id) on delete cascade,
+  geo_key text not null,
+  lat double precision not null,
+  lng double precision not null,
+  search_radius_km numeric(8,3) not null default 10.000,
+  organization_affiliation text,
+  units units_system not null default 'imperial',
+  locale text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint gatherer_profiles_radius_positive check (search_radius_km > 0),
+  constraint gatherer_profiles_lat_range check (lat >= -90 and lat <= 90),
+  constraint gatherer_profiles_lng_range check (lng >= -180 and lng <= 180)
+);
+
+create index if not exists idx_gatherer_profiles_geo_key on gatherer_profiles(geo_key);
 
 -- ============================
 -- CROP KNOWLEDGE BASE

@@ -44,6 +44,46 @@ aws configure
 aws configure --profile sandbox
 ```
 
+### SAM Configuration
+
+The repository includes a `backend/samconfig.template.toml` file that serves as a template for SAM CLI configuration. All build and deploy flags are configured in this template to avoid CLI argument conflicts.
+
+**For CI/CD**: The GitHub Actions workflow automatically generates `samconfig.toml` from the template by substituting environment-specific values:
+- `{{STACK_NAME}}` - CloudFormation stack name (e.g., `community-garden-prod`)
+- `{{REGION}}` - AWS region (e.g., `us-east-1`)
+- `{{DATABASE_URL}}` - PostgreSQL connection string from secrets
+
+The template includes all necessary flags:
+- `beta_features = true` - Enables Rust cargo-lambda build method
+- `cached = false` - Disables build caching in CI for clean builds
+- `confirm_changeset = false` - Auto-confirms changesets in CI
+- `fail_on_empty_changeset = false` - Allows deployments with no changes
+
+**For local development**: Create your own `backend/samconfig.toml` (which is gitignored):
+
+```toml
+version = 0.1
+
+[default.build.parameters]
+beta_features = true
+
+[default.deploy.parameters]
+stack_name = "community-garden"
+resolve_s3 = true
+s3_prefix = "community-garden"
+region = "us-east-1"
+profile = "sandbox"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+  "DatabaseUrl=postgresql://user:pass@host:5432/dbname"
+]
+
+[default.global.parameters]
+region = "us-east-1"
+```
+
+The deployment script passes minimal CLI arguments and relies on `samconfig.toml` for configuration.
+
 ## Quick Start
 
 ### Deploy Everything (Build + Deploy + Configure)

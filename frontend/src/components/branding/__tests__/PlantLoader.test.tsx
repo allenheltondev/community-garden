@@ -31,13 +31,15 @@ describe('PlantLoader', () => {
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
 
-    // Check for all three stages
-    const seedStage = container.querySelector('.seed-stage');
-    const seedlingStage = container.querySelector('.seedling-stage');
-    const flowerStage = container.querySelector('.flower-stage');
+    // Check for all lifecycle stages
+    const seedStage = container.querySelector('.stage-1');
+    const seedlingStage = container.querySelector('.stage-2');
+    const growthStage = container.querySelector('.stage-3');
+    const flowerStage = container.querySelector('.stage-4');
 
     expect(seedStage).toBeTruthy();
     expect(seedlingStage).toBeTruthy();
+    expect(growthStage).toBeTruthy();
     expect(flowerStage).toBeTruthy();
   });
 
@@ -57,8 +59,8 @@ describe('PlantLoader', () => {
     const greenElements = container.querySelectorAll('[fill="#3F7D3A"], [stroke="#3F7D3A"]');
     expect(greenElements.length).toBeGreaterThan(0);
 
-    // Check for golden yellow color (flower)
-    const yellowElements = container.querySelectorAll('[fill="#F4C430"]');
+    // Check for golden yellow color in petal gradients
+    const yellowElements = container.querySelectorAll('stop[stop-color="#F4C430"]');
     expect(yellowElements.length).toBeGreaterThan(0);
   });
 
@@ -77,8 +79,8 @@ describe('PlantLoader', () => {
 
     const { container } = render(<PlantLoader />);
 
-    // Should not have animation stages
-    const seedStage = container.querySelector('.seed-stage');
+    // Should not have animation stage groups
+    const seedStage = container.querySelector('.stage-1');
     expect(seedStage).not.toBeTruthy();
 
     // Should still have SVG
