@@ -304,6 +304,12 @@ create index if not exists idx_surplus_listings_geo on surplus_listings(geo_key)
 create index if not exists idx_surplus_listings_status on surplus_listings(status);
 create index if not exists idx_surplus_listings_user on surplus_listings(user_id);
 create index if not exists idx_surplus_listings_available on surplus_listings(available_start, available_end);
+create index if not exists idx_surplus_listings_user_created
+  on surplus_listings(user_id, created_at desc, id desc)
+  where deleted_at is null;
+create index if not exists idx_surplus_listings_user_status_created
+  on surplus_listings(user_id, status, created_at desc, id desc)
+  where deleted_at is null;
 
 -- Listing images
 create table if not exists listing_images (
