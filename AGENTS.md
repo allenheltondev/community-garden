@@ -91,6 +91,17 @@ If guidance conflicts, prefer the more specific document for the file you are ch
 - Do not add AI features that mutate transactional workflows.
 - Do not over-engineer for scale before reliability basics are covered.
 
+## Required pre-PR quality gates
+
+Before submitting any PR, all of the following must pass:
+- Frontend unit tests
+- Backend unit tests
+- Frontend linting
+- Backend linting
+- Backend formatting check (`fmt`)
+
+If any required check cannot be run in the current environment, explicitly state that blocker in the PR description and ask for guidance before merging.
+
 ## Pull request checklist for agents
 
 Before finishing, confirm:
@@ -99,4 +110,5 @@ Before finishing, confirm:
 - Correlation IDs/logging are preserved.
 - Idempotency/replay behavior is not regressed.
 - Tests were added/updated for impacted behavior.
+- Required pre-PR quality gates are passing.
 - Documentation or issue dependencies were updated if scope changed.
