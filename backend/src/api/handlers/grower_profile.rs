@@ -22,14 +22,14 @@ pub async fn get_grower_profile(
     );
 
     let Some(user_id) = extract_user_id(request) else {
-        return error_response(
-            401,
-            ErrorResponse {
-                error: "Unauthorized".to_string(),
-                message: "Missing authenticated user context".to_string(),
-                details: None,
-            },
-        );
+            return error_response(
+                401,
+                &ErrorResponse {
+                    error: "Unauthorized".to_string(),
+                    message: "Missing authenticated user context".to_string(),
+                    details: None,
+                },
+            );
     };
 
     let table_name = match env::var("TABLE_NAME") {
@@ -42,7 +42,7 @@ pub async fn get_grower_profile(
             );
             return error_response(
                 500,
-                ErrorResponse {
+                &ErrorResponse {
                     error: "InternalServerError".to_string(),
                     message: "Server configuration error".to_string(),
                     details: None,
@@ -73,7 +73,7 @@ pub async fn get_grower_profile(
             );
             return error_response(
                 500,
-                ErrorResponse {
+                &ErrorResponse {
                     error: "InternalServerError".to_string(),
                     message: "Failed to read profile".to_string(),
                     details: None,
@@ -85,7 +85,7 @@ pub async fn get_grower_profile(
     let Some(item) = item else {
         return error_response(
             404,
-            ErrorResponse {
+            &ErrorResponse {
                 error: "NotFound".to_string(),
                 message: "Grower profile not found".to_string(),
                 details: None,
@@ -104,7 +104,7 @@ pub async fn get_grower_profile(
             );
             return error_response(
                 500,
-                ErrorResponse {
+                &ErrorResponse {
                     error: "InternalServerError".to_string(),
                     message: "Stored profile is invalid".to_string(),
                     details: None,
@@ -132,26 +132,26 @@ pub async fn put_grower_profile(
     );
 
     let Some(user_id) = extract_user_id(request) else {
-        return error_response(
-            401,
-            ErrorResponse {
-                error: "Unauthorized".to_string(),
-                message: "Missing authenticated user context".to_string(),
-                details: None,
-            },
-        );
+            return error_response(
+                401,
+                &ErrorResponse {
+                    error: "Unauthorized".to_string(),
+                    message: "Missing authenticated user context".to_string(),
+                    details: None,
+                },
+            );
     };
 
     let payload: UpsertGrowerProfileRequest = match parse_json_body(request) {
         Ok(value) => value,
-        Err(response) => return Ok(response),
+        Err(response) => return Ok(*response),
     };
 
     let issues = validate_profile_payload(&payload);
     if !issues.is_empty() {
         return error_response(
             400,
-            ErrorResponse {
+            &ErrorResponse {
                 error: "ValidationError".to_string(),
                 message: "Request payload validation failed".to_string(),
                 details: Some(issues),
@@ -169,7 +169,7 @@ pub async fn put_grower_profile(
             );
             return error_response(
                 500,
-                ErrorResponse {
+                &ErrorResponse {
                     error: "InternalServerError".to_string(),
                     message: "Server configuration error".to_string(),
                     details: None,
@@ -213,7 +213,7 @@ pub async fn put_grower_profile(
         );
         return error_response(
             500,
-            ErrorResponse {
+            &ErrorResponse {
                 error: "InternalServerError".to_string(),
                 message: "Failed to save profile".to_string(),
                 details: None,
@@ -333,37 +333,34 @@ fn user_pk(user_id: &str) -> String {
     format!("USER#{user_id}")
 }
 
-fn parse_json_body<T: DeserializeOwned>(request: &Request) -> Result<T, Response<Body>> {
+fn parse_json_body<T: DeserializeOwned>(request: &Request) -> Result<T, Box<Response<Body>>> {
     let body = match request.body() {
         Body::Text(text) => text.clone(),
         Body::Binary(bytes) => match String::from_utf8(bytes.clone()) {
             Ok(text) => text,
             Err(_) => {
-                return Err(build_error_response(
+                return Err(Box::new(build_error_response(
                     400,
                     "ValidationError",
                     "Request body must be valid UTF-8 JSON",
-                ));
+                )));
             }
         },
         Body::Empty => {
-            return Err(build_error_response(
+            return Err(Box::new(build_error_response(
                 400,
                 "ValidationError",
                 "Request body is required",
-            ));
-        }
-        _ => {
-            return Err(build_error_response(
-                400,
-                "ValidationError",
-                "Unsupported request body type",
-            ));
+            )));
         }
     };
 
     serde_json::from_str::<T>(&body).map_err(|_| {
-        build_error_response(400, "ValidationError", "Request body must be valid JSON")
+        Box::new(build_error_response(
+            400,
+            "ValidationError",
+            "Request body must be valid JSON",
+        ))
     })
 }
 
@@ -383,9 +380,9 @@ fn json_response<T: serde::Serialize>(
 
 fn error_response(
     status: u16,
-    payload: ErrorResponse,
+    payload: &ErrorResponse,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    json_response(status, &payload)
+    json_response(status, payload)
 }
 
 fn build_error_response(status: u16, error: &str, message: &str) -> Response<Body> {
@@ -395,10 +392,8 @@ fn build_error_response(status: u16, error: &str, message: &str) -> Response<Bod
         details: None,
     };
 
-    match json_response(status, &payload) {
-        Ok(response) => response,
-        Err(_) => fallback_error_response(status, error, message),
-    }
+    json_response(status, &payload)
+        .unwrap_or_else(|_| fallback_error_response(status, error, message))
 }
 
 fn fallback_error_response(status: u16, error: &str, message: &str) -> Response<Body> {
@@ -426,7 +421,7 @@ mod tests {
             home_zone: " ".to_string(),
             share_radius_km: 0.0,
             units: " ".to_string(),
-            locale: "".to_string(),
+            locale: String::new(),
         };
 
         let issues = validate_profile_payload(&payload);
