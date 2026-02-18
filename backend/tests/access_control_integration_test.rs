@@ -18,7 +18,13 @@ mod access_control_tests {
         // Request payload for creating a listing
         let listing_request = json!({
             "title": "Fresh Tomatoes",
-            "description": "Organic heirloom tomatoes"
+            "cropId": "5df666d4-f6b1-4e6f-97d6-321e531ad7ca",
+            "quantityTotal": 10,
+            "unit": "lb",
+            "availableStart": "2026-02-20T10:00:00Z",
+            "availableEnd": "2026-02-20T12:00:00Z",
+            "lat": 37.7749,
+            "lng": -122.4194
         });
 
         // Verify request structure
@@ -46,7 +52,7 @@ mod access_control_tests {
     #[test]
     fn test_gatherer_blocked_from_grower_endpoints() {
         // Any grower-specific endpoint should return 403 for gatherers
-        // Currently, POST /listings is the main grower-only endpoint
+        // POST /listings and PUT /listings/{listingId} are grower-only
 
         let expected_error = json!({
             "error": "Forbidden: This feature is only available to growers"
@@ -66,27 +72,29 @@ mod access_control_tests {
         // Request payload for creating a listing
         let listing_request = json!({
             "title": "Fresh Tomatoes",
-            "description": "Organic heirloom tomatoes"
+            "cropId": "5df666d4-f6b1-4e6f-97d6-321e531ad7ca",
+            "quantityTotal": 10,
+            "unit": "lb",
+            "availableStart": "2026-02-20T10:00:00Z",
+            "availableEnd": "2026-02-20T12:00:00Z",
+            "lat": 37.7749,
+            "lng": -122.4194
         });
 
         // Verify request structure
         assert_eq!(listing_request["title"], "Fresh Tomatoes");
-        assert_eq!(listing_request["description"], "Organic heirloom tomatoes");
+        assert_eq!(listing_request["unit"], "lb");
 
-        // Expected response when grower creates listing
-        // Note: Currently returns 501 (Not Implemented) as listings are Phase 1
-        // But authorization should pass (no 403)
+        // Expected response shape when grower creates listing
         let expected_response = json!({
-            "error": "Listing creation is not yet implemented. This endpoint enforces authorization only."
+            "id": "listing-id",
+            "title": "Fresh Tomatoes",
+            "status": "active"
         });
 
         // When a grower (userType: "grower") attempts to POST /listings
         // The system should NOT return 403 Forbidden
-        // It may return 501 (not implemented) but authorization passes
-        assert!(!expected_response["error"]
-            .as_str()
-            .unwrap()
-            .contains("Forbidden"));
+        assert!(expected_response.get("id").is_some());
     }
 
     /// Test 4: Gatherer allowed to create request
@@ -262,7 +270,13 @@ mod access_control_tests {
 
         let _invalid_listing = json!({
             "title": "",  // Invalid: empty title
-            "description": null
+            "cropId": "bad-id",
+            "quantityTotal": -1,
+            "unit": "",
+            "availableStart": "bad",
+            "availableEnd": "bad",
+            "lat": 100,
+            "lng": 200
         });
 
         // Expected: 403 Forbidden (not 400 Bad Request)
