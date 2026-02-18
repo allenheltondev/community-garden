@@ -56,6 +56,9 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
 
+        ("GET", "/my/listings") => {
+            handle(listing::list_my_listings(event, &correlation_id).await)?
+        }
         ("POST", "/listings") => handle(listing::create_listing(event, &correlation_id).await)?,
         ("POST", "/requests") => handle(request::create_request(event, &correlation_id).await)?,
         ("POST", "/claims") => handle(claim::create_claim(event, &correlation_id).await)?,
@@ -94,6 +97,7 @@ async fn route_dynamic_routes(
 
     if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
         let result = match event.method().as_str() {
+            "GET" => listing::get_listing(event, correlation_id, listing_id).await,
             "PUT" => listing::update_listing(event, correlation_id, listing_id).await,
             _ => method_not_allowed(),
         };
@@ -151,6 +155,9 @@ fn map_api_error_to_response(
         || message.contains("must be a valid UUID")
         || message.contains("Invalid status")
         || message.contains("Invalid visibility")
+        || message.contains("Invalid listing status")
+        || message.contains("Invalid limit")
+        || message.contains("Invalid offset")
         || message.contains("Invalid pickupDisclosurePolicy")
         || message.contains("Invalid contactPref")
         || message.contains("quantityTotal")
