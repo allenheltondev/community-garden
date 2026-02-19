@@ -53,6 +53,10 @@ name = "lambda-authorizer"
 path = "src/auth/authorizer.rs"
 
 [[bin]]
+name = "post-confirmation"
+path = "src/auth/post_confirmation.rs"
+
+[[bin]]
 name = "api"
 path = "src/api/main.rs"
 
