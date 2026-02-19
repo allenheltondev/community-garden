@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import type {
@@ -144,12 +144,6 @@ export function ListingForm({
   }, [mode, initialListing, defaultLat, defaultLng]);
 
   const [formState, setFormState] = useState<ListingFormState>(initialState);
-
-  useEffect(() => {
-    setFormState(initialState);
-    setErrors({});
-    setSelectedQuickPickId('');
-  }, [initialState]);
 
   const validateForm = (): boolean => {
     const nextErrors: ListingFormErrors = {};

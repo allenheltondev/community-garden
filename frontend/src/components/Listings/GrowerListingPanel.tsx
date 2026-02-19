@@ -61,12 +61,6 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     enabled: !!editingListingId,
   });
 
-  const varietiesQuery = useQuery({
-    queryKey: ['catalogVarieties', selectedCropId],
-    queryFn: () => listCatalogVarieties(selectedCropId),
-    enabled: selectedCropId.length > 0,
-  });
-
   const createMutation = useMutation({
     mutationFn: (request: UpsertListingRequest) => createListing(request),
   });
@@ -89,7 +83,7 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     };
   }, []);
 
-  const listings = listingsQuery.data?.items ?? [];
+  const listings = useMemo(() => listingsQuery.data?.items ?? [], [listingsQuery.data?.items]);
 
   const activeEditListing: Listing | null = useMemo(() => {
     if (!editingListingId) {
@@ -103,13 +97,35 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     return listings.find((listing) => listing.id === editingListingId) ?? null;
   }, [editingListingId, listingDetailQuery.data, listings]);
 
-  useEffect(() => {
+  const varietiesCropId = selectedCropId || activeEditListing?.cropId || '';
+
+  const varietiesQuery = useQuery({
+    queryKey: ['catalogVarieties', varietiesCropId],
+    queryFn: () => listCatalogVarieties(varietiesCropId),
+    enabled: varietiesCropId.length > 0,
+  });
+
+  const listingFormKey = useMemo(() => {
     if (!activeEditListing) {
-      return;
+      return `create:${defaultLat ?? ''}:${defaultLng ?? ''}`;
     }
 
-    setSelectedCropId(activeEditListing.cropId);
-  }, [activeEditListing]);
+    return [
+      'edit',
+      activeEditListing.id,
+      activeEditListing.title,
+      activeEditListing.cropId,
+      activeEditListing.varietyId ?? '',
+      activeEditListing.quantityTotal,
+      activeEditListing.unit,
+      activeEditListing.availableStart,
+      activeEditListing.availableEnd,
+      activeEditListing.lat,
+      activeEditListing.lng,
+      activeEditListing.pickupLocationText ?? '',
+      activeEditListing.pickupNotes ?? '',
+    ].join(':');
+  }, [activeEditListing, defaultLat, defaultLng]);
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
@@ -224,6 +240,7 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
 
         {!cropsQuery.isLoading && !cropsQuery.isError && (
           <ListingForm
+            key={listingFormKey}
             mode={editingListingId ? 'edit' : 'create'}
             crops={cropsQuery.data ?? []}
             varieties={varietiesQuery.data ?? []}
