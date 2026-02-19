@@ -183,6 +183,7 @@ fn map_api_error_to_response(
         || message.contains("pickupAddress is required because grower profile address is missing")
         || message.contains("geoKey")
         || message.contains("radiusKm")
+        || message.contains("radiusMiles")
     {
         return crop::error_response(400, &message);
     }

@@ -11,12 +11,14 @@ use tracing::info;
 use uuid::Uuid;
 
 const ALLOWED_DISCOVER_STATUS: [&str; 1] = ["active"];
+const KM_PER_MILE: f64 = 1.609_344;
 
 #[derive(Debug)]
 struct DiscoverListingsQuery {
     geo_key: String,
     status: String,
     radius_km: Option<f64>,
+    radius_miles: Option<f64>,
     limit: i64,
     offset: i64,
 }
@@ -85,6 +87,7 @@ pub async fn discover_listings(
         geo_prefix = geo_prefix,
         status_filter = query.status,
         requested_radius_km = ?query.radius_km,
+        requested_radius_miles = ?query.radius_miles,
         limit = query.limit,
         offset = query.offset,
         returned_count = response.items.len(),
@@ -101,6 +104,7 @@ fn parse_discover_listings_query(
     let mut geo_key: Option<String> = None;
     let mut status = "active".to_string();
     let mut radius_km: Option<f64> = None;
+    let mut radius_miles: Option<f64> = None;
     let mut limit: i64 = 20;
     let mut offset: i64 = 0;
 
@@ -139,15 +143,26 @@ fn parse_discover_listings_query(
                     status = value.to_string();
                 }
                 "radiusKm" => {
-                    let parsed = value.parse::<f64>().map_err(|_| {
-                        lambda_http::Error::from("radiusKm must be a valid number")
-                    })?;
-                    if parsed <= 0.0 {
+                    if radius_km.is_some() {
                         return Err(lambda_http::Error::from(
-                            "radiusKm must be greater than 0",
+                            "Provide only one of radiusKm or radiusMiles",
                         ));
                     }
-                    radius_km = Some(parsed);
+
+                    let parsed_km = parse_positive_radius(value, "radiusKm")?;
+                    radius_km = Some(parsed_km);
+                    radius_miles = Some(parsed_km / KM_PER_MILE);
+                }
+                "radiusMiles" => {
+                    if radius_km.is_some() {
+                        return Err(lambda_http::Error::from(
+                            "Provide only one of radiusKm or radiusMiles",
+                        ));
+                    }
+
+                    let parsed_miles = parse_positive_radius(value, "radiusMiles")?;
+                    radius_miles = Some(parsed_miles);
+                    radius_km = Some(parsed_miles * KM_PER_MILE);
                 }
                 "limit" => {
                     limit = value.parse::<i64>().map_err(|_| {
@@ -180,9 +195,23 @@ fn parse_discover_listings_query(
         geo_key,
         status,
         radius_km,
+        radius_miles,
         limit,
         offset,
     })
+}
+
+fn parse_positive_radius(value: &str, field_name: &str) -> Result<f64, lambda_http::Error> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid number")))?;
+    if parsed <= 0.0 {
+        return Err(lambda_http::Error::from(format!(
+            "{field_name} must be greater than 0"
+        )));
+    }
+
+    Ok(parsed)
 }
 
 fn derive_geo_prefix(geo_key: &str, radius_km: Option<f64>) -> String {
@@ -301,12 +330,13 @@ mod tests {
         assert_eq!(parsed.geo_key, "9q8yyk8");
         assert_eq!(parsed.status, "active");
         assert_eq!(parsed.radius_km, None);
+        assert_eq!(parsed.radius_miles, None);
         assert_eq!(parsed.limit, 20);
         assert_eq!(parsed.offset, 0);
     }
 
     #[test]
-    fn parse_discover_listings_query_with_filters() {
+    fn parse_discover_listings_query_with_km_filters() {
         let parsed = parse_discover_listings_query(Some(
             "geoKey=9q8yyk8&status=active&radiusKm=12.5&limit=10&offset=20",
         ))
@@ -315,8 +345,36 @@ mod tests {
         assert_eq!(parsed.geo_key, "9q8yyk8");
         assert_eq!(parsed.status, "active");
         assert_eq!(parsed.radius_km, Some(12.5));
+        assert_eq!(parsed.radius_miles, Some(12.5 / KM_PER_MILE));
         assert_eq!(parsed.limit, 10);
         assert_eq!(parsed.offset, 20);
+    }
+
+    #[test]
+    fn parse_discover_listings_query_with_miles_filters() {
+        let parsed = parse_discover_listings_query(Some(
+            "geoKey=9q8yyk8&status=active&radiusMiles=10&limit=10&offset=20",
+        ))
+        .unwrap();
+
+        assert_eq!(parsed.geo_key, "9q8yyk8");
+        assert_eq!(parsed.status, "active");
+        assert_eq!(parsed.radius_miles, Some(10.0));
+        assert_eq!(parsed.radius_km, Some(10.0 * KM_PER_MILE));
+        assert_eq!(parsed.limit, 10);
+        assert_eq!(parsed.offset, 20);
+    }
+
+    #[test]
+    fn parse_discover_listings_query_rejects_multiple_radius_units() {
+        let result = parse_discover_listings_query(Some(
+            "geoKey=9q8yyk8&radiusKm=10&radiusMiles=6",
+        ));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Provide only one of radiusKm or radiusMiles"));
     }
 
     #[test]
@@ -341,6 +399,16 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("radiusKm must be greater than 0"));
+    }
+
+    #[test]
+    fn parse_discover_listings_query_rejects_invalid_miles_radius() {
+        let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusMiles=0"));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("radiusMiles must be greater than 0"));
     }
 
     #[test]
