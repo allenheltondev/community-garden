@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+const KM_PER_MILE: f64 = 1.609_344;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserType {
@@ -15,7 +17,7 @@ pub struct GrowerProfile {
     pub geo_key: Option<String>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,
-    pub share_radius_km: String,
+    pub share_radius_miles: String,
     pub units: String,
     pub locale: Option<String>,
 }
@@ -27,7 +29,7 @@ pub struct GathererProfile {
     pub geo_key: String,
     pub lat: f64,
     pub lng: f64,
-    pub search_radius_km: String,
+    pub search_radius_miles: String,
     pub organization_affiliation: Option<String>,
     pub units: String,
     pub locale: Option<String>,
@@ -68,19 +70,35 @@ pub struct PublicUserResponse {
 pub struct GrowerProfileInput {
     pub home_zone: String,
     pub address: String,
-    pub share_radius_km: f64,
+    pub share_radius_miles: Option<f64>,
+    pub share_radius_km: Option<f64>,
     pub units: String,
     pub locale: String,
+}
+
+impl GrowerProfileInput {
+    pub fn resolved_share_radius_miles(&self) -> Option<f64> {
+        self.share_radius_miles
+            .or(self.share_radius_km.map(|km| km / KM_PER_MILE))
+    }
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GathererProfileInput {
     pub address: String,
-    pub search_radius_km: f64,
+    pub search_radius_miles: Option<f64>,
+    pub search_radius_km: Option<f64>,
     pub organization_affiliation: Option<String>,
     pub units: String,
     pub locale: String,
+}
+
+impl GathererProfileInput {
+    pub fn resolved_search_radius_miles(&self) -> Option<f64> {
+        self.search_radius_miles
+            .or(self.search_radius_km.map(|km| km / KM_PER_MILE))
+    }
 }
 
 #[derive(Debug, Deserialize)]
