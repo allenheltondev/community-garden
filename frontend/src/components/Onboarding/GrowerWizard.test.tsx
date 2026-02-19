@@ -77,8 +77,9 @@ describe('GrowerWizard', () => {
         expect.objectContaining({
           homeZone: '8a',
           address: '123 Main St, Springfield, IL',
+          shareRadiusMiles: 5,
         })
       );
     });
   });
-});
+}
