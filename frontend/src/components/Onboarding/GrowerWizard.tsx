@@ -15,7 +15,7 @@ type WizardStep = 'location' | 'zone' | 'preferences';
 interface FormData {
   homeZone: string;
   address: string;
-  shareRadiusKm: number;
+  shareRadiusMiles: number;
   units: 'metric' | 'imperial';
   locale: string;
 }
@@ -23,7 +23,7 @@ interface FormData {
 interface ValidationErrors {
   homeZone?: string;
   location?: string;
-  shareRadiusKm?: string;
+  shareRadiusMiles?: string;
 }
 
 async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
@@ -64,7 +64,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   const [formData, setFormData] = useState<FormData>({
     homeZone: '',
     address: '',
-    shareRadiusKm: 5,
+    shareRadiusMiles: 5,
     units: 'imperial',
     locale: navigator.language || 'en-US',
   });
@@ -160,10 +160,10 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   const validatePreferences = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    if (formData.shareRadiusKm <= 0) {
-      newErrors.shareRadiusKm = 'Share radius must be greater than 0';
-    } else if (formData.shareRadiusKm > 100) {
-      newErrors.shareRadiusKm = 'Share radius must be 100 or less';
+    if (formData.shareRadiusMiles <= 0) {
+      newErrors.shareRadiusMiles = 'Share radius must be greater than 0';
+    } else if (formData.shareRadiusMiles > 100) {
+      newErrors.shareRadiusMiles = 'Share radius must be 100 or less';
     }
 
     setErrors(newErrors);
@@ -209,7 +209,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
       const profileData: GrowerProfileInput = {
         homeZone: formData.homeZone.trim(),
         address: formData.address.trim(),
-        shareRadiusKm: formData.shareRadiusKm,
+        shareRadiusMiles: formData.shareRadiusMiles,
         units: formData.units,
         locale: formData.locale,
       };
@@ -355,26 +355,26 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
                     min="1"
                     max="50"
                     step="1"
-                    value={formData.shareRadiusKm}
+                    value={formData.shareRadiusMiles}
                     onChange={(e) => {
                       setFormData((prev) => ({
                         ...prev,
-                        shareRadiusKm: parseInt(e.target.value, 10),
+                        shareRadiusMiles: parseInt(e.target.value, 10),
                       }));
-                      if (errors.shareRadiusKm) {
-                        setErrors((prev) => ({ ...prev, shareRadiusKm: undefined }));
+                      if (errors.shareRadiusMiles) {
+                        setErrors((prev) => ({ ...prev, shareRadiusMiles: undefined }));
                       }
                     }}
                     className="flex-1"
-                    aria-label="Share radius in kilometers"
+                    aria-label="Share radius in miles"
                   />
                   <span className="text-neutral-700 font-medium min-w-[4rem] text-right">
-                    {formData.shareRadiusKm} km
+                    {formData.shareRadiusMiles} mi
                   </span>
                 </div>
-                {errors.shareRadiusKm && (
+                {errors.shareRadiusMiles && (
                   <p className="text-sm text-error mt-1" role="alert">
-                    {errors.shareRadiusKm}
+                    {errors.shareRadiusMiles}
                   </p>
                 )}
                 <p className="text-sm text-neutral-500 mt-1">
