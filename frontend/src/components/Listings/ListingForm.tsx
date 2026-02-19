@@ -59,6 +59,12 @@ interface ListingFormErrors {
   lng?: string;
 }
 
+const listingStatuses = ['active', 'pending', 'claimed', 'expired', 'completed'] as const;
+
+function isListingStatus(value: string): value is NonNullable<UpsertListingRequest['status']> {
+  return listingStatuses.includes(value as (typeof listingStatuses)[number]);
+}
+
 function toLocalDateTimeInput(value: Date): string {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -233,7 +239,10 @@ export function ListingForm({
       return;
     }
 
-    const status = mode === 'edit' ? (initialListing?.status ?? 'active') : 'active';
+    const status: UpsertListingRequest['status'] =
+      mode === 'edit' && initialListing && isListingStatus(initialListing.status)
+        ? initialListing.status
+        : 'active';
 
     const request: UpsertListingRequest = {
       title: formState.title.trim(),
