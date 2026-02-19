@@ -55,11 +55,6 @@ paths:
         - units must be 'metric' or 'imperial'
         - homeZone format must be valid (for growers)
 
-        **Backward Compatibility**:
-        - Canonical request fields are `shareRadiusMiles` and `searchRadiusMiles`
-        - Legacy `shareRadiusKm` and `searchRadiusKm` are accepted during migration
-        - If both miles and km values are provided, miles values take precedence
-
         **Idempotency**: This endpoint uses upsert semantics. Repeated requests with
         the same payload are safe and will not cause duplicate data.
 
@@ -479,11 +474,7 @@ components:
           description: |
             Grower-specific profile data. Should only be provided when userType is 'grower'.
             Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
-            Canonical radius field is `shareRadiusMiles`; legacy `shareRadiusKm` remains accepted.
-          required: [homeZone, address, units, locale]
-          anyOf:
-            - required: [shareRadiusMiles]
-            - required: [shareRadiusKm]
+          required: [homeZone, address, shareRadiusMiles, units, locale]
           properties:
             homeZone:
               type: string
@@ -497,13 +488,6 @@ components:
               description: Maximum sharing distance in miles (must be > 0)
               minimum: 0
               exclusiveMinimum: true
-            shareRadiusKm:
-              type: number
-              format: double
-              description: Legacy maximum sharing distance in kilometers (deprecated)
-              minimum: 0
-              exclusiveMinimum: true
-              deprecated: true
             units:
               type: string
               enum: [imperial, metric]
@@ -517,11 +501,7 @@ components:
           description: |
             Gatherer-specific profile data. Should only be provided when userType is 'gatherer'.
             Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
-            Canonical radius field is `searchRadiusMiles`; legacy `searchRadiusKm` remains accepted.
-          required: [address, units, locale]
-          anyOf:
-            - required: [searchRadiusMiles]
-            - required: [searchRadiusKm]
+          required: [address, searchRadiusMiles, units, locale]
           properties:
             address:
               type: string
@@ -532,13 +512,6 @@ components:
               minimum: 0
               exclusiveMinimum: true
               description: Maximum search distance in miles (must be > 0)
-            searchRadiusKm:
-              type: number
-              format: double
-              minimum: 0
-              exclusiveMinimum: true
-              description: Legacy maximum search distance in kilometers (deprecated)
-              deprecated: true
             organizationAffiliation:
               type: string
               nullable: true
