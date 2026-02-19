@@ -203,4 +203,41 @@ describe('GrowerListingPanel', () => {
       expect(screen.getByText(/listings request failed/i)).toBeInTheDocument();
     });
   });
+
+  it('pre-seeds edit form from selected listing while detail query is loading', async () => {
+    const user = userEvent.setup();
+    const activeListing = makeListing({
+      id: 'listing-1',
+      title: 'Tomatoes Basket',
+      status: 'active',
+      quantityTotal: '12',
+      quantityRemaining: '8',
+    });
+
+    mockListMyListings.mockResolvedValue({
+      items: [activeListing],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    let resolveDetail: ((value: Listing) => void) | undefined;
+    const pendingDetail = new Promise<Listing>((resolve) => {
+      resolveDetail = resolve;
+    });
+    mockGetMyListing.mockReturnValue(pendingDetail);
+
+    renderPanel();
+
+    await user.click(screen.getByRole('tab', { name: /my listings/i }));
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByRole('heading', { name: /edit listing/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/listing title/i)).toHaveValue('Tomatoes Basket');
+
+    resolveDetail?.(activeListing);
+  });
 });

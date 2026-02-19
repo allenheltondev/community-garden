@@ -149,17 +149,21 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   });
 
   const myListingsStatus = myListingsFilter === 'all' ? undefined : myListingsFilter;
+  const isMyListingsViewActive = activeView === 'my-listings';
+  const isDiscoveryViewActive = activeView === 'discovery';
 
   const myListingsQuery = useQuery({
     queryKey: ['myListings', myListingsStatus],
     queryFn: () => listMyListings(50, 0, myListingsStatus),
     staleTime: 30 * 1000,
+    enabled: isMyListingsViewActive,
   });
 
   const discoveryQuery = useQuery({
     queryKey: ['myListingsDiscovery'],
     queryFn: () => listMyListings(50, 0, 'active'),
     staleTime: 30 * 1000,
+    enabled: isDiscoveryViewActive,
   });
 
   const editListingQuery = useQuery({
@@ -201,8 +205,15 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       return null;
     }
 
-    return editListingQuery.data ?? null;
-  }, [editingListingId, editListingQuery.data]);
+    if (editListingQuery.data) {
+      return editListingQuery.data;
+    }
+
+    return myListingsQuery.data?.items.find((listing) => listing.id === editingListingId) ?? null;
+  }, [editingListingId, editListingQuery.data, myListingsQuery.data?.items]);
+
+  const isEditingListingLoading =
+    editingListingId !== null && editListingQuery.isLoading && activeEditListing === null;
 
   const varietiesCropId = selectedCropId || activeEditListing?.cropId || '';
 
@@ -412,7 +423,11 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             </p>
           )}
 
-          {!cropsQuery.isLoading && !cropsQuery.isError && (
+          {isEditingListingLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading listing...</p>
+          )}
+
+          {!cropsQuery.isLoading && !cropsQuery.isError && !isEditingListingLoading && (
             <ListingForm
               key={listingFormKey}
               mode={editingListingId ? 'edit' : 'create'}
