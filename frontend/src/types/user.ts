@@ -17,7 +17,7 @@ export interface GrowerProfile {
   geoKey: string;
   lat?: number;
   lng?: number;
-  shareRadiusKm: number;
+  shareRadiusMiles: number;
   units: 'metric' | 'imperial';
   locale: string;
   createdAt?: string;
@@ -32,7 +32,7 @@ export interface GathererProfile {
   geoKey: string;
   lat: number;
   lng: number;
-  searchRadiusKm: number;
+  searchRadiusMiles: number;
   organizationAffiliation?: string;
   units: 'metric' | 'imperial';
   locale: string;
