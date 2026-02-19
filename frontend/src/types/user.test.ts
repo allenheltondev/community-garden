@@ -20,13 +20,13 @@ describe('User Types', () => {
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
-        shareRadiusKm: 5.0,
+        shareRadiusMiles: 5.0,
         units: 'imperial',
         locale: 'en-US',
       };
 
       expect(profile.homeZone).toBe('8a');
-      expect(profile.shareRadiusKm).toBe(5.0);
+      expect(profile.shareRadiusMiles).toBe(5.0);
       expect(profile.units).toBe('imperial');
     });
 
@@ -37,7 +37,7 @@ describe('User Types', () => {
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
-        shareRadiusKm: 5.0,
+        shareRadiusMiles: 5.0,
         units: 'metric',
         locale: 'en-US',
         createdAt: '2024-01-15T10:30:00Z',
@@ -56,12 +56,12 @@ describe('User Types', () => {
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
-        searchRadiusKm: 10.0,
+        searchRadiusMiles: 10.0,
         units: 'metric',
         locale: 'en-US',
       };
 
-      expect(profile.searchRadiusKm).toBe(10.0);
+      expect(profile.searchRadiusMiles).toBe(10.0);
       expect(profile.units).toBe('metric');
     });
 
@@ -71,7 +71,7 @@ describe('User Types', () => {
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
-        searchRadiusKm: 10.0,
+        searchRadiusMiles: 10.0,
         organizationAffiliation: 'SF Food Bank',
         units: 'metric',
         locale: 'en-US',
@@ -112,7 +112,7 @@ describe('User Types', () => {
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,
-          shareRadiusKm: 5.0,
+          shareRadiusMiles: 5.0,
           units: 'imperial',
           locale: 'en-US',
         },
@@ -137,7 +137,7 @@ describe('User Types', () => {
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,
-          searchRadiusKm: 10.0,
+          searchRadiusMiles: 10.0,
           organizationAffiliation: 'Community Kitchen',
           units: 'metric',
           locale: 'en-US',
@@ -146,7 +146,7 @@ describe('User Types', () => {
 
       expect(user.userType).toBe('gatherer');
       expect(user.gathererProfile).toBeDefined();
-      expect(user.gathererProfile?.searchRadiusKm).toBe(10.0);
+      expect(user.gathererProfile?.searchRadiusMiles).toBe(10.0);
     });
   });
 });
