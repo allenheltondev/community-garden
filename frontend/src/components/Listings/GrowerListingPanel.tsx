@@ -17,6 +17,9 @@ import { createLogger } from '../../utils/logging';
 
 const logger = createLogger('grower-listings');
 
+type ListingsView = 'create' | 'my-listings' | 'discovery';
+type MyListingsFilter = 'all' | 'active' | 'expired' | 'completed';
+
 interface GrowerListingPanelProps {
   defaultLat?: number;
   defaultLng?: number;
@@ -29,6 +32,99 @@ const quickPickRank: Record<string, number> = {
   paused: 3,
 };
 
+const statusStyles: Record<string, string> = {
+  active: 'border-success bg-primary-50 text-primary-800',
+  pending: 'border-warning bg-accent-50 text-neutral-800',
+  claimed: 'border-neutral-300 bg-neutral-100 text-neutral-800',
+  expired: 'border-neutral-300 bg-neutral-100 text-neutral-700',
+  completed: 'border-neutral-300 bg-neutral-100 text-neutral-700',
+};
+
+const filterOptions: Array<{ value: MyListingsFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'completed', label: 'Completed' },
+];
+
+function formatStatus(status: string): string {
+  if (!status) {
+    return 'Unknown';
+  }
+
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function formatDateTime(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown';
+  }
+
+  return parsed.toLocaleString();
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function distanceInKm(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(toLat - fromLat);
+  const dLng = toRadians(toLng - fromLng);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function isFiniteCoordinate(value: number | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function ListingStatusChip({ status }: { status: string }) {
+  const tone = statusStyles[status] ?? 'border-neutral-300 bg-neutral-100 text-neutral-800';
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>
+      {formatStatus(status)}
+    </span>
+  );
+}
+
+function ListingDetails({ listing }: { listing: Listing }) {
+  return (
+    <div className="rounded-base border border-neutral-200 bg-white px-4 py-4">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-base font-semibold text-neutral-900">Listing details</h4>
+        <ListingStatusChip status={listing.status} />
+      </div>
+
+      <dl className="mt-3 grid grid-cols-1 gap-2 text-sm text-neutral-700">
+        <div>
+          <dt className="font-medium text-neutral-900">Title</dt>
+          <dd>{listing.title}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-neutral-900">Quantity remaining</dt>
+          <dd>{listing.quantityRemaining} {listing.unit}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-neutral-900">Pickup window</dt>
+          <dd>{formatDateTime(listing.availableStart)} to {formatDateTime(listing.availableEnd)}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-neutral-900">Pickup location</dt>
+          <dd>{listing.pickupLocationText ?? 'Not provided'}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPanelProps) {
   const queryClient = useQueryClient();
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
@@ -36,6 +132,9 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<ListingsView>('create');
+  const [myListingsFilter, setMyListingsFilter] = useState<MyListingsFilter>('all');
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -49,16 +148,34 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     staleTime: 5 * 60 * 1000,
   });
 
-  const listingsQuery = useQuery({
-    queryKey: ['myListings'],
-    queryFn: () => listMyListings(20, 0),
+  const myListingsStatus = myListingsFilter === 'all' ? undefined : myListingsFilter;
+  const isMyListingsViewActive = activeView === 'my-listings';
+  const isDiscoveryViewActive = activeView === 'discovery';
+
+  const myListingsQuery = useQuery({
+    queryKey: ['myListings', myListingsStatus],
+    queryFn: () => listMyListings(50, 0, myListingsStatus),
     staleTime: 30 * 1000,
+    enabled: isMyListingsViewActive,
   });
 
-  const listingDetailQuery = useQuery({
+  const discoveryQuery = useQuery({
+    queryKey: ['myListingsDiscovery'],
+    queryFn: () => listMyListings(50, 0, 'active'),
+    staleTime: 30 * 1000,
+    enabled: isDiscoveryViewActive,
+  });
+
+  const editListingQuery = useQuery({
     queryKey: ['myListing', editingListingId],
     queryFn: () => getMyListing(editingListingId ?? ''),
     enabled: !!editingListingId,
+  });
+
+  const detailListingQuery = useQuery({
+    queryKey: ['myListingDetail', selectedListingId],
+    queryFn: () => getMyListing(selectedListingId ?? ''),
+    enabled: !!selectedListingId,
   });
 
   const createMutation = useMutation({
@@ -83,19 +200,20 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     };
   }, []);
 
-  const listings = useMemo(() => listingsQuery.data?.items ?? [], [listingsQuery.data?.items]);
-
   const activeEditListing: Listing | null = useMemo(() => {
     if (!editingListingId) {
       return null;
     }
 
-    if (listingDetailQuery.data) {
-      return listingDetailQuery.data;
+    if (editListingQuery.data) {
+      return editListingQuery.data;
     }
 
-    return listings.find((listing) => listing.id === editingListingId) ?? null;
-  }, [editingListingId, listingDetailQuery.data, listings]);
+    return myListingsQuery.data?.items.find((listing) => listing.id === editingListingId) ?? null;
+  }, [editingListingId, editListingQuery.data, myListingsQuery.data?.items]);
+
+  const isEditingListingLoading =
+    editingListingId !== null && editListingQuery.isLoading && activeEditListing === null;
 
   const varietiesCropId = selectedCropId || activeEditListing?.cropId || '';
 
@@ -162,11 +280,27 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       });
   }, [growerCropsQuery.data, cropNameById]);
 
+  const discoveryListings = useMemo(() => {
+    const items = discoveryQuery.data?.items ?? [];
+
+    if (!isFiniteCoordinate(defaultLat) || !isFiniteCoordinate(defaultLng)) {
+      return items;
+    }
+
+    return [...items].sort((left, right) => {
+      const leftDistance = distanceInKm(defaultLat, defaultLng, left.lat, left.lng);
+      const rightDistance = distanceInKm(defaultLat, defaultLng, right.lat, right.lng);
+      return leftDistance - rightDistance;
+    });
+  }, [defaultLat, defaultLng, discoveryQuery.data?.items]);
+
   const handleCreateMode = () => {
     setEditingListingId(null);
     setSelectedCropId('');
     setSubmitError(null);
     setSuccessMessage(null);
+    setSelectedListingId(null);
+    setActiveView('create');
   };
 
   const handleEditMode = (listingId: string, cropId: string) => {
@@ -174,6 +308,19 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     setSelectedCropId(cropId);
     setSubmitError(null);
     setSuccessMessage(null);
+    setSelectedListingId(null);
+    setActiveView('create');
+  };
+
+  const handleViewChange = (view: ListingsView) => {
+    setActiveView(view);
+    setSelectedListingId(null);
+
+    if (view !== 'create') {
+      setEditingListingId(null);
+      setSubmitError(null);
+      setSuccessMessage(null);
+    }
   };
 
   const handleSubmit = async (request: UpsertListingRequest) => {
@@ -191,7 +338,10 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
         logger.info('Listing created', { cropId: request.cropId });
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['myListings'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['myListings'] }),
+        queryClient.invalidateQueries({ queryKey: ['myListingsDiscovery'] }),
+      ]);
 
       if (!editingListingId) {
         setSelectedCropId('');
@@ -204,109 +354,260 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
     }
   };
 
+  const selectedListing = detailListingQuery.data ?? null;
+
   return (
     <div className="space-y-4">
-      <Card className="space-y-4" padding="6">
-        <div className="space-y-1">
-          <h2 className="text-xl font-semibold text-neutral-900">
-            {editingListingId ? 'Edit listing' : 'Create listing'}
-          </h2>
-          <p className="text-sm text-neutral-600">
-            Start from something you already grow, then post in seconds.
-          </p>
-        </div>
-
-        {cropsQuery.isLoading && (
-          <p className="text-sm text-neutral-600" role="status">Loading crops...</p>
-        )}
-
-        {cropsQuery.isError && (
-          <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
-            {cropsQuery.error instanceof Error ? cropsQuery.error.message : 'Failed to load crops'}
-          </p>
-        )}
-
-        {growerCropsQuery.isError && (
-          <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
-            Could not load your crop library. You can still post manually.
-          </p>
-        )}
-
-        {successMessage && (
-          <p className="rounded-base border border-success bg-primary-50 px-3 py-2 text-sm text-primary-800" role="status">
-            {successMessage}
-          </p>
-        )}
-
-        {!cropsQuery.isLoading && !cropsQuery.isError && (
-          <ListingForm
-            key={listingFormKey}
-            mode={editingListingId ? 'edit' : 'create'}
-            crops={cropsQuery.data ?? []}
-            varieties={varietiesQuery.data ?? []}
-            quickPickOptions={quickPickOptions}
-            isLoadingVarieties={varietiesQuery.isLoading}
-            isLoadingQuickPicks={growerCropsQuery.isLoading}
-            initialListing={activeEditListing}
-            defaultLat={defaultLat}
-            defaultLng={defaultLng}
-            isSubmitting={isSubmitting}
-            isOffline={isOffline}
-            submitError={submitError}
-            onCropChange={setSelectedCropId}
-            onSubmit={handleSubmit}
-            onCancelEdit={editingListingId ? handleCreateMode : undefined}
-          />
-        )}
-      </Card>
-
-      <Card className="space-y-3" padding="6">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold text-neutral-900">My recent listings</h3>
-          <Button variant="ghost" size="sm" onClick={handleCreateMode}>
-            New listing
+      <Card className="space-y-3" padding="4">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Listings workspace views">
+          <Button
+            size="sm"
+            variant={activeView === 'create' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={activeView === 'create'}
+            onClick={() => handleViewChange('create')}
+          >
+            Create Listing
+          </Button>
+          <Button
+            size="sm"
+            variant={activeView === 'my-listings' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={activeView === 'my-listings'}
+            onClick={() => handleViewChange('my-listings')}
+          >
+            My Listings
+          </Button>
+          <Button
+            size="sm"
+            variant={activeView === 'discovery' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={activeView === 'discovery'}
+            onClick={() => handleViewChange('discovery')}
+          >
+            Local Discovery
           </Button>
         </div>
-
-        {listingsQuery.isLoading && (
-          <p className="text-sm text-neutral-600" role="status">Loading your listings...</p>
-        )}
-
-        {listingsQuery.isError && (
-          <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
-            {listingsQuery.error instanceof Error
-              ? listingsQuery.error.message
-              : 'Failed to load your listings'}
-          </p>
-        )}
-
-        {!listingsQuery.isLoading && listings.length === 0 && (
-          <p className="text-sm text-neutral-600">No listings yet. Post your first one above.</p>
-        )}
-
-        {listings.map((listing) => (
-          <div
-            key={listing.id}
-            className="rounded-base border border-neutral-200 bg-white px-3 py-3"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-neutral-900">{listing.title}</p>
-                <p className="text-sm text-neutral-600">
-                  {listing.quantityRemaining} {listing.unit} remaining
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleEditMode(listing.id, listing.cropId)}
-              >
-                Edit
-              </Button>
-            </div>
-          </div>
-        ))}
       </Card>
+
+      {activeView === 'create' && (
+        <Card className="space-y-4" padding="6">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold text-neutral-900">
+              {editingListingId ? 'Edit listing' : 'Create listing'}
+            </h2>
+            <p className="text-sm text-neutral-600">
+              Start from something you already grow, then post in seconds.
+            </p>
+          </div>
+
+          {cropsQuery.isLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading crops...</p>
+          )}
+
+          {cropsQuery.isError && (
+            <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
+              {cropsQuery.error instanceof Error ? cropsQuery.error.message : 'Failed to load crops'}
+            </p>
+          )}
+
+          {growerCropsQuery.isError && (
+            <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
+              Could not load your crop library. You can still post manually.
+            </p>
+          )}
+
+          {successMessage && (
+            <p className="rounded-base border border-success bg-primary-50 px-3 py-2 text-sm text-primary-800" role="status">
+              {successMessage}
+            </p>
+          )}
+
+          {isEditingListingLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading listing...</p>
+          )}
+
+          {!cropsQuery.isLoading && !cropsQuery.isError && !isEditingListingLoading && (
+            <ListingForm
+              key={listingFormKey}
+              mode={editingListingId ? 'edit' : 'create'}
+              crops={cropsQuery.data ?? []}
+              varieties={varietiesQuery.data ?? []}
+              quickPickOptions={quickPickOptions}
+              isLoadingVarieties={varietiesQuery.isLoading}
+              isLoadingQuickPicks={growerCropsQuery.isLoading}
+              initialListing={activeEditListing}
+              defaultLat={defaultLat}
+              defaultLng={defaultLng}
+              isSubmitting={isSubmitting}
+              isOffline={isOffline}
+              submitError={submitError}
+              onCropChange={setSelectedCropId}
+              onSubmit={handleSubmit}
+              onCancelEdit={editingListingId ? handleCreateMode : undefined}
+            />
+          )}
+        </Card>
+      )}
+
+      {activeView === 'my-listings' && (
+        <Card className="space-y-4" padding="6">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold text-neutral-900">My Listings</h3>
+            <p className="text-sm text-neutral-600">Review your posted listings and open details for each entry.</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2" aria-label="Listing status filters">
+            {filterOptions.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={myListingsFilter === option.value ? 'outline' : 'ghost'}
+                aria-pressed={myListingsFilter === option.value}
+                onClick={() => {
+                  setMyListingsFilter(option.value);
+                  setSelectedListingId(null);
+                }}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+
+          {myListingsQuery.isLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading your listings...</p>
+          )}
+
+          {myListingsQuery.isError && (
+            <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
+              {myListingsQuery.error instanceof Error
+                ? myListingsQuery.error.message
+                : 'Failed to load your listings'}
+            </p>
+          )}
+
+          {!myListingsQuery.isLoading && !myListingsQuery.isError && (myListingsQuery.data?.items.length ?? 0) === 0 && (
+            <p className="text-sm text-neutral-600">No listings match this filter.</p>
+          )}
+
+          {(myListingsQuery.data?.items ?? []).map((listing) => (
+            <div
+              key={listing.id}
+              className="rounded-base border border-neutral-200 bg-white px-3 py-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <p className="font-medium text-neutral-900">{listing.title}</p>
+                  <p className="text-sm text-neutral-600">
+                    {listing.quantityRemaining} {listing.unit} remaining
+                  </p>
+                  <ListingStatusChip status={listing.status} />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedListingId(listing.id)}
+                  >
+                    View details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditMode(listing.id, listing.cropId)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {selectedListingId && detailListingQuery.isLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading listing details...</p>
+          )}
+
+          {selectedListingId && detailListingQuery.isError && (
+            <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
+              {detailListingQuery.error instanceof Error
+                ? detailListingQuery.error.message
+                : 'Failed to load listing details'}
+            </p>
+          )}
+
+          {selectedListing && <ListingDetails listing={selectedListing} />}
+        </Card>
+      )}
+
+      {activeView === 'discovery' && (
+        <Card className="space-y-4" padding="6">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold text-neutral-900">Local Discovery</h3>
+            <p className="text-sm text-neutral-600">
+              Showing your active listings in local-context order so you can verify what nearby neighbors can discover.
+            </p>
+          </div>
+
+          {discoveryQuery.isLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading local discovery listings...</p>
+          )}
+
+          {discoveryQuery.isError && (
+            <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
+              {discoveryQuery.error instanceof Error
+                ? discoveryQuery.error.message
+                : 'Failed to load local discovery listings'}
+            </p>
+          )}
+
+          {!discoveryQuery.isLoading && !discoveryQuery.isError && discoveryListings.length === 0 && (
+            <p className="text-sm text-neutral-600">No active listings available for local discovery yet.</p>
+          )}
+
+          {discoveryListings.map((listing) => {
+            const canShowDistance = isFiniteCoordinate(defaultLat) && isFiniteCoordinate(defaultLng);
+            const distanceLabel = canShowDistance
+              ? `${distanceInKm(defaultLat, defaultLng, listing.lat, listing.lng).toFixed(1)} km away`
+              : null;
+
+            return (
+              <div key={listing.id} className="rounded-base border border-neutral-200 bg-white px-3 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <p className="font-medium text-neutral-900">{listing.title}</p>
+                    <p className="text-sm text-neutral-600">
+                      {listing.quantityRemaining} {listing.unit} remaining
+                    </p>
+                    {distanceLabel && <p className="text-xs text-neutral-500">{distanceLabel}</p>}
+                    <ListingStatusChip status={listing.status} />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedListingId(listing.id)}
+                  >
+                    View details
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+
+          {selectedListingId && detailListingQuery.isLoading && (
+            <p className="text-sm text-neutral-600" role="status">Loading listing details...</p>
+          )}
+
+          {selectedListingId && detailListingQuery.isError && (
+            <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
+              {detailListingQuery.error instanceof Error
+                ? detailListingQuery.error.message
+                : 'Failed to load listing details'}
+            </p>
+          )}
+
+          {selectedListing && <ListingDetails listing={selectedListing} />}
+        </Card>
+      )}
     </div>
   );
 }
