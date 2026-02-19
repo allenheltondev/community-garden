@@ -29,7 +29,10 @@ async fn handler(event: LambdaEvent<Value>) -> Result<Value, Error> {
     if !is_post_confirmation_trigger(onboarding_context.trigger_source.as_deref()) {
         warn!(
             correlation_id = onboarding_context.correlation_id.as_str(),
-            trigger_source = onboarding_context.trigger_source.as_deref().unwrap_or("unknown"),
+            trigger_source = onboarding_context
+                .trigger_source
+                .as_deref()
+                .unwrap_or("unknown"),
             "Skipping unsupported Cognito trigger"
         );
         return Ok(payload);
@@ -59,9 +62,9 @@ fn parse_context(payload: &Value) -> Result<PostConfirmationContext, Error> {
         .and_then(Value::as_str)
         .map(ToString::to_string);
 
-    let attributes = payload
-        .pointer("/request/userAttributes")
-        .ok_or_else(|| Error::from("Missing request.userAttributes in Cognito event".to_string()))?;
+    let attributes = payload.pointer("/request/userAttributes").ok_or_else(|| {
+        Error::from("Missing request.userAttributes in Cognito event".to_string())
+    })?;
 
     let user_id_raw = attributes
         .get("sub")
@@ -99,9 +102,11 @@ fn parse_context(payload: &Value) -> Result<PostConfirmationContext, Error> {
 fn is_post_confirmation_trigger(trigger_source: Option<&str>) -> bool {
     matches!(
         trigger_source,
-        Some("PostConfirmation_ConfirmSignUp")
-            | Some("PostConfirmation_AdminConfirmSignUp")
-            | Some("PostConfirmation_ConfirmForgotPassword")
+        Some(
+            "PostConfirmation_ConfirmSignUp"
+                | "PostConfirmation_AdminConfirmSignUp"
+                | "PostConfirmation_ConfirmForgotPassword"
+        )
     )
 }
 
@@ -122,7 +127,11 @@ async fn connect() -> Result<Client, Error> {
     Ok(client)
 }
 
-async fn upsert_shell_user(client: &Client, user_id: Uuid, email: Option<&str>) -> Result<(), Error> {
+async fn upsert_shell_user(
+    client: &Client,
+    user_id: Uuid,
+    email: Option<&str>,
+) -> Result<(), Error> {
     client
         .execute(
             "
@@ -162,10 +171,7 @@ mod tests {
         let result = parse_context(&payload);
         assert!(result.is_ok());
 
-        let context = match result {
-            Ok(value) => value,
-            Err(_) => return,
-        };
+        let Ok(context) = result else { return };
 
         assert_eq!(
             context.trigger_source.as_deref(),
@@ -196,10 +202,7 @@ mod tests {
         let result = parse_context(&payload);
         assert!(result.is_ok());
 
-        let context = match result {
-            Ok(value) => value,
-            Err(_) => return,
-        };
+        let Ok(context) = result else { return };
 
         assert_eq!(context.correlation_id, "corr-456");
         assert!(context.email.is_none());
@@ -221,9 +224,68 @@ mod tests {
     }
 
     #[test]
+    fn parse_context_rejects_missing_user_attributes() {
+        let payload = json!({
+            "triggerSource": "PostConfirmation_ConfirmSignUp",
+            "request": {
+                "clientMetadata": {
+                    "correlationId": "corr-123"
+                }
+            }
+        });
+
+        let result = parse_context(&payload);
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .is_some_and(|error| error.to_string().contains("Missing request.userAttributes")));
+    }
+
+    #[test]
+    fn parse_context_rejects_missing_sub() {
+        let payload = json!({
+            "triggerSource": "PostConfirmation_ConfirmSignUp",
+            "request": {
+                "userAttributes": {
+                    "email": "new-user@example.com"
+                }
+            }
+        });
+
+        let result = parse_context(&payload);
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .is_some_and(|error| error.to_string().contains("Missing userAttributes.sub")));
+    }
+
+    #[test]
+    fn parse_context_generates_uuid_correlation_id_when_missing_metadata() {
+        let payload = json!({
+            "triggerSource": "PostConfirmation_ConfirmSignUp",
+            "request": {
+                "userAttributes": {
+                    "sub": "11111111-1111-1111-1111-111111111111"
+                }
+            }
+        });
+
+        let result = parse_context(&payload);
+        assert!(result.is_ok());
+
+        let Ok(context) = result else { return };
+
+        assert!(Uuid::parse_str(&context.correlation_id).is_ok());
+    }
+
+    #[test]
     fn post_confirmation_trigger_filter_is_strict() {
-        assert!(is_post_confirmation_trigger(Some("PostConfirmation_ConfirmSignUp")));
-        assert!(is_post_confirmation_trigger(Some("PostConfirmation_AdminConfirmSignUp")));
+        assert!(is_post_confirmation_trigger(Some(
+            "PostConfirmation_ConfirmSignUp"
+        )));
+        assert!(is_post_confirmation_trigger(Some(
+            "PostConfirmation_AdminConfirmSignUp"
+        )));
         assert!(is_post_confirmation_trigger(Some(
             "PostConfirmation_ConfirmForgotPassword"
         )));
