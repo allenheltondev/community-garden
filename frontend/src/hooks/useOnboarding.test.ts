@@ -33,7 +33,7 @@ describe('useOnboarding', () => {
       const profileInput = {
         homeZone: '8a',
         address: '123 Main St, Springfield, IL',
-        shareRadiusKm: 5.0,
+        shareRadiusMiles: 5.0,
         units: 'imperial' as const,
         locale: 'en-US',
       };
@@ -69,7 +69,7 @@ describe('useOnboarding', () => {
     it('submits gatherer profile with address', async () => {
       const profileInput = {
         address: '456 Oak Ave, Springfield, IL',
-        searchRadiusKm: 10.0,
+        searchRadiusMiles: 10.0,
         organizationAffiliation: 'SF Food Bank',
         units: 'metric' as const,
         locale: 'en-US',
