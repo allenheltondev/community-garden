@@ -170,14 +170,15 @@ fn map_api_error_to_response(
         || message.contains("availableEnd")
         || message.contains("title is required")
         || message.contains("unit is required")
-        || message.contains("lat must be")
-        || message.contains("lng must be")
         || message.contains("does not reference an existing catalog crop")
         || message.contains("must belong to the specified crop_id")
         || message.contains("Request body is required")
         || message.contains("share_radius_km")
-        || message.contains("lat and lng")
         || message.contains("units must be one of")
+        || message.contains("homeZone")
+        || message.contains("address is required")
+        || message.contains("Address could not be geocoded")
+        || message.contains("pickupAddress is required because grower profile address is missing")
     {
         return crop::error_response(400, &message);
     }
