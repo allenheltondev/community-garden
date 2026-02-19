@@ -14,20 +14,23 @@ mod listing_read_tests {
             "items": [
                 {
                     "id": "8b91810e-758b-4cf3-8ed1-95fb48ee6a2a",
-                    "user_id": "3a6d7091-9f96-44d0-8e29-ec5eb6f2ac68",
+                    "userId": "3a6d7091-9f96-44d0-8e29-ec5eb6f2ac68",
                     "status": "active"
                 }
             ],
             "limit": 10,
             "offset": 0,
-            "has_more": true,
-            "next_offset": 10
+            "hasMore": true,
+            "nextOffset": 10
         });
 
         assert!(expected.get("items").is_some());
         assert!(expected["items"].is_array());
-        assert!(expected["has_more"].is_boolean());
-        assert!(expected["next_offset"].is_number());
+        assert!(expected["items"][0].get("userId").is_some());
+        assert!(expected.get("hasMore").is_some());
+        assert!(expected["hasMore"].is_boolean());
+        assert!(expected.get("nextOffset").is_some());
+        assert!(expected["nextOffset"].is_number());
     }
 
     #[test]

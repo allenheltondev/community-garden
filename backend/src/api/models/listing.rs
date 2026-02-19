@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListingItem {
     pub id: String,
     pub user_id: String,
@@ -26,6 +27,7 @@ pub struct ListingItem {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListMyListingsResponse {
     pub items: Vec<ListingItem>,
     pub limit: i64,

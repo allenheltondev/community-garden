@@ -171,10 +171,12 @@ pub async fn list_my_listings(
             .map_err(|error| db_error(&error))?
     };
 
-    let has_more = rows.len() as i64 > query.limit;
+    let limit = usize::try_from(query.limit)
+        .map_err(|_| lambda_http::Error::from("Invalid limit. Must be between 1 and 100"))?;
+    let has_more = rows.len() > limit;
     let items = rows
         .into_iter()
-        .take(query.limit as usize)
+        .take(limit)
         .map(|row| row_to_listing_item(&row))
         .collect::<Vec<_>>();
 
@@ -471,7 +473,9 @@ fn normalize_payload(
     })
 }
 
-fn parse_list_my_listings_query(query: Option<&str>) -> Result<ListMyListingsQuery, lambda_http::Error> {
+fn parse_list_my_listings_query(
+    query: Option<&str>,
+) -> Result<ListMyListingsQuery, lambda_http::Error> {
     let mut status: Option<String> = None;
     let mut limit: i64 = 20;
     let mut offset: i64 = 0;
@@ -498,9 +502,9 @@ fn parse_list_my_listings_query(query: Option<&str>) -> Result<ListMyListingsQue
                     }
                 }
                 "limit" => {
-                    limit = value
-                        .parse::<i64>()
-                        .map_err(|_| lambda_http::Error::from("Invalid limit. Must be an integer"))?;
+                    limit = value.parse::<i64>().map_err(|_| {
+                        lambda_http::Error::from("Invalid limit. Must be an integer")
+                    })?;
                     if !(1..=100).contains(&limit) {
                         return Err(lambda_http::Error::from(
                             "Invalid limit. Must be between 1 and 100",
@@ -508,9 +512,9 @@ fn parse_list_my_listings_query(query: Option<&str>) -> Result<ListMyListingsQue
                     }
                 }
                 "offset" => {
-                    offset = value
-                        .parse::<i64>()
-                        .map_err(|_| lambda_http::Error::from("Invalid offset. Must be an integer"))?;
+                    offset = value.parse::<i64>().map_err(|_| {
+                        lambda_http::Error::from("Invalid offset. Must be an integer")
+                    })?;
                     if offset < 0 {
                         return Err(lambda_http::Error::from(
                             "Invalid offset. Must be greater than or equal to 0",
@@ -855,7 +859,8 @@ mod tests {
 
     #[test]
     fn parse_list_my_listings_query_with_filters() {
-        let parsed = parse_list_my_listings_query(Some("status=active&limit=10&offset=20")).unwrap();
+        let parsed =
+            parse_list_my_listings_query(Some("status=active&limit=10&offset=20")).unwrap();
         assert_eq!(parsed.status, Some("active".to_string()));
         assert_eq!(parsed.limit, 10);
         assert_eq!(parsed.offset, 20);
