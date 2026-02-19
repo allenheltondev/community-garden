@@ -157,7 +157,7 @@ describe('GrowerListingPanel', () => {
     await user.click(screen.getByRole('tab', { name: /my listings/i }));
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Active' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Expired' }));
 
