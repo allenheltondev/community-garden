@@ -205,6 +205,13 @@ fn parse_positive_radius(value: &str, field_name: &str) -> Result<f64, lambda_ht
     let parsed = value
         .parse::<f64>()
         .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid number")))?;
+
+    if !parsed.is_finite() {
+        return Err(lambda_http::Error::from(format!(
+            "{field_name} must be a finite number",
+        )));
+    }
+
     if parsed <= 0.0 {
         return Err(lambda_http::Error::from(format!(
             "{field_name} must be greater than 0"
@@ -226,17 +233,17 @@ fn derive_geo_prefix(geo_key: &str, radius_km: Option<f64>) -> String {
 
 fn geohash_precision_for_radius_km(radius_km: f64) -> usize {
     if radius_km <= 0.61 {
-        7
-    } else if radius_km <= 2.4 {
         6
-    } else if radius_km <= 20.0 {
+    } else if radius_km <= 2.4 {
         5
-    } else if radius_km <= 78.0 {
+    } else if radius_km <= 20.0 {
         4
-    } else if radius_km <= 630.0 {
+    } else if radius_km <= 78.0 {
         3
-    } else if radius_km <= 2500.0 {
+    } else if radius_km <= 630.0 {
         2
+    } else if radius_km <= 2500.0 {
+        1
     } else {
         1
     }
@@ -415,6 +422,26 @@ mod tests {
     }
 
     #[test]
+    fn parse_discover_listings_query_rejects_nan_radius() {
+        let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusKm=NaN"));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("radiusKm must be a finite number"));
+    }
+
+    #[test]
+    fn parse_discover_listings_query_rejects_infinite_radius() {
+        let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusMiles=inf"));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("radiusMiles must be a finite number"));
+    }
+
+    #[test]
     fn parse_discover_listings_query_rejects_non_active_status() {
         let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&status=expired"));
         assert!(result.is_err());
@@ -426,8 +453,8 @@ mod tests {
 
     #[test]
     fn derive_geo_prefix_uses_radius_precision() {
-        assert_eq!(derive_geo_prefix("9q8yyk8", Some(20.0)), "9q8yy");
-        assert_eq!(derive_geo_prefix("9q8yyk8", Some(78.0)), "9q8y");
+        assert_eq!(derive_geo_prefix("9q8yyk8", Some(20.0)), "9q8y");
+        assert_eq!(derive_geo_prefix("9q8yyk8", Some(78.0)), "9q8");
     }
 
     #[test]
