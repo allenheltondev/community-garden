@@ -10,6 +10,8 @@ use tokio_postgres::Row;
 use tracing::error;
 use uuid::Uuid;
 
+const KM_PER_MILE: f64 = 1.609_344;
+
 pub async fn get_current_user(
     request: &Request,
     correlation_id: &str,
@@ -83,6 +85,12 @@ pub async fn upsert_current_user(
     if let Some(grower_profile) = payload.grower_profile {
         let address = location::normalize_address(&grower_profile.address);
         let geocoded = location::geocode_address(&address, correlation_id).await?;
+        let share_radius_miles = grower_profile.resolved_share_radius_miles().ok_or_else(|| {
+            lambda_http::Error::from(
+                "Either shareRadiusMiles or legacy shareRadiusKm must be provided".to_string(),
+            )
+        })?;
+        let share_radius_km = miles_to_km(share_radius_miles);
 
         client
             .execute(
@@ -109,7 +117,7 @@ pub async fn upsert_current_user(
                     &geocoded.geo_key,
                     &geocoded.lat,
                     &geocoded.lng,
-                    &grower_profile.share_radius_km,
+                    &share_radius_km,
                     &grower_profile.units,
                     &grower_profile.locale,
                 ],
@@ -121,6 +129,14 @@ pub async fn upsert_current_user(
     if let Some(gatherer_profile) = payload.gatherer_profile {
         let address = location::normalize_address(&gatherer_profile.address);
         let geocoded = location::geocode_address(&address, correlation_id).await?;
+        let search_radius_miles = gatherer_profile
+            .resolved_search_radius_miles()
+            .ok_or_else(|| {
+                lambda_http::Error::from(
+                    "Either searchRadiusMiles or legacy searchRadiusKm must be provided".to_string(),
+                )
+            })?;
+        let search_radius_km = miles_to_km(search_radius_miles);
 
         client
             .execute(
@@ -146,7 +162,7 @@ pub async fn upsert_current_user(
                     &geocoded.geo_key,
                     &geocoded.lat,
                     &geocoded.lng,
-                    &gatherer_profile.search_radius_km,
+                    &search_radius_km,
                     &gatherer_profile.organization_affiliation,
                     &gatherer_profile.units,
                     &gatherer_profile.locale,
@@ -240,9 +256,15 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
     }
 
     if let Some(grower) = &payload.grower_profile {
-        if grower.share_radius_km <= 0.0 {
+        let share_radius_miles = grower.resolved_share_radius_miles().ok_or_else(|| {
+            lambda_http::Error::from(
+                "Either shareRadiusMiles or legacy shareRadiusKm must be provided".to_string(),
+            )
+        })?;
+
+        if share_radius_miles <= 0.0 {
             return Err(lambda_http::Error::from(
-                "share_radius_km must be greater than 0".to_string(),
+                "shareRadiusMiles must be greater than 0".to_string(),
             ));
         }
 
@@ -264,9 +286,15 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
     }
 
     if let Some(gatherer) = &payload.gatherer_profile {
-        if gatherer.search_radius_km <= 0.0 {
+        let search_radius_miles = gatherer.resolved_search_radius_miles().ok_or_else(|| {
+            lambda_http::Error::from(
+                "Either searchRadiusMiles or legacy searchRadiusKm must be provided".to_string(),
+            )
+        })?;
+
+        if search_radius_miles <= 0.0 {
             return Err(lambda_http::Error::from(
-                "search_radius_km must be greater than 0".to_string(),
+                "searchRadiusMiles must be greater than 0".to_string(),
             ));
         }
 
@@ -291,12 +319,17 @@ fn should_mark_onboarding_complete(payload: &PutMeRequest) -> bool {
                 if let Some(grower) = &payload.grower_profile {
                     return !grower.home_zone.trim().is_empty()
                         && !grower.address.trim().is_empty()
-                        && grower.share_radius_km > 0.0;
+                        && grower
+                            .resolved_share_radius_miles()
+                            .is_some_and(|value| value > 0.0);
                 }
             }
             UserType::Gatherer => {
                 if let Some(gatherer) = &payload.gatherer_profile {
-                    return !gatherer.address.trim().is_empty() && gatherer.search_radius_km > 0.0;
+                    return !gatherer.address.trim().is_empty()
+                        && gatherer
+                            .resolved_search_radius_miles()
+                            .is_some_and(|value| value > 0.0);
                 }
             }
         }
@@ -356,7 +389,7 @@ async fn load_grower_profile(
         lng: grower
             .get::<_, Option<f64>>("lng")
             .map(location::round_for_response),
-        share_radius_km: grower.get("share_radius_km"),
+        share_radius_miles: km_text_to_miles_text(&grower.get::<_, String>("share_radius_km")),
         units: grower.get("units"),
         locale: grower.get("locale"),
     }))
@@ -379,7 +412,7 @@ async fn load_gatherer_profile(
         geo_key: gatherer.get("geo_key"),
         lat: location::round_for_response(gatherer.get("lat")),
         lng: location::round_for_response(gatherer.get("lng")),
-        search_radius_km: gatherer.get("search_radius_km"),
+        search_radius_miles: km_text_to_miles_text(&gatherer.get::<_, String>("search_radius_km")),
         organization_affiliation: gatherer.get("organization_affiliation"),
         units: gatherer.get("units"),
         locale: gatherer.get("locale"),
@@ -407,6 +440,36 @@ async fn load_rating_summary(
 fn parse_uuid(value: &str, field_name: &str) -> Result<Uuid, lambda_http::Error> {
     Uuid::parse_str(value)
         .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid UUID")))
+}
+
+fn miles_to_km(miles: f64) -> f64 {
+    miles * KM_PER_MILE
+}
+
+fn km_to_miles(km: f64) -> f64 {
+    km / KM_PER_MILE
+}
+
+fn normalize_radius_text(value: f64) -> String {
+    let mut text = format!("{value:.6}");
+    while text.ends_with('0') {
+        text.pop();
+    }
+    if text.ends_with('.') {
+        text.pop();
+    }
+    if !text.contains('.') {
+        text.push_str(".0");
+    }
+    text
+}
+
+fn km_text_to_miles_text(km_text: &str) -> String {
+    km_text
+        .parse::<f64>()
+        .map(km_to_miles)
+        .map(normalize_radius_text)
+        .unwrap_or_else(|_| km_text.to_string())
 }
 
 fn parse_json_body<T: serde::de::DeserializeOwned>(
@@ -455,13 +518,15 @@ mod tests {
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
                 address: "123 Main St".to_string(),
-                share_radius_km: 5.0,
+                share_radius_miles: Some(5.0),
+                share_radius_km: None,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
             gatherer_profile: Some(GathererProfileInput {
                 address: "456 Oak Ave".to_string(),
-                search_radius_km: 10.0,
+                search_radius_miles: Some(10.0),
+                search_radius_km: None,
                 organization_affiliation: None,
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
@@ -484,7 +549,8 @@ mod tests {
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
                 address: "456 Oak Ave".to_string(),
-                search_radius_km: 10.0,
+                search_radius_miles: Some(10.0),
+                search_radius_km: None,
                 organization_affiliation: None,
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
@@ -507,7 +573,8 @@ mod tests {
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
                 address: "   ".to_string(),
-                share_radius_km: 5.0,
+                share_radius_miles: Some(5.0),
+                share_radius_km: None,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
@@ -530,7 +597,8 @@ mod tests {
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
                 address: String::new(),
-                search_radius_km: 10.0,
+                search_radius_miles: Some(10.0),
+                search_radius_km: None,
                 organization_affiliation: None,
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
@@ -553,7 +621,28 @@ mod tests {
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
                 address: "123 Main St".to_string(),
-                share_radius_km: 5.0,
+                share_radius_miles: Some(5.0),
+                share_radius_km: None,
+                units: "imperial".to_string(),
+                locale: "en-US".to_string(),
+            }),
+            gatherer_profile: None,
+        };
+
+        let result = validate_put_me_payload(&payload);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_valid_legacy_km_grower_profile() {
+        let payload = PutMeRequest {
+            display_name: Some("Test User".to_string()),
+            user_type: Some(UserType::Grower),
+            grower_profile: Some(GrowerProfileInput {
+                home_zone: "8a".to_string(),
+                address: "123 Main St".to_string(),
+                share_radius_miles: None,
+                share_radius_km: Some(8.04672),
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
@@ -572,7 +661,8 @@ mod tests {
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
                 address: "456 Oak Ave".to_string(),
-                search_radius_km: 10.0,
+                search_radius_miles: Some(10.0),
+                search_radius_km: None,
                 organization_affiliation: Some("SF Food Bank".to_string()),
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
@@ -584,6 +674,29 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_radius_prefers_miles_when_both_provided() {
+        let payload = PutMeRequest {
+            display_name: Some("Test User".to_string()),
+            user_type: Some(UserType::Gatherer),
+            grower_profile: None,
+            gatherer_profile: Some(GathererProfileInput {
+                address: "456 Oak Ave".to_string(),
+                search_radius_miles: Some(7.0),
+                search_radius_km: Some(100.0),
+                organization_affiliation: None,
+                units: "metric".to_string(),
+                locale: "en-US".to_string(),
+            }),
+        };
+
+        let resolved = payload
+            .gatherer_profile
+            .as_ref()
+            .and_then(|profile| profile.resolved_search_radius_miles());
+        assert_eq!(resolved, Some(7.0));
+    }
+
+    #[test]
     fn test_should_mark_onboarding_complete_grower() {
         let payload = PutMeRequest {
             display_name: Some("Test User".to_string()),
@@ -591,7 +704,8 @@ mod tests {
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
                 address: "123 Main St".to_string(),
-                share_radius_km: 5.0,
+                share_radius_miles: Some(5.0),
+                share_radius_km: None,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
@@ -609,7 +723,8 @@ mod tests {
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
                 address: "456 Oak Ave".to_string(),
-                search_radius_km: 10.0,
+                search_radius_miles: Some(10.0),
+                search_radius_km: None,
                 organization_affiliation: None,
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
