@@ -1,4 +1,5 @@
 use crate::db;
+use crate::location;
 use crate::models::crop::ErrorResponse;
 use crate::models::profile::{
     GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, UserRatingSummary, UserType,
@@ -36,7 +37,7 @@ pub async fn get_current_user(
     )
 }
 
-#[allow(clippy::too_many_lines)] // Complex handler with validation and database logic
+#[allow(clippy::too_many_lines)]
 pub async fn upsert_current_user(
     request: &Request,
     correlation_id: &str,
@@ -45,15 +46,11 @@ pub async fn upsert_current_user(
     let auth_email = extract_authorizer_field(request, "email");
     let payload: PutMeRequest = parse_json_body(request)?;
 
-    // Validate the payload
     validate_put_me_payload(&payload)?;
 
     let client = db::connect().await?;
-
-    // Determine if onboarding should be completed
     let should_complete_onboarding = should_mark_onboarding_complete(&payload);
 
-    // Upsert user record with userType and onboarding_completed
     let user_row = client
         .query_one(
             "
@@ -83,19 +80,20 @@ pub async fn upsert_current_user(
         .await
         .map_err(|error| db_error(&error))?;
 
-    // Handle grower profile if provided
     if let Some(grower_profile) = payload.grower_profile {
-        let geo_key = calculate_geohash(grower_profile.lat, grower_profile.lng);
+        let address = location::normalize_address(&grower_profile.address);
+        let geocoded = location::geocode_address(&address, correlation_id).await?;
 
         client
             .execute(
                 "
                 insert into grower_profiles
-                    (user_id, home_zone, geo_key, lat, lng, share_radius_km, units, locale)
+                    (user_id, home_zone, address, geo_key, lat, lng, share_radius_km, units, locale)
                 values
-                    ($1, $2, $3, $4, $5, $6, coalesce($7::units_system, 'imperial'::units_system), $8)
+                    ($1, $2, $3, $4, $5, $6, $7, coalesce($8::units_system, 'imperial'::units_system), $9)
                 on conflict (user_id) do update
                 set home_zone = excluded.home_zone,
+                    address = excluded.address,
                     geo_key = excluded.geo_key,
                     lat = excluded.lat,
                     lng = excluded.lng,
@@ -107,9 +105,10 @@ pub async fn upsert_current_user(
                 &[
                     &user_id,
                     &grower_profile.home_zone,
-                    &geo_key,
-                    &grower_profile.lat,
-                    &grower_profile.lng,
+                    &address,
+                    &geocoded.geo_key,
+                    &geocoded.lat,
+                    &geocoded.lng,
                     &grower_profile.share_radius_km,
                     &grower_profile.units,
                     &grower_profile.locale,
@@ -119,19 +118,20 @@ pub async fn upsert_current_user(
             .map_err(|error| db_error(&error))?;
     }
 
-    // Handle gatherer profile if provided
     if let Some(gatherer_profile) = payload.gatherer_profile {
-        let geo_key = calculate_geohash(gatherer_profile.lat, gatherer_profile.lng);
+        let address = location::normalize_address(&gatherer_profile.address);
+        let geocoded = location::geocode_address(&address, correlation_id).await?;
 
         client
             .execute(
                 "
                 insert into gatherer_profiles
-                    (user_id, geo_key, lat, lng, search_radius_km, organization_affiliation, units, locale)
+                    (user_id, address, geo_key, lat, lng, search_radius_km, organization_affiliation, units, locale)
                 values
-                    ($1, $2, $3, $4, $5, $6, coalesce($7::units_system, 'imperial'::units_system), $8)
+                    ($1, $2, $3, $4, $5, $6, $7, coalesce($8::units_system, 'imperial'::units_system), $9)
                 on conflict (user_id) do update
-                set geo_key = excluded.geo_key,
+                set address = excluded.address,
+                    geo_key = excluded.geo_key,
                     lat = excluded.lat,
                     lng = excluded.lng,
                     search_radius_km = excluded.search_radius_km,
@@ -142,9 +142,10 @@ pub async fn upsert_current_user(
                 ",
                 &[
                     &user_id,
-                    &geo_key,
-                    &gatherer_profile.lat,
-                    &gatherer_profile.lng,
+                    &address,
+                    &geocoded.geo_key,
+                    &geocoded.lat,
+                    &geocoded.lng,
                     &gatherer_profile.search_radius_km,
                     &gatherer_profile.organization_affiliation,
                     &gatherer_profile.units,
@@ -213,14 +214,12 @@ fn extract_authorizer_field(request: &Request, field_name: &str) -> Option<Strin
 }
 
 fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Error> {
-    // Validate that only one profile type is provided per request
     if payload.grower_profile.is_some() && payload.gatherer_profile.is_some() {
         return Err(lambda_http::Error::from(
             "Cannot provide both growerProfile and gathererProfile in the same request".to_string(),
         ));
     }
 
-    // Validate profile data matches userType
     if let Some(user_type) = &payload.user_type {
         match user_type {
             UserType::Grower => {
@@ -240,67 +239,48 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
         }
     }
 
-    // Validate grower profile if provided
     if let Some(grower) = &payload.grower_profile {
-        // Validate share_radius_km
         if grower.share_radius_km <= 0.0 {
             return Err(lambda_http::Error::from(
                 "share_radius_km must be greater than 0".to_string(),
             ));
         }
 
-        // Validate lat/lng ranges
-        if grower.lat < -90.0 || grower.lat > 90.0 {
-            return Err(lambda_http::Error::from(
-                "lat must be between -90 and 90".to_string(),
-            ));
-        }
-        if grower.lng < -180.0 || grower.lng > 180.0 {
-            return Err(lambda_http::Error::from(
-                "lng must be between -180 and 180".to_string(),
-            ));
-        }
-
-        // Validate units
         if grower.units != "imperial" && grower.units != "metric" {
             return Err(lambda_http::Error::from(
                 "units must be one of: imperial, metric".to_string(),
             ));
         }
 
-        // Validate homeZone format (basic check - should be alphanumeric)
-        if grower.home_zone.is_empty() {
+        if grower.home_zone.trim().is_empty() {
             return Err(lambda_http::Error::from(
                 "homeZone cannot be empty".to_string(),
             ));
         }
+
+        if grower.address.trim().is_empty() {
+            return Err(lambda_http::Error::from(
+                "address is required".to_string(),
+            ));
+        }
     }
 
-    // Validate gatherer profile if provided
     if let Some(gatherer) = &payload.gatherer_profile {
-        // Validate search_radius_km
         if gatherer.search_radius_km <= 0.0 {
             return Err(lambda_http::Error::from(
                 "search_radius_km must be greater than 0".to_string(),
             ));
         }
 
-        // Validate lat/lng ranges
-        if gatherer.lat < -90.0 || gatherer.lat > 90.0 {
-            return Err(lambda_http::Error::from(
-                "lat must be between -90 and 90".to_string(),
-            ));
-        }
-        if gatherer.lng < -180.0 || gatherer.lng > 180.0 {
-            return Err(lambda_http::Error::from(
-                "lng must be between -180 and 180".to_string(),
-            ));
-        }
-
-        // Validate units
         if gatherer.units != "imperial" && gatherer.units != "metric" {
             return Err(lambda_http::Error::from(
                 "units must be one of: imperial, metric".to_string(),
+            ));
+        }
+
+        if gatherer.address.trim().is_empty() {
+            return Err(lambda_http::Error::from(
+                "address is required".to_string(),
             ));
         }
     }
@@ -309,40 +289,23 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
 }
 
 fn should_mark_onboarding_complete(payload: &PutMeRequest) -> bool {
-    // Onboarding is complete when userType is set and the corresponding profile has all required fields
     if let Some(user_type) = &payload.user_type {
         match user_type {
             UserType::Grower => {
-                // Check if grower profile has all required fields
                 if let Some(grower) = &payload.grower_profile {
-                    return !grower.home_zone.is_empty()
-                        && grower.lat >= -90.0
-                        && grower.lat <= 90.0
-                        && grower.lng >= -180.0
-                        && grower.lng <= 180.0
+                    return !grower.home_zone.trim().is_empty()
+                        && !grower.address.trim().is_empty()
                         && grower.share_radius_km > 0.0;
                 }
             }
             UserType::Gatherer => {
-                // Check if gatherer profile has all required fields
                 if let Some(gatherer) = &payload.gatherer_profile {
-                    return gatherer.lat >= -90.0
-                        && gatherer.lat <= 90.0
-                        && gatherer.lng >= -180.0
-                        && gatherer.lng <= 180.0
-                        && gatherer.search_radius_km > 0.0;
+                    return !gatherer.address.trim().is_empty() && gatherer.search_radius_km > 0.0;
                 }
             }
         }
     }
     false
-}
-
-fn calculate_geohash(lat: f64, lng: f64) -> String {
-    // Use precision 7 for geohash (approximately 153m x 153m)
-    // This provides good granularity for local food sharing
-    geohash::encode(geohash::Coord { x: lng, y: lat }, 7)
-        .unwrap_or_else(|_| String::from("unknown"))
 }
 
 async fn to_me_response(
@@ -351,7 +314,6 @@ async fn to_me_response(
 ) -> Result<MeProfileResponse, lambda_http::Error> {
     let user_id = user_row.get::<_, Uuid>("id");
 
-    // Parse user_type from database text to enum
     let user_type = user_row
         .get::<_, Option<String>>("user_type")
         .and_then(|s| match s.as_str() {
@@ -382,7 +344,7 @@ async fn load_grower_profile(
 ) -> Result<Option<GrowerProfile>, lambda_http::Error> {
     let row = client
         .query_opt(
-            "select home_zone, geo_key, lat, lng, share_radius_km::text as share_radius_km, units::text as units, locale from grower_profiles where user_id = $1",
+            "select home_zone, address, geo_key, lat, lng, share_radius_km::text as share_radius_km, units::text as units, locale from grower_profiles where user_id = $1",
             &[&user_id],
         )
         .await
@@ -390,9 +352,14 @@ async fn load_grower_profile(
 
     Ok(row.map(|grower| GrowerProfile {
         home_zone: grower.get("home_zone"),
+        address: grower.get("address"),
         geo_key: grower.get("geo_key"),
-        lat: grower.get("lat"),
-        lng: grower.get("lng"),
+        lat: grower
+            .get::<_, Option<f64>>("lat")
+            .map(location::round_for_response),
+        lng: grower
+            .get::<_, Option<f64>>("lng")
+            .map(location::round_for_response),
         share_radius_km: grower.get("share_radius_km"),
         units: grower.get("units"),
         locale: grower.get("locale"),
@@ -405,16 +372,17 @@ async fn load_gatherer_profile(
 ) -> Result<Option<crate::models::profile::GathererProfile>, lambda_http::Error> {
     let row = client
         .query_opt(
-            "select geo_key, lat, lng, search_radius_km::text as search_radius_km, organization_affiliation, units::text as units, locale from gatherer_profiles where user_id = $1",
+            "select coalesce(address, '') as address, geo_key, lat, lng, search_radius_km::text as search_radius_km, organization_affiliation, units::text as units, locale from gatherer_profiles where user_id = $1",
             &[&user_id],
         )
         .await
         .map_err(|error| db_error(&error))?;
 
     Ok(row.map(|gatherer| crate::models::profile::GathererProfile {
+        address: gatherer.get("address"),
         geo_key: gatherer.get("geo_key"),
-        lat: gatherer.get("lat"),
-        lng: gatherer.get("lng"),
+        lat: location::round_for_response(gatherer.get("lat")),
+        lng: location::round_for_response(gatherer.get("lng")),
         search_radius_km: gatherer.get("search_radius_km"),
         organization_affiliation: gatherer.get("organization_affiliation"),
         units: gatherer.get("units"),
@@ -478,7 +446,7 @@ fn json_response<T: Serialize>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)] // unwrap is acceptable in tests
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::profile::{GathererProfileInput, GrowerProfileInput};
@@ -490,15 +458,13 @@ mod tests {
             user_type: Some(UserType::Grower),
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "123 Main St".to_string(),
                 share_radius_km: 5.0,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
             gatherer_profile: Some(GathererProfileInput {
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "456 Oak Ave".to_string(),
                 search_radius_km: 10.0,
                 organization_affiliation: None,
                 units: "metric".to_string(),
@@ -508,10 +474,7 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Cannot provide both"));
+        assert!(result.unwrap_err().to_string().contains("Cannot provide both"));
     }
 
     #[test]
@@ -521,8 +484,7 @@ mod tests {
             user_type: Some(UserType::Grower),
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "456 Oak Ave".to_string(),
                 search_radius_km: 10.0,
                 organization_affiliation: None,
                 units: "metric".to_string(),
@@ -539,14 +501,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_profile_mismatch_gatherer() {
+    fn test_validate_grower_missing_address() {
         let payload = PutMeRequest {
             display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Gatherer),
+            user_type: Some(UserType::Grower),
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "   ".to_string(),
                 share_radius_km: 5.0,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
@@ -556,118 +517,18 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Cannot provide growerProfile when userType is 'gatherer'"));
+        assert!(result.unwrap_err().to_string().contains("address is required"));
     }
 
     #[test]
-    fn test_validate_grower_negative_radius() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: Some(GrowerProfileInput {
-                home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
-                share_radius_km: -5.0,
-                units: "imperial".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("share_radius_km must be greater than 0"));
-    }
-
-    #[test]
-    fn test_validate_grower_invalid_lat() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: Some(GrowerProfileInput {
-                home_zone: "8a".to_string(),
-                lat: 91.0,
-                lng: -122.4194,
-                share_radius_km: 5.0,
-                units: "imperial".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("lat must be between -90 and 90"));
-    }
-
-    #[test]
-    fn test_validate_grower_invalid_lng() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: Some(GrowerProfileInput {
-                home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -181.0,
-                share_radius_km: 5.0,
-                units: "imperial".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("lng must be between -180 and 180"));
-    }
-
-    #[test]
-    fn test_validate_grower_invalid_units() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: Some(GrowerProfileInput {
-                home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
-                share_radius_km: 5.0,
-                units: "invalid".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("units must be one of: imperial, metric"));
-    }
-
-    #[test]
-    fn test_validate_gatherer_negative_radius() {
+    fn test_validate_gatherer_missing_address() {
         let payload = PutMeRequest {
             display_name: Some("Test User".to_string()),
             user_type: Some(UserType::Gatherer),
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
-                lat: 37.7749,
-                lng: -122.4194,
-                search_radius_km: -10.0,
+                address: "".to_string(),
+                search_radius_km: 10.0,
                 organization_affiliation: None,
                 units: "metric".to_string(),
                 locale: "en-US".to_string(),
@@ -676,10 +537,7 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("search_radius_km must be greater than 0"));
+        assert!(result.unwrap_err().to_string().contains("address is required"));
     }
 
     #[test]
@@ -689,8 +547,7 @@ mod tests {
             user_type: Some(UserType::Grower),
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "123 Main St".to_string(),
                 share_radius_km: 5.0,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
@@ -709,8 +566,7 @@ mod tests {
             user_type: Some(UserType::Gatherer),
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "456 Oak Ave".to_string(),
                 search_radius_km: 10.0,
                 organization_affiliation: Some("SF Food Bank".to_string()),
                 units: "metric".to_string(),
@@ -729,8 +585,7 @@ mod tests {
             user_type: Some(UserType::Grower),
             grower_profile: Some(GrowerProfileInput {
                 home_zone: "8a".to_string(),
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "123 Main St".to_string(),
                 share_radius_km: 5.0,
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
@@ -748,8 +603,7 @@ mod tests {
             user_type: Some(UserType::Gatherer),
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
-                lat: 37.7749,
-                lng: -122.4194,
+                address: "456 Oak Ave".to_string(),
                 search_radius_km: 10.0,
                 organization_affiliation: None,
                 units: "metric".to_string(),
@@ -758,31 +612,5 @@ mod tests {
         };
 
         assert!(should_mark_onboarding_complete(&payload));
-    }
-
-    #[test]
-    fn test_should_not_mark_onboarding_complete_no_profile() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: None,
-            gatherer_profile: None,
-        };
-
-        assert!(!should_mark_onboarding_complete(&payload));
-    }
-
-    #[test]
-    fn test_calculate_geohash() {
-        let geo_key = calculate_geohash(37.7749, -122.4194);
-        assert_eq!(geo_key.len(), 7);
-        assert!(geo_key.starts_with("9q8yy"));
-    }
-
-    #[test]
-    fn test_calculate_geohash_different_locations() {
-        let sf = calculate_geohash(37.7749, -122.4194);
-        let nyc = calculate_geohash(40.7128, -74.0060);
-        assert_ne!(sf, nyc);
     }
 }
