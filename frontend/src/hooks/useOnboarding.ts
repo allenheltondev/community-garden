@@ -16,8 +16,7 @@ export interface OnboardingState {
  */
 export interface GrowerProfileInput {
   homeZone: string;
-  lat: number;
-  lng: number;
+  address: string;
   shareRadiusKm: number;
   units: 'metric' | 'imperial';
   locale: string;
@@ -27,8 +26,7 @@ export interface GrowerProfileInput {
  * Gatherer profile input data (without server-computed fields)
  */
 export interface GathererProfileInput {
-  lat: number;
-  lng: number;
+  address: string;
   searchRadiusKm: number;
   organizationAffiliation?: string;
   units: 'metric' | 'imperial';
@@ -37,18 +35,6 @@ export interface GathererProfileInput {
 
 /**
  * Custom hook for managing user onboarding flow
- *
- * Features:
- * - Submit user type selection
- * - Submit grower profile data
- * - Submit gatherer profile data
- * - Handle API errors and validation messages
- * - Update local user state on success
- *
- * All methods call PUT /me with appropriate payload structure.
- *
- * @param onSuccess - Callback invoked with updated user profile after successful submission
- * @returns Onboarding state and submission methods
  */
 export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
   const [state, setState] = useState<OnboardingState>({
@@ -56,12 +42,6 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
     error: null,
   });
 
-  /**
-   * Submit user type selection
-   *
-   * @param userType - The selected user type ('grower' or 'gatherer')
-   * @returns Promise<UserProfile> The updated user profile
-   */
   const submitUserType = useCallback(
     async (userType: UserType): Promise<UserProfile> => {
       try {
@@ -98,12 +78,6 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
     [onSuccess]
   );
 
-  /**
-   * Submit grower profile data
-   *
-   * @param profileData - Grower profile information
-   * @returns Promise<UserProfile> The updated user profile with grower profile
-   */
   const submitGrowerProfile = useCallback(
     async (profileData: GrowerProfileInput): Promise<UserProfile> => {
       try {
@@ -111,6 +85,7 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
 
         logger.info('Submitting grower profile', {
           homeZone: profileData.homeZone,
+          hasAddress: !!profileData.address,
           shareRadiusKm: profileData.shareRadiusKm,
         });
 
@@ -147,18 +122,13 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
     [onSuccess]
   );
 
-  /**
-   * Submit gatherer profile data
-   *
-   * @param profileData - Gatherer profile information
-   * @returns Promise<UserProfile> The updated user profile with gatherer profile
-   */
   const submitGathererProfile = useCallback(
     async (profileData: GathererProfileInput): Promise<UserProfile> => {
       try {
         setState({ isSubmitting: true, error: null });
 
         logger.info('Submitting gatherer profile', {
+          hasAddress: !!profileData.address,
           searchRadiusKm: profileData.searchRadiusKm,
           hasOrganization: !!profileData.organizationAffiliation,
         });
@@ -196,9 +166,6 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
     [onSuccess]
   );
 
-  /**
-   * Clear any errors
-   */
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);

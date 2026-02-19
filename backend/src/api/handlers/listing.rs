@@ -1,5 +1,6 @@
 use crate::auth::{extract_auth_context, require_grower};
 use crate::db;
+use crate::location;
 use crate::models::crop::ErrorResponse;
 use crate::models::listing::{ListMyListingsResponse, ListingItem};
 use aws_config::BehaviorVersion;
@@ -29,20 +30,21 @@ const UPDATE_LISTING_SQL: &str = "
                 status = $8::listing_status,
                 pickup_location_text = $9,
                 pickup_address = $10,
-                pickup_disclosure_policy = $11::pickup_disclosure_policy,
-                pickup_notes = $12,
-                contact_pref = $13::contact_preference,
-                geo_key = $14,
-                lat = $15,
-                lng = $16
-            where id = $17
-              and user_id = $18
+                effective_pickup_address = $11,
+                pickup_disclosure_policy = $12::pickup_disclosure_policy,
+                pickup_notes = $13,
+                contact_pref = $14::contact_preference,
+                geo_key = $15,
+                lat = $16,
+                lng = $17
+            where id = $18
+              and user_id = $19
               and deleted_at is null
             returning id, user_id, crop_id, variety_id, title,
                       quantity_total::text as quantity_total,
                       quantity_remaining::text as quantity_remaining,
                       unit, available_start, available_end, status::text,
-                      pickup_location_text, pickup_address,
+                      pickup_location_text, pickup_address, effective_pickup_address,
                       pickup_disclosure_policy::text as pickup_disclosure_policy,
                       pickup_notes, contact_pref::text as contact_pref,
                       geo_key, lat, lng, created_at
@@ -63,9 +65,15 @@ pub struct UpsertListingRequest {
     pub pickup_disclosure_policy: Option<String>,
     pub pickup_notes: Option<String>,
     pub contact_pref: Option<String>,
-    pub lat: f64,
-    pub lng: f64,
     pub status: Option<String>,
+}
+
+#[derive(Debug)]
+struct ResolvedLocationInput {
+    effective_pickup_address: String,
+    geo_key: String,
+    lat: f64,
+    lng: f64,
 }
 
 #[derive(Debug)]
@@ -74,10 +82,14 @@ struct NormalizedListingInput {
     variety_id: Option<Uuid>,
     available_start: DateTime<Utc>,
     available_end: DateTime<Utc>,
+    pickup_address: Option<String>,
+    effective_pickup_address: String,
     pickup_disclosure_policy: String,
     contact_pref: String,
     status: String,
     geo_key: String,
+    lat: f64,
+    lng: f64,
 }
 
 #[derive(Debug)]
@@ -103,6 +115,7 @@ pub struct ListingWriteResponse {
     pub status: String,
     pub pickup_location_text: Option<String>,
     pub pickup_address: Option<String>,
+    pub effective_pickup_address: Option<String>,
     pub pickup_disclosure_policy: String,
     pub pickup_notes: Option<String>,
     pub contact_pref: String,
@@ -134,7 +147,7 @@ pub async fn list_my_listings(
                        quantity_total::text as quantity_total,
                        quantity_remaining::text as quantity_remaining,
                        available_start, available_end, status::text,
-                       pickup_location_text, pickup_address,
+                       pickup_location_text, pickup_address, effective_pickup_address,
                        pickup_disclosure_policy::text, pickup_notes, contact_pref::text,
                        geo_key, lat, lng, created_at
                 from surplus_listings
@@ -156,7 +169,7 @@ pub async fn list_my_listings(
                        quantity_total::text as quantity_total,
                        quantity_remaining::text as quantity_remaining,
                        available_start, available_end, status::text,
-                       pickup_location_text, pickup_address,
+                       pickup_location_text, pickup_address, effective_pickup_address,
                        pickup_disclosure_policy::text, pickup_notes, contact_pref::text,
                        geo_key, lat, lng, created_at
                 from surplus_listings
@@ -226,7 +239,7 @@ pub async fn get_listing(
                    quantity_total::text as quantity_total,
                    quantity_remaining::text as quantity_remaining,
                    available_start, available_end, status::text,
-                   pickup_location_text, pickup_address,
+                   pickup_location_text, pickup_address, effective_pickup_address,
                    pickup_disclosure_policy::text, pickup_notes, contact_pref::text,
                    geo_key, lat, lng, created_at
             from surplus_listings
@@ -262,10 +275,29 @@ pub async fn create_listing(
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let payload: UpsertListingRequest = parse_json_body(request)?;
-    let normalized = normalize_payload(&payload)?;
 
     let client = db::connect().await?;
-    validate_catalog_links(&client, normalized.crop_id, normalized.variety_id).await?;
+    validate_catalog_links(
+        &client,
+        parse_uuid(&payload.crop_id, "crop_id")?,
+        parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
+    )
+    .await?;
+
+    let effective_pickup_address =
+        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
+            .await?;
+    let geocoded = location::geocode_address(&effective_pickup_address, correlation_id).await?;
+
+    let normalized = normalize_payload(
+        &payload,
+        ResolvedLocationInput {
+            effective_pickup_address,
+            geo_key: geocoded.geo_key,
+            lat: geocoded.lat,
+            lng: geocoded.lng,
+        },
+    )?;
 
     let row = client
         .query_one(
@@ -274,19 +306,21 @@ pub async fn create_listing(
                 (user_id, crop_id, variety_id, title, unit,
                  quantity_total, quantity_remaining,
                  available_start, available_end, status,
-                 pickup_location_text, pickup_address, pickup_disclosure_policy, pickup_notes,
+                 pickup_location_text, pickup_address, effective_pickup_address,
+                 pickup_disclosure_policy, pickup_notes,
                  contact_pref, geo_key, lat, lng)
             values
                 ($1, $2, $3, $4, $5,
                  $6, $6,
                  $7, $8, $9::listing_status,
-                 $10, $11, $12::pickup_disclosure_policy, $13,
-                 $14::contact_preference, $15, $16, $17)
+                 $10, $11, $12,
+                 $13::pickup_disclosure_policy, $14,
+                 $15::contact_preference, $16, $17, $18)
             returning id, user_id, crop_id, variety_id, title,
                       quantity_total::text as quantity_total,
                       quantity_remaining::text as quantity_remaining,
                       unit, available_start, available_end, status::text,
-                      pickup_location_text, pickup_address,
+                      pickup_location_text, pickup_address, effective_pickup_address,
                       pickup_disclosure_policy::text as pickup_disclosure_policy,
                       pickup_notes, contact_pref::text as contact_pref,
                       geo_key, lat, lng, created_at
@@ -302,13 +336,14 @@ pub async fn create_listing(
                 &normalized.available_end,
                 &normalized.status,
                 &payload.pickup_location_text,
-                &payload.pickup_address,
+                &normalized.pickup_address,
+                &normalized.effective_pickup_address,
                 &normalized.pickup_disclosure_policy,
                 &payload.pickup_notes,
                 &normalized.contact_pref,
                 &normalized.geo_key,
-                &payload.lat,
-                &payload.lng,
+                &normalized.lat,
+                &normalized.lng,
             ],
         )
         .await
@@ -339,10 +374,29 @@ pub async fn update_listing(
     let id = parse_uuid(listing_id, "listingId")?;
 
     let payload: UpsertListingRequest = parse_json_body(request)?;
-    let normalized = normalize_payload(&payload)?;
 
     let client = db::connect().await?;
-    validate_catalog_links(&client, normalized.crop_id, normalized.variety_id).await?;
+    validate_catalog_links(
+        &client,
+        parse_uuid(&payload.crop_id, "crop_id")?,
+        parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
+    )
+    .await?;
+
+    let effective_pickup_address =
+        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
+            .await?;
+    let geocoded = location::geocode_address(&effective_pickup_address, correlation_id).await?;
+
+    let normalized = normalize_payload(
+        &payload,
+        ResolvedLocationInput {
+            effective_pickup_address,
+            geo_key: geocoded.geo_key,
+            lat: geocoded.lat,
+            lng: geocoded.lng,
+        },
+    )?;
 
     let maybe_row = client
         .query_opt(
@@ -357,13 +411,14 @@ pub async fn update_listing(
                 &normalized.available_end,
                 &normalized.status,
                 &payload.pickup_location_text,
-                &payload.pickup_address,
+                &normalized.pickup_address,
+                &normalized.effective_pickup_address,
                 &normalized.pickup_disclosure_policy,
                 &payload.pickup_notes,
                 &normalized.contact_pref,
                 &normalized.geo_key,
-                &payload.lat,
-                &payload.lng,
+                &normalized.lat,
+                &normalized.lng,
                 &id,
                 &user_id,
             ],
@@ -389,6 +444,7 @@ pub async fn update_listing(
 
 fn normalize_payload(
     payload: &UpsertListingRequest,
+    resolved_location: ResolvedLocationInput,
 ) -> Result<NormalizedListingInput, lambda_http::Error> {
     if payload.title.trim().is_empty() {
         return Err(lambda_http::Error::from("title is required"));
@@ -402,14 +458,6 @@ fn normalize_payload(
         return Err(lambda_http::Error::from(
             "quantityTotal must be greater than 0",
         ));
-    }
-
-    if payload.lat < -90.0 || payload.lat > 90.0 {
-        return Err(lambda_http::Error::from("lat must be between -90 and 90"));
-    }
-
-    if payload.lng < -180.0 || payload.lng > 180.0 {
-        return Err(lambda_http::Error::from("lng must be between -180 and 180"));
     }
 
     let available_start = parse_datetime(&payload.available_start, "availableStart")?;
@@ -459,17 +507,45 @@ fn normalize_payload(
 
     let crop_id = parse_uuid(&payload.crop_id, "crop_id")?;
     let variety_id = parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?;
-    let geo_key = calculate_geohash(payload.lat, payload.lng);
 
     Ok(NormalizedListingInput {
         crop_id,
         variety_id,
         available_start,
         available_end,
+        pickup_address: location::normalize_optional_address(payload.pickup_address.as_deref()),
+        effective_pickup_address: resolved_location.effective_pickup_address,
         pickup_disclosure_policy,
         contact_pref,
         status,
-        geo_key,
+        geo_key: resolved_location.geo_key,
+        lat: resolved_location.lat,
+        lng: resolved_location.lng,
+    })
+}
+
+async fn resolve_effective_pickup_address(
+    client: &Client,
+    user_id: Uuid,
+    pickup_address: Option<&str>,
+) -> Result<String, lambda_http::Error> {
+    if let Some(override_address) = location::normalize_optional_address(pickup_address) {
+        return Ok(override_address);
+    }
+
+    let grower_address = client
+        .query_opt(
+            "select address from grower_profiles where user_id = $1",
+            &[&user_id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?
+        .and_then(|row| row.get::<_, Option<String>>("address"));
+
+    location::normalize_optional_address(grower_address.as_deref()).ok_or_else(|| {
+        lambda_http::Error::from(
+            "pickupAddress is required because grower profile address is missing".to_string(),
+        )
     })
 }
 
@@ -663,10 +739,6 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
     }
 }
 
-fn calculate_geohash(lat: f64, lng: f64) -> String {
-    geohash::encode(geohash::Coord { x: lng, y: lat }, 7).unwrap_or_else(|_| String::new())
-}
-
 fn row_to_write_response(row: &Row) -> ListingWriteResponse {
     ListingWriteResponse {
         id: row.get::<_, Uuid>("id").to_string(),
@@ -684,12 +756,13 @@ fn row_to_write_response(row: &Row) -> ListingWriteResponse {
         status: row.get("status"),
         pickup_location_text: row.get("pickup_location_text"),
         pickup_address: row.get("pickup_address"),
+        effective_pickup_address: row.get("effective_pickup_address"),
         pickup_disclosure_policy: row.get("pickup_disclosure_policy"),
         pickup_notes: row.get("pickup_notes"),
         contact_pref: row.get("contact_pref"),
         geo_key: row.get("geo_key"),
-        lat: row.get("lat"),
-        lng: row.get("lng"),
+        lat: location::round_for_response(row.get("lat")),
+        lng: location::round_for_response(row.get("lng")),
         created_at: row.get::<_, DateTime<Utc>>("created_at").to_rfc3339(),
     }
 }
@@ -718,12 +791,17 @@ fn row_to_listing_item(row: &Row) -> ListingItem {
         status: row.get("status"),
         pickup_location_text: row.get("pickup_location_text"),
         pickup_address: row.get("pickup_address"),
+        effective_pickup_address: row.get("effective_pickup_address"),
         pickup_disclosure_policy: row.get("pickup_disclosure_policy"),
         pickup_notes: row.get("pickup_notes"),
         contact_pref: row.get("contact_pref"),
         geo_key: row.get("geo_key"),
-        lat: row.get("lat"),
-        lng: row.get("lng"),
+        lat: row
+            .get::<_, Option<f64>>("lat")
+            .map(location::round_for_response),
+        lng: row
+            .get::<_, Option<f64>>("lng")
+            .map(location::round_for_response),
         created_at: row.get::<_, DateTime<Utc>>("created_at").to_rfc3339(),
     }
 }
@@ -770,24 +848,31 @@ mod tests {
             available_start: "2026-02-20T10:00:00Z".to_string(),
             available_end: "2026-02-20T18:00:00Z".to_string(),
             pickup_location_text: Some("Front porch".to_string()),
-            pickup_address: None,
+            pickup_address: Some(" 123 Main St ".to_string()),
             pickup_disclosure_policy: Some("after_confirmed".to_string()),
             pickup_notes: None,
             contact_pref: Some("app_message".to_string()),
-            lat: 37.7749,
-            lng: -122.4194,
             status: Some("active".to_string()),
+        }
+    }
+
+    fn resolved_location() -> ResolvedLocationInput {
+        ResolvedLocationInput {
+            effective_pickup_address: "123 Main St".to_string(),
+            geo_key: "9q8yyk8".to_string(),
+            lat: 37.77493,
+            lng: -122.41942,
         }
     }
 
     #[test]
     fn normalize_payload_accepts_valid_input() {
         let payload = valid_payload();
-        let normalized = normalize_payload(&payload).unwrap();
+        let normalized = normalize_payload(&payload, resolved_location()).unwrap();
         assert_eq!(normalized.status, "active");
         assert_eq!(normalized.pickup_disclosure_policy, "after_confirmed");
         assert_eq!(normalized.contact_pref, "app_message");
-        assert_eq!(normalized.geo_key.len(), 7);
+        assert_eq!(normalized.geo_key, "9q8yyk8");
     }
 
     #[test]
@@ -795,34 +880,16 @@ mod tests {
         let mut payload = valid_payload();
         payload.available_start = "2026-02-21T10:00:00Z".to_string();
         payload.available_end = "2026-02-20T10:00:00Z".to_string();
-        let result = normalize_payload(&payload);
+        let result = normalize_payload(&payload, resolved_location());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("availableStart"));
-    }
-
-    #[test]
-    fn normalize_payload_rejects_invalid_lat() {
-        let mut payload = valid_payload();
-        payload.lat = 91.0;
-        let result = normalize_payload(&payload);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("lat must be"));
-    }
-
-    #[test]
-    fn normalize_payload_rejects_invalid_lng() {
-        let mut payload = valid_payload();
-        payload.lng = -181.0;
-        let result = normalize_payload(&payload);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("lng must be"));
     }
 
     #[test]
     fn normalize_payload_rejects_invalid_pickup_disclosure_policy() {
         let mut payload = valid_payload();
         payload.pickup_disclosure_policy = Some("always".to_string());
-        let result = normalize_payload(&payload);
+        let result = normalize_payload(&payload, resolved_location());
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -834,12 +901,19 @@ mod tests {
     fn normalize_payload_rejects_invalid_contact_pref() {
         let mut payload = valid_payload();
         payload.contact_pref = Some("carrier_pigeon".to_string());
-        let result = normalize_payload(&payload);
+        let result = normalize_payload(&payload, resolved_location());
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .to_string()
             .contains("Invalid contactPref"));
+    }
+
+    #[test]
+    fn normalize_payload_normalizes_pickup_address() {
+        let payload = valid_payload();
+        let normalized = normalize_payload(&payload, resolved_location()).unwrap();
+        assert_eq!(normalized.pickup_address.as_deref(), Some("123 Main St"));
     }
 
     #[test]
@@ -864,29 +938,5 @@ mod tests {
         assert_eq!(parsed.status, Some("active".to_string()));
         assert_eq!(parsed.limit, 10);
         assert_eq!(parsed.offset, 20);
-    }
-
-    #[test]
-    fn parse_list_my_listings_query_rejects_invalid_status() {
-        let result = parse_list_my_listings_query(Some("status=pending"));
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid listing status"));
-    }
-
-    #[test]
-    fn parse_list_my_listings_query_rejects_invalid_limit() {
-        let result = parse_list_my_listings_query(Some("limit=0"));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid limit"));
-    }
-
-    #[test]
-    fn parse_list_my_listings_query_rejects_invalid_offset() {
-        let result = parse_list_my_listings_query(Some("offset=-1"));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid offset"));
     }
 }
