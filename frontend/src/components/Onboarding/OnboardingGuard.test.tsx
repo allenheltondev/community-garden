@@ -80,6 +80,7 @@ describe('OnboardingGuard', () => {
         onboardingCompleted: true,
         growerProfile: {
           homeZone: '8a',
+          address: '123 Main St, Springfield, IL',
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,

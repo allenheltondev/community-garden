@@ -16,6 +16,7 @@ describe('User Types', () => {
     it('should accept valid grower profile', () => {
       const profile: GrowerProfile = {
         homeZone: '8a',
+        address: '123 Main St, Springfield, IL',
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
@@ -32,6 +33,7 @@ describe('User Types', () => {
     it('should accept optional timestamp fields', () => {
       const profile: GrowerProfile = {
         homeZone: '8a',
+        address: '123 Main St, Springfield, IL',
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
@@ -50,6 +52,7 @@ describe('User Types', () => {
   describe('GathererProfile', () => {
     it('should accept valid gatherer profile', () => {
       const profile: GathererProfile = {
+        address: '456 Oak Ave, Springfield, IL',
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
@@ -64,6 +67,7 @@ describe('User Types', () => {
 
     it('should accept optional organization affiliation', () => {
       const profile: GathererProfile = {
+        address: '456 Oak Ave, Springfield, IL',
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
@@ -104,6 +108,7 @@ describe('User Types', () => {
         onboardingCompleted: true,
         growerProfile: {
           homeZone: '8a',
+          address: '123 Main St, Springfield, IL',
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,
@@ -128,6 +133,7 @@ describe('User Types', () => {
         userType: 'gatherer',
         onboardingCompleted: true,
         gathererProfile: {
+          address: '456 Oak Ave, Springfield, IL',
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,

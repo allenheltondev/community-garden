@@ -69,7 +69,9 @@ pub async fn geocode_address(
         .timeout(Duration::from_millis(timeout_ms))
         .user_agent(user_agent)
         .build()
-        .map_err(|error| lambda_http::Error::from(format!("Failed to build geocoder client: {error}")))?;
+        .map_err(|error| {
+            lambda_http::Error::from(format!("Failed to build geocoder client: {error}"))
+        })?;
 
     let request_url = format!("{}/search", base_url.trim_end_matches('/'));
     let response = client
@@ -89,7 +91,7 @@ pub async fn geocode_address(
                 error = %error,
                 "Geocoding request failed"
             );
-            lambda_http::Error::from("Address could not be geocoded".to_string())
+            geocode_error()
         })?;
 
     if !response.status().is_success() {
@@ -99,9 +101,7 @@ pub async fn geocode_address(
             status = response.status().as_u16(),
             "Geocoding request returned non-success status"
         );
-        return Err(lambda_http::Error::from(
-            "Address could not be geocoded".to_string(),
-        ));
+        return Err(geocode_error());
     }
 
     let results = response
@@ -114,28 +114,10 @@ pub async fn geocode_address(
                 error = %error,
                 "Failed to parse geocoding response"
             );
-            lambda_http::Error::from("Address could not be geocoded".to_string())
+            geocode_error()
         })?;
 
-    let top_result = results
-        .into_iter()
-        .next()
-        .ok_or_else(|| lambda_http::Error::from("Address could not be geocoded".to_string()))?;
-
-    let lat = top_result
-        .lat
-        .parse::<f64>()
-        .map_err(|_| lambda_http::Error::from("Address could not be geocoded".to_string()))?;
-    let lng = top_result
-        .lon
-        .parse::<f64>()
-        .map_err(|_| lambda_http::Error::from("Address could not be geocoded".to_string()))?;
-
-    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lng) {
-        return Err(lambda_http::Error::from(
-            "Address could not be geocoded".to_string(),
-        ));
-    }
+    let (lat, lng) = parse_geocoded_coordinates(results)?;
 
     let lat = round_coordinate(lat, STORAGE_COORD_PRECISION);
     let lng = round_coordinate(lng, STORAGE_COORD_PRECISION);
@@ -152,6 +134,24 @@ pub async fn geocode_address(
     );
 
     Ok(GeocodedPoint { lat, lng, geo_key })
+}
+
+fn geocode_error() -> lambda_http::Error {
+    lambda_http::Error::from("Address could not be geocoded".to_string())
+}
+
+fn parse_geocoded_coordinates(
+    results: Vec<NominatimSearchResult>,
+) -> Result<(f64, f64), lambda_http::Error> {
+    let top_result = results.into_iter().next().ok_or_else(geocode_error)?;
+    let lat = top_result.lat.parse::<f64>().map_err(|_| geocode_error())?;
+    let lng = top_result.lon.parse::<f64>().map_err(|_| geocode_error())?;
+
+    if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lng) {
+        return Err(geocode_error());
+    }
+
+    Ok((lat, lng))
 }
 
 fn round_coordinate(value: f64, precision: i32) -> f64 {

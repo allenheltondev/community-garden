@@ -285,7 +285,8 @@ pub async fn create_listing(
     .await?;
 
     let effective_pickup_address =
-        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref()).await?;
+        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
+            .await?;
     let geocoded = location::geocode_address(&effective_pickup_address, correlation_id).await?;
 
     let normalized = normalize_payload(
@@ -383,7 +384,8 @@ pub async fn update_listing(
     .await?;
 
     let effective_pickup_address =
-        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref()).await?;
+        resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
+            .await?;
     let geocoded = location::geocode_address(&effective_pickup_address, correlation_id).await?;
 
     let normalized = normalize_payload(

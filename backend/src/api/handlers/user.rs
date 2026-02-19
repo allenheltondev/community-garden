@@ -259,9 +259,7 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
         }
 
         if grower.address.trim().is_empty() {
-            return Err(lambda_http::Error::from(
-                "address is required".to_string(),
-            ));
+            return Err(lambda_http::Error::from("address is required".to_string()));
         }
     }
 
@@ -279,9 +277,7 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
         }
 
         if gatherer.address.trim().is_empty() {
-            return Err(lambda_http::Error::from(
-                "address is required".to_string(),
-            ));
+            return Err(lambda_http::Error::from("address is required".to_string()));
         }
     }
 
@@ -474,7 +470,10 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot provide both"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot provide both"));
     }
 
     #[test]
@@ -517,7 +516,10 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("address is required"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("address is required"));
     }
 
     #[test]
@@ -527,7 +529,7 @@ mod tests {
             user_type: Some(UserType::Gatherer),
             grower_profile: None,
             gatherer_profile: Some(GathererProfileInput {
-                address: "".to_string(),
+                address: String::new(),
                 search_radius_km: 10.0,
                 organization_affiliation: None,
                 units: "metric".to_string(),
@@ -537,7 +539,10 @@ mod tests {
 
         let result = validate_put_me_payload(&payload);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("address is required"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("address is required"));
     }
 
     #[test]
