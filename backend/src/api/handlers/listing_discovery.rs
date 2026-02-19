@@ -299,8 +299,9 @@ fn json_response<T: Serialize>(
     status: u16,
     payload: &T,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let body = serde_json::to_string(payload)
-        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize response: {error}")))?;
+    let body = serde_json::to_string(payload).map_err(|error| {
+        lambda_http::Error::from(format!("Failed to serialize response: {error}"))
+    })?;
 
     Response::builder()
         .status(status)
@@ -367,9 +368,8 @@ mod tests {
 
     #[test]
     fn parse_discover_listings_query_rejects_multiple_radius_units() {
-        let result = parse_discover_listings_query(Some(
-            "geoKey=9q8yyk8&radiusKm=10&radiusMiles=6",
-        ));
+        let result =
+            parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusKm=10&radiusMiles=6"));
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -381,7 +381,10 @@ mod tests {
     fn parse_discover_listings_query_requires_geo_key() {
         let result = parse_discover_listings_query(Some("status=active"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("geoKey is required"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("geoKey is required"));
     }
 
     #[test]
