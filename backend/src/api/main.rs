@@ -3,6 +3,7 @@ use lambda_http::{run, service_fn, Body, Error, Request, Response};
 mod auth;
 mod db;
 mod handlers;
+mod location;
 mod middleware;
 mod models;
 mod router;

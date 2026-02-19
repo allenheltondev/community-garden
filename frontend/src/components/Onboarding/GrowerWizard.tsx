@@ -14,8 +14,7 @@ type WizardStep = 'location' | 'zone' | 'preferences';
 
 interface FormData {
   homeZone: string;
-  lat: number | null;
-  lng: number | null;
+  address: string;
   shareRadiusKm: number;
   units: 'metric' | 'imperial';
   locale: string;
@@ -27,29 +26,44 @@ interface ValidationErrors {
   shareRadiusKm?: string;
 }
 
-/**
- * GrowerWizard Component
- *
- * Multi-step wizard for collecting grower profile information.
- * Steps:
- * 1. Location - Collect lat/lng with geolocation support
- * 2. Zone - Collect home growing zone
- * 3. Preferences - Collect share radius, units, and locale
- *
- * Features:
- * - Real-time validation
- * - Progress indicators
- * - Geolocation support with fallback
- * - Mobile-first design
- */
+async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { display_name?: string };
+    if (typeof data.display_name === 'string' && data.display_name.trim().length > 0) {
+      return data.display_name;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>('location');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     homeZone: '',
-    lat: null,
-    lng: null,
+    address: '',
     shareRadiusKm: 5,
     units: 'imperial',
     locale: navigator.language || 'en-US',
@@ -59,6 +73,10 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
 
   const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) {
+      setErrors((prev) => ({
+        ...prev,
+        location: 'Location services are not available on this device',
+      }));
       logger.warn('Geolocation not supported by browser');
       return;
     }
@@ -66,47 +84,60 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
     setIsLoadingLocation(true);
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
-        setFormData((prev) => ({
-          ...prev,
-          lat: latitude,
-          lng: longitude,
-        }));
+        const derivedAddress = await reverseGeocode(latitude, longitude);
+
+        if (derivedAddress) {
+          setFormData((prev) => ({
+            ...prev,
+            address: derivedAddress,
+          }));
+          setErrors((prev) => ({ ...prev, location: undefined }));
+          logger.info('Location-derived address obtained', {
+            latitude,
+            longitude,
+          });
+        } else {
+          setErrors((prev) => ({
+            ...prev,
+            location: 'Could not determine your address. Please enter it manually.',
+          }));
+          logger.warn('Reverse geocoding failed', { latitude, longitude });
+        }
+
         setIsLoadingLocation(false);
-        logger.info('Geolocation obtained', { latitude, longitude });
-        setErrors((prev) => ({ ...prev, location: undefined }));
       },
       (error) => {
         logger.warn('Geolocation request failed', {
           code: error.code,
           message: error.message,
         });
+        setErrors((prev) => ({
+          ...prev,
+          location: 'Could not access your location. Please enter your address manually.',
+        }));
         setIsLoadingLocation(false);
       }
     );
   }, []);
 
-  // Auto-detect user's location on mount
   useEffect(() => {
-    if (!hasRequestedLocation.current && formData.lat === null && formData.lng === null) {
+    if (!hasRequestedLocation.current && formData.address.trim().length === 0) {
       hasRequestedLocation.current = true;
-      // Use setTimeout to defer the call outside the effect
       setTimeout(() => {
         requestGeolocation();
       }, 0);
     }
-  }, [formData.lat, formData.lng, requestGeolocation]);
+  }, [formData.address, requestGeolocation]);
 
   const validateLocation = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    if (formData.lat === null || formData.lng === null) {
-      newErrors.location = 'Location is required';
-    } else if (formData.lat < -90 || formData.lat > 90) {
-      newErrors.location = 'Latitude must be between -90 and 90';
-    } else if (formData.lng < -180 || formData.lng > 180) {
-      newErrors.location = 'Longitude must be between -180 and 180';
+    if (!formData.address.trim()) {
+      newErrors.location = 'Address is required';
+    } else if (formData.address.trim().length < 6) {
+      newErrors.location = 'Enter a complete address';
     }
 
     setErrors(newErrors);
@@ -166,8 +197,8 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
       return;
     }
 
-    if (formData.lat === null || formData.lng === null) {
-      setErrors({ location: 'Location is required' });
+    if (!formData.address.trim()) {
+      setErrors({ location: 'Address is required' });
       setCurrentStep('location');
       return;
     }
@@ -177,8 +208,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
     try {
       const profileData: GrowerProfileInput = {
         homeZone: formData.homeZone.trim(),
-        lat: formData.lat,
-        lng: formData.lng,
+        address: formData.address.trim(),
         shareRadiusKm: formData.shareRadiusKm,
         units: formData.units,
         locale: formData.locale,
@@ -198,7 +228,6 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-neutral-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-md" padding="8">
-        {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex justify-between text-sm text-neutral-600 mb-2">
             <span>Step {currentStepIndex + 1} of {steps.length}</span>
@@ -216,7 +245,6 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
           </div>
         </div>
 
-        {/* Step Content */}
         {currentStep === 'location' && (
           <div className="space-y-4">
             <div>
@@ -224,62 +252,29 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
                 Where are you growing?
               </h2>
               <p className="text-neutral-600">
-                We'll use your location to connect you with nearby community members.
+                Share your address so nearby neighbors can coordinate pickup safely.
               </p>
             </div>
 
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  label="Latitude"
-                  type="text"
-                  value={formData.lat?.toString() || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      lat: value ? parseFloat(value) : null,
-                    }));
-                  }}
-                  placeholder="37.7749"
-                  required
-                  disabled={isLoadingLocation}
-                />
-                <Input
-                  label="Longitude"
-                  type="text"
-                  value={formData.lng?.toString() || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      lng: value ? parseFloat(value) : null,
-                    }));
-                  }}
-                  placeholder="-122.4194"
-                  required
-                  disabled={isLoadingLocation}
-                />
-              </div>
-
-              {errors.location && (
-                <p className="text-sm text-error flex items-center gap-1" role="alert">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-4 h-4"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  {errors.location}
-                </p>
-              )}
+              <Input
+                label="Address"
+                type="text"
+                value={formData.address}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    address: e.target.value,
+                  }));
+                  if (errors.location) {
+                    setErrors((prev) => ({ ...prev, location: undefined }));
+                  }
+                }}
+                placeholder="123 Main St, Springfield, IL"
+                required
+                disabled={isLoadingLocation}
+                error={errors.location}
+              />
 
               <Button
                 variant="outline"
@@ -288,7 +283,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
                 loading={isLoadingLocation}
                 disabled={isLoadingLocation}
               >
-                {isLoadingLocation ? 'Getting location...' : 'Use my current location'}
+                {isLoadingLocation ? 'Finding your address...' : 'Use my current location (PWA)'}
               </Button>
             </div>
           </div>
@@ -314,7 +309,6 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
                   ...prev,
                   homeZone: e.target.value,
                 }));
-                // Clear error on change
                 if (errors.homeZone) {
                   setErrors((prev) => ({ ...prev, homeZone: undefined }));
                 }
@@ -424,7 +418,6 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
           </div>
         )}
 
-        {/* Navigation Buttons */}
         <div className="flex gap-3 mt-8">
           <Button
             variant="outline"

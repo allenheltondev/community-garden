@@ -17,6 +17,7 @@ pub struct ListingItem {
     pub status: String,
     pub pickup_location_text: Option<String>,
     pub pickup_address: Option<String>,
+    pub effective_pickup_address: Option<String>,
     pub pickup_disclosure_policy: String,
     pub pickup_notes: Option<String>,
     pub contact_pref: String,

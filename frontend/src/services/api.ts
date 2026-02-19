@@ -140,8 +140,20 @@ export async function getMe(): Promise<UserProfile> {
 export interface UpdateUserProfileRequest {
   displayName?: string;
   userType?: UserType;
-  growerProfile?: Omit<GrowerProfile, 'geoKey' | 'createdAt' | 'updatedAt'>;
-  gathererProfile?: Omit<GathererProfile, 'geoKey' | 'createdAt' | 'updatedAt'>;
+  growerProfile?: {
+    homeZone: string;
+    address: string;
+    shareRadiusKm: number;
+    units: GrowerProfile['units'];
+    locale: string;
+  };
+  gathererProfile?: {
+    address: string;
+    searchRadiusKm: number;
+    organizationAffiliation?: string;
+    units: GathererProfile['units'];
+    locale: string;
+  };
 }
 
 export async function updateMe(data: UpdateUserProfileRequest): Promise<UserProfile> {

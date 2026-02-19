@@ -8,8 +8,10 @@ pub enum UserType {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GrowerProfile {
     pub home_zone: Option<String>,
+    pub address: Option<String>,
     pub geo_key: Option<String>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,
@@ -21,6 +23,7 @@ pub struct GrowerProfile {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GathererProfile {
+    pub address: String,
     pub geo_key: String,
     pub lat: f64,
     pub lng: f64,
@@ -64,8 +67,7 @@ pub struct PublicUserResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GrowerProfileInput {
     pub home_zone: String,
-    pub lat: f64,
-    pub lng: f64,
+    pub address: String,
     pub share_radius_km: f64,
     pub units: String,
     pub locale: String,
@@ -74,8 +76,7 @@ pub struct GrowerProfileInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GathererProfileInput {
-    pub lat: f64,
-    pub lng: f64,
+    pub address: String,
     pub search_radius_km: f64,
     pub organization_affiliation: Option<String>,
     pub units: String,
@@ -103,6 +104,7 @@ pub struct UpsertMeProfileRequest {
 #[allow(dead_code)] // Legacy structure - replaced by GrowerProfileInput
 pub struct UpsertGrowerProfileRequest {
     pub home_zone: Option<String>,
+    pub address: Option<String>,
     pub geo_key: Option<String>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,

@@ -93,6 +93,7 @@ create table if not exists user_rating_summary (
 create table if not exists grower_profiles (
   user_id uuid primary key references users(id) on delete cascade,
   home_zone text, -- e.g. "8a"
+  address text,
   geo_key text,   -- geohash
   lat double precision,
   lng double precision,
@@ -102,6 +103,7 @@ create table if not exists grower_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint grower_profiles_radius_positive check (share_radius_km > 0),
+  constraint grower_profiles_address_nonempty check (address is null or length(btrim(address)) > 0),
   constraint grower_profiles_lat_lng_pair check (
     (lat is null and lng is null) or (lat is not null and lng is not null)
   )
@@ -114,6 +116,7 @@ create index if not exists idx_grower_profiles_geo_key on grower_profiles(geo_ke
 -- ============================
 create table if not exists gatherer_profiles (
   user_id uuid primary key references users(id) on delete cascade,
+  address text,
   geo_key text not null,
   lat double precision not null,
   lng double precision not null,
@@ -125,6 +128,7 @@ create table if not exists gatherer_profiles (
   updated_at timestamptz not null default now(),
 
   constraint gatherer_profiles_radius_positive check (search_radius_km > 0),
+  constraint gatherer_profiles_address_nonempty check (address is null or length(btrim(address)) > 0),
   constraint gatherer_profiles_lat_range check (lat >= -90 and lat <= 90),
   constraint gatherer_profiles_lng_range check (lng >= -180 and lng <= 180)
 );
@@ -271,6 +275,7 @@ create table if not exists surplus_listings (
 
   pickup_location_text text,
   pickup_address text,
+  effective_pickup_address text,
   pickup_disclosure_policy pickup_disclosure_policy not null default 'after_confirmed',
   pickup_notes text,
   contact_pref contact_preference not null default 'app_message',
