@@ -233,6 +233,8 @@ export function ListingForm({
       return;
     }
 
+    const status = mode === 'edit' ? (initialListing?.status ?? 'active') : 'active';
+
     const request: UpsertListingRequest = {
       title: formState.title.trim(),
       cropId: formState.cropId,
@@ -245,7 +247,7 @@ export function ListingForm({
       pickupLocationText: formState.pickupLocationText.trim() || undefined,
       pickupNotes: formState.pickupNotes.trim() || undefined,
       varietyId: formState.varietyId || undefined,
-      status: 'active',
+      status,
       pickupDisclosurePolicy: 'after_confirmed',
       contactPref: 'app_message',
     };
@@ -465,6 +467,7 @@ export function ListingForm({
         <Input
           label="Latitude"
           value={formState.lat}
+          inputMode="decimal"
           onChange={(event) => {
             setFormState((current) => ({ ...current, lat: event.target.value }));
             if (errors.lat) {
@@ -478,6 +481,7 @@ export function ListingForm({
         <Input
           label="Longitude"
           value={formState.lng}
+          inputMode="decimal"
           onChange={(event) => {
             setFormState((current) => ({ ...current, lng: event.target.value }));
             if (errors.lng) {

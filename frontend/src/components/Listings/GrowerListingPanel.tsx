@@ -140,7 +140,12 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   const quickPickOptions = useMemo<ListingQuickPickOption[]>(() => {
     const items = growerCropsQuery.data ?? [];
 
-    return items
+    return [...items]
+      .sort((left, right) => {
+        const leftRank = quickPickRank[left.status] ?? 99;
+        const rightRank = quickPickRank[right.status] ?? 99;
+        return leftRank - rightRank;
+      })
       .map((item) => {
         const cropName = cropNameById.get(item.cropId) ?? 'Saved crop';
         const baseTitle = item.nickname?.trim() || cropName;
@@ -154,11 +159,6 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
           defaultUnit: item.defaultUnit ?? undefined,
           suggestedTitle: baseTitle,
         };
-      })
-      .sort((left, right) => {
-        const leftRank = quickPickRank[left.label.match(/\(([^)]+)\)$/)?.[1] ?? 'growing'] ?? 99;
-        const rightRank = quickPickRank[right.label.match(/\(([^)]+)\)$/)?.[1] ?? 'growing'] ?? 99;
-        return leftRank - rightRank;
       });
   }, [growerCropsQuery.data, cropNameById]);
 
