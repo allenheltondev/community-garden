@@ -19,7 +19,6 @@ struct DiscoverListingsQuery {
     status: String,
     radius_km: Option<f64>,
     radius_miles: Option<f64>,
-    used_legacy_radius_km: bool,
     limit: i64,
     offset: i64,
 }
@@ -89,7 +88,6 @@ pub async fn discover_listings(
         status_filter = query.status,
         requested_radius_km = ?query.radius_km,
         requested_radius_miles = ?query.radius_miles,
-        used_legacy_radius_km = query.used_legacy_radius_km,
         limit = query.limit,
         offset = query.offset,
         returned_count = response.items.len(),
@@ -107,7 +105,6 @@ fn parse_discover_listings_query(
     let mut status = "active".to_string();
     let mut radius_km: Option<f64> = None;
     let mut radius_miles: Option<f64> = None;
-    let mut saw_legacy_radius_km = false;
     let mut limit: i64 = 20;
     let mut offset: i64 = 0;
 
@@ -145,12 +142,10 @@ fn parse_discover_listings_query(
                     }
                     status = value.to_string();
                 }
-                "radiusKm" => {
-                    saw_legacy_radius_km = true;
-                    radius_km = Some(parse_positive_radius(value, "radiusKm")?);
-                }
                 "radiusMiles" => {
-                    radius_miles = Some(parse_positive_radius(value, "radiusMiles")?);
+                    let parsed_miles = parse_positive_radius(value, "radiusMiles")?;
+                    radius_miles = Some(parsed_miles);
+                    radius_km = Some(parsed_miles * KM_PER_MILE);
                 }
                 "limit" => {
                     limit = value.parse::<i64>().map_err(|_| {
@@ -179,21 +174,11 @@ fn parse_discover_listings_query(
 
     let geo_key = geo_key.ok_or_else(|| lambda_http::Error::from("geoKey is required"))?;
 
-    let (resolved_radius_miles, resolved_radius_km, used_legacy_radius_km) =
-        if let Some(miles) = radius_miles {
-            (Some(miles), Some(miles * KM_PER_MILE), false)
-        } else if let Some(km) = radius_km {
-            (Some(km / KM_PER_MILE), Some(km), saw_legacy_radius_km)
-        } else {
-            (None, None, false)
-        };
-
     Ok(DiscoverListingsQuery {
         geo_key,
         status,
-        radius_km: resolved_radius_km,
-        radius_miles: resolved_radius_miles,
-        used_legacy_radius_km,
+        radius_km,
+        radius_miles,
         limit,
         offset,
     })
@@ -342,22 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_discover_listings_query_with_km_filters() {
-        let parsed = parse_discover_listings_query(Some(
-            "geoKey=9q8yyk8&status=active&radiusKm=12.5&limit=10&offset=20",
-        ))
-        .unwrap();
-
-        assert_eq!(parsed.geo_key, "9q8yyk8");
-        assert_eq!(parsed.status, "active");
-        assert_eq!(parsed.radius_km, Some(12.5));
-        assert_eq!(parsed.radius_miles, Some(12.5 / KM_PER_MILE));
-        assert!(parsed.used_legacy_radius_km);
-        assert_eq!(parsed.limit, 10);
-        assert_eq!(parsed.offset, 20);
-    }
-
-    #[test]
     fn parse_discover_listings_query_with_miles_filters() {
         let parsed = parse_discover_listings_query(Some(
             "geoKey=9q8yyk8&status=active&radiusMiles=10&limit=10&offset=20",
@@ -368,18 +337,8 @@ mod tests {
         assert_eq!(parsed.status, "active");
         assert_eq!(parsed.radius_miles, Some(10.0));
         assert_eq!(parsed.radius_km, Some(10.0 * KM_PER_MILE));
-        assert!(!parsed.used_legacy_radius_km);
         assert_eq!(parsed.limit, 10);
         assert_eq!(parsed.offset, 20);
-    }
-
-    #[test]
-    fn parse_discover_listings_query_prefers_miles_when_both_radius_units_provided() {
-        let parsed =
-            parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusKm=10&radiusMiles=6")).unwrap();
-        assert_eq!(parsed.radius_miles, Some(6.0));
-        assert_eq!(parsed.radius_km, Some(6.0 * KM_PER_MILE));
-        assert!(!parsed.used_legacy_radius_km);
     }
 
     #[test]
@@ -400,16 +359,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_discover_listings_query_rejects_invalid_radius() {
-        let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusKm=0"));
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("radiusKm must be greater than 0"));
-    }
-
-    #[test]
     fn parse_discover_listings_query_rejects_invalid_miles_radius() {
         let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusMiles=0"));
         assert!(result.is_err());
@@ -417,16 +366,6 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("radiusMiles must be greater than 0"));
-    }
-
-    #[test]
-    fn parse_discover_listings_query_rejects_nan_radius() {
-        let result = parse_discover_listings_query(Some("geoKey=9q8yyk8&radiusKm=NaN"));
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("radiusKm must be a finite number"));
     }
 
     #[test]
