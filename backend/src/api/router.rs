@@ -1,4 +1,4 @@
-use crate::handlers::{catalog, claim, crop, listing, request, user};
+use crate::handlers::{catalog, claim, crop, listing, listing_discovery, request, user};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };
@@ -57,6 +57,9 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
 
         ("GET", "/my/listings") => handle(listing::list_my_listings(event, &correlation_id).await)?,
+        ("GET", "/listings/discover") => {
+            handle(listing_discovery::discover_listings(event, &correlation_id).await)?
+        }
         ("POST", "/listings") => handle(listing::create_listing(event, &correlation_id).await)?,
         ("POST", "/requests") => handle(request::create_request(event, &correlation_id).await)?,
         ("POST", "/claims") => handle(claim::create_claim(event, &correlation_id).await)?,
@@ -178,6 +181,9 @@ fn map_api_error_to_response(
         || message.contains("homeZone")
         || message.contains("address is required")
         || message.contains("pickupAddress is required because grower profile address is missing")
+        || message.contains("geoKey")
+        || message.contains("radiusKm")
+        || message.contains("radiusMiles")
     {
         return crop::error_response(400, &message);
     }

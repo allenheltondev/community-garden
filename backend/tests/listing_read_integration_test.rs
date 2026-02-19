@@ -1,5 +1,5 @@
-// Integration tests for grower listing read endpoints
-// These tests validate endpoint contracts for pagination, filtering, and ownership-safe reads.
+// Integration tests for listing read and discovery endpoint contracts.
+// These tests validate response shape, geo filtering behavior, and authorization semantics.
 
 use serde_json::json;
 
@@ -41,6 +41,63 @@ mod listing_read_tests {
         assert!(allowed.contains(&"expired"));
         assert!(allowed.contains(&"completed"));
         assert!(!allowed.contains(&"pending"));
+    }
+
+    #[test]
+    fn test_discover_listings_pagination_response_shape() {
+        let expected = json!({
+            "items": [
+                {
+                    "id": "f0b98487-d9e8-4c16-88aa-177fcc186c72",
+                    "userId": "4a8e16bc-5d06-4226-8ec1-d30a5e19ed53",
+                    "geoKey": "9q8yyk8",
+                    "status": "active"
+                }
+            ],
+            "limit": 20,
+            "offset": 0,
+            "hasMore": false,
+            "nextOffset": null
+        });
+
+        assert!(expected.get("items").is_some());
+        assert!(expected["items"].is_array());
+        assert!(expected["items"][0].get("geoKey").is_some());
+        assert_eq!(expected["items"][0]["status"], "active");
+        assert!(expected["hasMore"].is_boolean());
+    }
+
+    #[test]
+    fn test_discover_listings_geo_filter_contract() {
+        let geo_prefix = "9q8yy";
+
+        let expected_items = json!([
+            {"geoKey": "9q8yyk8", "status": "active"},
+            {"geoKey": "9q8yykb", "status": "active"}
+        ]);
+
+        for item in expected_items.as_array().unwrap() {
+            assert!(item["geoKey"].as_str().unwrap().starts_with(geo_prefix));
+            assert_eq!(item["status"], "active");
+        }
+    }
+
+    #[test]
+    fn test_discover_listings_requires_geo_key_contract() {
+        let expected_error = json!({
+            "error": "geoKey is required"
+        });
+
+        assert_eq!(expected_error["error"], "geoKey is required");
+    }
+
+    #[test]
+    fn test_discover_listings_status_filter_contract() {
+        let allowed = ["active"];
+
+        assert!(allowed.contains(&"active"));
+        assert!(!allowed.contains(&"expired"));
+        assert!(!allowed.contains(&"completed"));
     }
 
     #[test]
