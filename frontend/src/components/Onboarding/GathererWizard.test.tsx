@@ -72,9 +72,9 @@ describe('GathererWizard', () => {
       expect(mockOnComplete).toHaveBeenCalledWith(
         expect.objectContaining({
           address: '456 Oak Ave, Springfield, IL',
-          searchRadiusKm: 10,
+          searchRadiusMiles: 10,
         })
       );
     });
   });
-});
+}
