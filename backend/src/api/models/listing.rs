@@ -36,3 +36,13 @@ pub struct ListMyListingsResponse {
     pub has_more: bool,
     pub next_offset: Option<i64>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoverListingsResponse {
+    pub items: Vec<ListingItem>,
+    pub limit: i64,
+    pub offset: i64,
+    pub has_more: bool,
+    pub next_offset: Option<i64>,
+}
