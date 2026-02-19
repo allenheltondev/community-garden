@@ -13,9 +13,10 @@ export type UserType = 'grower' | 'gatherer';
  */
 export interface GrowerProfile {
   homeZone: string;
+  address: string;
   geoKey: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   shareRadiusKm: number;
   units: 'metric' | 'imperial';
   locale: string;
@@ -27,6 +28,7 @@ export interface GrowerProfile {
  * Gatherer-specific profile information
  */
 export interface GathererProfile {
+  address: string;
   geoKey: string;
   lat: number;
   lng: number;
