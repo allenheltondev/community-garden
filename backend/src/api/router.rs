@@ -177,9 +177,16 @@ fn map_api_error_to_response(
         || message.contains("units must be one of")
         || message.contains("homeZone")
         || message.contains("address is required")
-        || message.contains("Address could not be geocoded")
         || message.contains("pickupAddress is required because grower profile address is missing")
     {
+        return crop::error_response(400, &message);
+    }
+
+    if message.contains("Geocoding service unavailable") {
+        return crop::error_response(503, &message);
+    }
+
+    if message.contains("Address could not be geocoded") {
         return crop::error_response(400, &message);
     }
 

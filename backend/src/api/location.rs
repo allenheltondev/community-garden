@@ -91,7 +91,7 @@ pub async fn geocode_address(
                 error = %error,
                 "Geocoding request failed"
             );
-            geocode_error()
+            geocode_dependency_error()
         })?;
 
     if !response.status().is_success() {
@@ -101,7 +101,7 @@ pub async fn geocode_address(
             status = response.status().as_u16(),
             "Geocoding request returned non-success status"
         );
-        return Err(geocode_error());
+        return Err(geocode_dependency_error());
     }
 
     let results = response
@@ -114,7 +114,7 @@ pub async fn geocode_address(
                 error = %error,
                 "Failed to parse geocoding response"
             );
-            geocode_error()
+            geocode_dependency_error()
         })?;
 
     let (lat, lng) = parse_geocoded_coordinates(results)?;
@@ -138,6 +138,10 @@ pub async fn geocode_address(
 
 fn geocode_error() -> lambda_http::Error {
     lambda_http::Error::from("Address could not be geocoded".to_string())
+}
+
+fn geocode_dependency_error() -> lambda_http::Error {
+    lambda_http::Error::from("Geocoding service unavailable".to_string())
 }
 
 fn parse_geocoded_coordinates(
