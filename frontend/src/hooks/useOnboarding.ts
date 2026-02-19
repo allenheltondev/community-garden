@@ -17,7 +17,7 @@ export interface OnboardingState {
 export interface GrowerProfileInput {
   homeZone: string;
   address: string;
-  shareRadiusKm: number;
+  shareRadiusMiles: number;
   units: 'metric' | 'imperial';
   locale: string;
 }
@@ -27,7 +27,7 @@ export interface GrowerProfileInput {
  */
 export interface GathererProfileInput {
   address: string;
-  searchRadiusKm: number;
+  searchRadiusMiles: number;
   organizationAffiliation?: string;
   units: 'metric' | 'imperial';
   locale: string;
@@ -86,7 +86,7 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
         logger.info('Submitting grower profile', {
           homeZone: profileData.homeZone,
           hasAddress: !!profileData.address,
-          shareRadiusKm: profileData.shareRadiusKm,
+          shareRadiusMiles: profileData.shareRadiusMiles,
         });
 
         const payload: UpdateUserProfileRequest = {
@@ -129,7 +129,7 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
 
         logger.info('Submitting gatherer profile', {
           hasAddress: !!profileData.address,
-          searchRadiusKm: profileData.searchRadiusKm,
+          searchRadiusMiles: profileData.searchRadiusMiles,
           hasOrganization: !!profileData.organizationAffiliation,
         });
 
