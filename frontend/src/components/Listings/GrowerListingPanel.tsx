@@ -9,11 +9,19 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
+import { updateClaimStatus } from '../../services/claims';
 import type { Listing, UpsertListingRequest } from '../../types/listing';
+import type { Claim, ClaimStatus } from '../../types/claim';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ListingForm, type ListingQuickPickOption } from './ListingForm';
 import { createLogger } from '../../utils/logging';
+import { ClaimStatusList } from './ClaimStatusList';
+import {
+  loadSessionClaims,
+  saveSessionClaims,
+  upsertSessionClaim,
+} from '../../utils/claimSession';
 
 const logger = createLogger('grower-listings');
 
@@ -21,6 +29,7 @@ type ListingsView = 'create' | 'my-listings' | 'discovery';
 type MyListingsFilter = 'all' | 'active' | 'expired' | 'completed';
 
 interface GrowerListingPanelProps {
+  viewerUserId?: string;
   defaultLat?: number;
   defaultLng?: number;
 }
@@ -85,6 +94,18 @@ function isFiniteCoordinate(value: number | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function getGrowerActions(status: ClaimStatus): ClaimStatus[] {
+  if (status === 'pending') {
+    return ['confirmed', 'cancelled'];
+  }
+
+  if (status === 'confirmed') {
+    return ['completed', 'cancelled'];
+  }
+
+  return [];
+}
+
 function ListingStatusChip({ status }: { status: string }) {
   const tone = statusStyles[status] ?? 'border-neutral-300 bg-neutral-100 text-neutral-800';
 
@@ -125,7 +146,7 @@ function ListingDetails({ listing }: { listing: Listing }) {
   );
 }
 
-export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPanelProps) {
+export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: GrowerListingPanelProps) {
   const queryClient = useQueryClient();
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const [selectedCropId, setSelectedCropId] = useState<string>('');
@@ -135,6 +156,10 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   const [activeView, setActiveView] = useState<ListingsView>('create');
   const [myListingsFilter, setMyListingsFilter] = useState<MyListingsFilter>('all');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims());
+  const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [transitioningClaimId, setTransitioningClaimId] = useState<string | null>(null);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -187,6 +212,11 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       updateListing(listingId, request),
   });
 
+  const transitionClaimMutation = useMutation({
+    mutationFn: ({ claimId, status }: { claimId: string; status: ClaimStatus }) =>
+      updateClaimStatus(claimId, { status }),
+  });
+
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
     const goOnline = () => setIsOffline(false);
@@ -199,6 +229,10 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       window.removeEventListener('online', goOnline);
     };
   }, []);
+
+  useEffect(() => {
+    saveSessionClaims(sessionClaims);
+  }, [sessionClaims]);
 
   const activeEditListing: Listing | null = useMemo(() => {
     if (!editingListingId) {
@@ -355,6 +389,45 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   };
 
   const selectedListing = detailListingQuery.data ?? null;
+
+  const claimsForSelectedListing = useMemo(() => {
+    if (!selectedListing) {
+      return [];
+    }
+
+    return sessionClaims.filter((claim) => {
+      if (claim.listingId !== selectedListing.id) {
+        return false;
+      }
+
+      return viewerUserId ? claim.listingOwnerId === viewerUserId : true;
+    });
+  }, [selectedListing, sessionClaims, viewerUserId]);
+
+  const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+    setTransitioningClaimId(claimId);
+
+    const previousClaims = sessionClaims;
+    setSessionClaims((current) =>
+      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
+    );
+
+    try {
+      const updated = await transitionClaimMutation.mutateAsync({ claimId, status });
+      setSessionClaims((current) => upsertSessionClaim(current, updated));
+      setClaimSuccessMessage('Claim updated.');
+      logger.info('Claim updated', { claimId: updated.id, status: updated.status });
+    } catch (error) {
+      setSessionClaims(previousClaims);
+      const message = error instanceof Error ? error.message : 'Failed to update claim';
+      setClaimError(message);
+      logger.error('Claim transition failed', error as Error);
+    } finally {
+      setTransitioningClaimId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -535,7 +608,22 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             </p>
           )}
 
-          {selectedListing && <ListingDetails listing={selectedListing} />}
+          {selectedListing && (
+            <>
+              <ListingDetails listing={selectedListing} />
+              <ClaimStatusList
+                title="Claim coordination"
+                description="Review claim status and apply valid transitions."
+                claims={claimsForSelectedListing}
+                pendingClaimId={transitioningClaimId}
+                successMessage={claimSuccessMessage}
+                errorMessage={claimError}
+                emptyMessage="No claims tracked for this listing in this session yet."
+                getActions={(claim) => getGrowerActions(claim.status)}
+                onTransition={handleClaimTransition}
+              />
+            </>
+          )}
         </Card>
       )}
 
@@ -605,7 +693,22 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             </p>
           )}
 
-          {selectedListing && <ListingDetails listing={selectedListing} />}
+          {selectedListing && (
+            <>
+              <ListingDetails listing={selectedListing} />
+              <ClaimStatusList
+                title="Claim coordination"
+                description="Review claim status and apply valid transitions."
+                claims={claimsForSelectedListing}
+                pendingClaimId={transitioningClaimId}
+                successMessage={claimSuccessMessage}
+                errorMessage={claimError}
+                emptyMessage="No claims tracked for this listing in this session yet."
+                getActions={(claim) => getGrowerActions(claim.status)}
+                onTransition={handleClaimTransition}
+              />
+            </>
+          )}
         </Card>
       )}
     </div>
