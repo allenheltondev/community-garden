@@ -484,15 +484,18 @@ export function SearcherRequestPanel({
             placeholder="lb, bunch, box"
           />
 
-          <div className="sm:col-span-2">
-            <Input
-              label="Needed by"
-              type="text"
+          <div className="sm:col-span-2 flex flex-col gap-1">
+            <label className="text-sm font-medium text-neutral-700" htmlFor="request-needed-by">
+              Needed by
+            </label>
+            <input
+              id="request-needed-by"
+              type="datetime-local"
               value={draft.neededByLocal}
               onChange={(event) =>
                 setDraft((previous) => ({ ...previous, neededByLocal: event.target.value }))
               }
-              placeholder="YYYY-MM-DDTHH:mm"
+              className="w-full rounded-base border-2 border-neutral-300 bg-white px-3 py-2 text-base text-neutral-800"
             />
           </div>
 
