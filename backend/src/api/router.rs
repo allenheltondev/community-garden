@@ -208,7 +208,7 @@ fn map_api_error_to_response(
         || message.contains("searchRadiusMiles")
         || message.contains("Gatherer profile location is required")
         || message.contains("Listing is not claimable")
-        || message.contains("requestId references a closed request")
+        || message.contains("requestId must reference an open request")
         || message.contains("requestId crop must match listing crop")
     {
         return crop::error_response(400, &message);
