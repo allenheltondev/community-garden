@@ -5,11 +5,13 @@ import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../t
 import type {
   CatalogCrop,
   CatalogVariety,
+  DiscoverListingsResponse,
   GrowerCropItem,
   Listing,
   ListMyListingsResponse,
   UpsertListingRequest,
 } from '../types/listing';
+import type { RequestItem, UpsertRequestPayload } from '../types/request';
 
 /**
  * API Client for the Community Food Coordination Platform
@@ -261,6 +263,38 @@ interface RawListMyListingsResponse {
   next_offset: number | null;
 }
 
+interface RawDiscoverListingsResponse {
+  items: Array<Record<string, unknown>>;
+  limit: number;
+  offset: number;
+  has_more?: boolean;
+  hasMore?: boolean;
+  next_offset?: number | null;
+  nextOffset?: number | null;
+}
+
+interface RawRequestWriteResponse {
+  id: string;
+  userId?: string;
+  user_id?: string;
+  cropId?: string;
+  crop_id?: string;
+  varietyId?: string | null;
+  variety_id?: string | null;
+  unit?: string | null;
+  quantity: string;
+  neededBy?: string;
+  needed_by?: string;
+  notes?: string | null;
+  geoKey?: string | null;
+  geo_key?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  status: string;
+  createdAt?: string;
+  created_at?: string;
+}
+
 function mapCatalogCrop(raw: RawCatalogCrop): CatalogCrop {
   return {
     id: raw.id,
@@ -351,6 +385,75 @@ function mapWriteResponse(raw: RawListingWriteResponse): Listing {
   };
 }
 
+function getStringValue(raw: Record<string, unknown>, camel: string, snake: string): string {
+  const value = raw[camel] ?? raw[snake];
+  return typeof value === 'string' ? value : '';
+}
+
+function getNullableStringValue(
+  raw: Record<string, unknown>,
+  camel: string,
+  snake: string
+): string | null {
+  const value = raw[camel] ?? raw[snake];
+  return typeof value === 'string' ? value : null;
+}
+
+function getNullableNumberValue(
+  raw: Record<string, unknown>,
+  camel: string,
+  snake: string
+): number | null {
+  const value = raw[camel] ?? raw[snake];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function mapDiscoveredListingItem(raw: Record<string, unknown>): Listing {
+  return {
+    id: getStringValue(raw, 'id', 'id'),
+    userId: getStringValue(raw, 'userId', 'user_id'),
+    growerCropId: getNullableStringValue(raw, 'growerCropId', 'grower_crop_id'),
+    cropId: getStringValue(raw, 'cropId', 'crop_id'),
+    varietyId: getNullableStringValue(raw, 'varietyId', 'variety_id'),
+    title: getStringValue(raw, 'title', 'title'),
+    unit: getStringValue(raw, 'unit', 'unit'),
+    quantityTotal: getStringValue(raw, 'quantityTotal', 'quantity_total') || '0',
+    quantityRemaining: getStringValue(raw, 'quantityRemaining', 'quantity_remaining') || '0',
+    availableStart: getStringValue(raw, 'availableStart', 'available_start'),
+    availableEnd: getStringValue(raw, 'availableEnd', 'available_end'),
+    status: getStringValue(raw, 'status', 'status'),
+    pickupLocationText: getNullableStringValue(raw, 'pickupLocationText', 'pickup_location_text'),
+    pickupAddress: getNullableStringValue(raw, 'pickupAddress', 'pickup_address'),
+    pickupDisclosurePolicy:
+      getStringValue(raw, 'pickupDisclosurePolicy', 'pickup_disclosure_policy') ||
+      'after_confirmed',
+    pickupNotes: getNullableStringValue(raw, 'pickupNotes', 'pickup_notes'),
+    contactPref: getStringValue(raw, 'contactPref', 'contact_pref') || 'app_message',
+    geoKey: getNullableStringValue(raw, 'geoKey', 'geo_key'),
+    lat: getNullableNumberValue(raw, 'lat', 'lat') ?? 0,
+    lng: getNullableNumberValue(raw, 'lng', 'lng') ?? 0,
+    createdAt: getStringValue(raw, 'createdAt', 'created_at'),
+  };
+}
+
+function mapRequestWriteResponse(raw: RawRequestWriteResponse): RequestItem {
+  return {
+    id: raw.id,
+    userId: raw.userId ?? raw.user_id ?? '',
+    cropId: raw.cropId ?? raw.crop_id ?? '',
+    varietyId: raw.varietyId ?? raw.variety_id ?? null,
+    unit: raw.unit ?? null,
+    quantity: raw.quantity,
+    neededBy: raw.neededBy ?? raw.needed_by ?? '',
+    notes: raw.notes ?? null,
+    geoKey: raw.geoKey ?? raw.geo_key ?? null,
+    lat: raw.lat ?? null,
+    lng: raw.lng ?? null,
+    status: raw.status as RequestItem['status'],
+    createdAt: raw.createdAt ?? raw.created_at ?? '',
+  };
+}
+
 export async function listCatalogCrops(): Promise<CatalogCrop[]> {
   const response = await apiFetch<RawCatalogCrop[]>('/catalog/crops');
   return response.map(mapCatalogCrop);
@@ -409,6 +512,71 @@ export async function updateListing(listingId: string, data: UpsertListingReques
   });
 
   return mapWriteResponse(response);
+}
+
+export interface DiscoverListingsQuery {
+  geoKey: string;
+  radiusMiles?: number;
+  status?: 'active';
+  limit?: number;
+  offset?: number;
+}
+
+export async function discoverListings({
+  geoKey,
+  radiusMiles,
+  status = 'active',
+  limit = 20,
+  offset = 0,
+}: DiscoverListingsQuery): Promise<DiscoverListingsResponse> {
+  const params = new URLSearchParams();
+  params.set('geoKey', geoKey);
+  params.set('status', status);
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  if (radiusMiles !== undefined) {
+    params.set('radiusMiles', String(radiusMiles));
+  }
+
+  const response = await apiFetch<RawDiscoverListingsResponse>(`/listings/discover?${params.toString()}`);
+
+  return {
+    items: response.items.map(mapDiscoveredListingItem),
+    limit: response.limit,
+    offset: response.offset,
+    hasMore: response.has_more ?? response.hasMore ?? false,
+    nextOffset: response.next_offset ?? response.nextOffset ?? null,
+  };
+}
+
+export async function createRequest(
+  data: UpsertRequestPayload,
+  idempotencyKey = uuidv4()
+): Promise<RequestItem> {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
+
+  const response = await apiFetch<RawRequestWriteResponse>('/requests', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  return mapRequestWriteResponse(response);
+}
+
+export async function updateRequest(
+  requestId: string,
+  data: UpsertRequestPayload
+): Promise<RequestItem> {
+  const response = await apiFetch<RawRequestWriteResponse>(`/requests/${requestId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+  return mapRequestWriteResponse(response);
 }
 
 export default apiFetch;
