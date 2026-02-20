@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   createRequest,
@@ -6,12 +6,27 @@ import {
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
+import { createClaim, updateClaimStatus } from '../../services/claims';
 import type { Listing } from '../../types/listing';
 import type { RequestItem, UpsertRequestPayload } from '../../types/request';
+import type { Claim, ClaimStatus } from '../../types/claim';
 import { createLogger } from '../../utils/logging';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
+import { ClaimStatusList } from './ClaimStatusList';
+import {
+  loadSessionClaims,
+  saveSessionClaims,
+  upsertSessionClaim,
+} from '../../utils/claimSession';
+import {
+  enqueueCreateClaimAction,
+  enqueueTransitionClaimAction,
+  hasQueuedClaimActions,
+  replayQueuedClaimActions,
+  type ProcessedQueuedClaimAction,
+} from '../../utils/claimOfflineQueue';
 
 const logger = createLogger('searcher-requests');
 const REQUEST_DRAFT_KEY = 'searcher-request-draft-v1';
@@ -26,7 +41,13 @@ interface RequestDraft {
   notes: string;
 }
 
+interface MatchingRequestResult {
+  requestId?: string;
+  ambiguous: boolean;
+}
+
 export interface SearcherRequestPanelProps {
+  viewerUserId?: string;
   gathererGeoKey?: string;
   defaultLat?: number;
   defaultLng?: number;
@@ -125,7 +146,85 @@ function validateNeededByWindow(value: Date): string | null {
   return null;
 }
 
+function resolveDefaultClaimQuantity(listing: Listing): number {
+  const remaining = Number(listing.quantityRemaining);
+  if (!Number.isFinite(remaining) || remaining <= 0) {
+    return 1;
+  }
+
+  return Math.min(1, remaining);
+}
+
+function getSearcherActions(status: ClaimStatus): ClaimStatus[] {
+  if (status === 'pending') {
+    return ['cancelled'];
+  }
+
+  if (status === 'confirmed') {
+    return ['completed', 'cancelled'];
+  }
+
+  return [];
+}
+
+function makeLocalClaimId(): string {
+  return `local-claim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isLocalClaimId(claimId: string): boolean {
+  return claimId.startsWith('local-claim-');
+}
+
+function applyProcessedQueuedClaims(
+  existingClaims: Claim[],
+  processedActions: ProcessedQueuedClaimAction[]
+): Claim[] {
+  let next = [...existingClaims];
+
+  for (const action of processedActions) {
+    if (action.replaceClaimId && action.replaceClaimId !== action.claim.id) {
+      next = next.filter((claim) => claim.id !== action.replaceClaimId);
+    }
+
+    next = upsertSessionClaim(next, action.claim);
+  }
+
+  return next;
+}
+
+function resolveMatchingRequestId(
+  listing: Listing,
+  sessionRequests: RequestItem[]
+): MatchingRequestResult {
+  const openRequests = sessionRequests.filter(
+    (request) => request.status === 'open' && request.cropId === listing.cropId
+  );
+
+  if (openRequests.length === 0) {
+    return { ambiguous: false };
+  }
+
+  if (listing.varietyId) {
+    const varietyMatches = openRequests.filter((request) => request.varietyId === listing.varietyId);
+
+    if (varietyMatches.length === 1) {
+      return { requestId: varietyMatches[0].id, ambiguous: false };
+    }
+
+    if (varietyMatches.length > 1) {
+      return { ambiguous: true };
+    }
+  }
+
+  if (openRequests.length === 1) {
+    return { requestId: openRequests[0].id, ambiguous: false };
+  }
+
+  return { ambiguous: true };
+}
+
 export function SearcherRequestPanel({
+  viewerUserId,
   gathererGeoKey,
   defaultLat,
   defaultLng,
@@ -137,13 +236,54 @@ export function SearcherRequestPanel({
   const [selectedListingId, setSelectedListingId] = useState<string>('');
   const [draft, setDraft] = useState<RequestDraft>(() => loadRequestDraft());
   const [sessionRequests, setSessionRequests] = useState<RequestItem[]>([]);
+  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims(viewerUserId));
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
+  const [transitioningClaimIds, setTransitioningClaimIds] = useState<string[]>([]);
+  const [isReplayingClaimQueue, setIsReplayingClaimQueue] = useState<boolean>(false);
+
+  const replayClaimQueue = useCallback(async () => {
+    if (isOffline || isReplayingClaimQueue) {
+      return;
+    }
+
+    if (!hasQueuedClaimActions(viewerUserId)) {
+      return;
+    }
+
+    setIsReplayingClaimQueue(true);
+
+    try {
+      const result = await replayQueuedClaimActions({
+        viewerUserId,
+        createClaimHandler: createClaim,
+        transitionClaimHandler: updateClaimStatus,
+      });
+
+      if (result.processed.length > 0) {
+        setSessionClaims((current) => applyProcessedQueuedClaims(current, result.processed));
+        setClaimSuccessMessage(
+          `Synced ${result.processed.length} queued claim action${result.processed.length === 1 ? '' : 's'}.`
+        );
+      }
+
+      if (result.failed.length > 0) {
+        setClaimError('Some offline claim actions are still queued. They will retry when you reconnect.');
+      }
+    } finally {
+      setIsReplayingClaimQueue(false);
+    }
+  }, [isOffline, isReplayingClaimQueue, viewerUserId]);
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
+    const goOnline = () => {
+      setIsOffline(false);
+      void replayClaimQueue();
+    };
 
     window.addEventListener('offline', goOffline);
     window.addEventListener('online', goOnline);
@@ -152,7 +292,7 @@ export function SearcherRequestPanel({
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online', goOnline);
     };
-  }, []);
+  }, [replayClaimQueue]);
 
   useEffect(() => {
     try {
@@ -161,6 +301,14 @@ export function SearcherRequestPanel({
       // Ignore localStorage write failures in restricted environments.
     }
   }, [draft]);
+
+  useEffect(() => {
+    saveSessionClaims(sessionClaims, viewerUserId);
+  }, [sessionClaims, viewerUserId]);
+
+  useEffect(() => {
+    void replayClaimQueue();
+  }, [replayClaimQueue]);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -190,8 +338,18 @@ export function SearcherRequestPanel({
       updateRequest(requestId, payload),
   });
 
+  const createClaimMutation = useMutation({
+    mutationFn: createClaim,
+  });
+
+  const transitionClaimMutation = useMutation({
+    mutationFn: ({ claimId, status }: { claimId: string; status: ClaimStatus }) =>
+      updateClaimStatus(claimId, { status }),
+  });
+
   const isSubmitting = createRequestMutation.isPending || updateRequestMutation.isPending;
-  const listings = discoveryQuery.data?.items ?? [];
+  const listings = useMemo(() => discoveryQuery.data?.items ?? [], [discoveryQuery.data?.items]);
+  const pendingClaimIds = useMemo(() => new Set(transitioningClaimIds), [transitioningClaimIds]);
 
   const cropNameById = useMemo(() => {
     const byId = new Map<string, string>();
@@ -239,6 +397,11 @@ export function SearcherRequestPanel({
     });
   }, [defaultLat, defaultLng, filteredListings]);
 
+  const visibleClaims = useMemo(
+    () => sessionClaims.filter((claim) => (viewerUserId ? claim.claimerId === viewerUserId : true)),
+    [sessionClaims, viewerUserId]
+  );
+
   const handleSelectListing = (listing: Listing) => {
     setSelectedListingId(listing.id);
     setDraft((previous) => ({
@@ -249,6 +412,8 @@ export function SearcherRequestPanel({
     }));
     setSubmitError(null);
     setSuccessMessage(null);
+    setClaimError(null);
+    setClaimSuccessMessage(null);
   };
 
   const handleStartEditing = (request: RequestItem) => {
@@ -335,6 +500,112 @@ export function SearcherRequestPanel({
       const message = error instanceof Error ? error.message : 'Failed to submit request';
       setSubmitError(message);
       logger.error('Request submission failed', error as Error);
+    }
+  };
+
+  const handleCreateClaim = async (listing: Listing) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+
+    const requestMatch = resolveMatchingRequestId(listing, sessionRequests);
+    if (requestMatch.ambiguous) {
+      setClaimError('Multiple open requests match this listing. Claim will be created without linking to a request.');
+    }
+
+    const payload = {
+      listingId: listing.id,
+      requestId: requestMatch.requestId,
+      quantityClaimed: resolveDefaultClaimQuantity(listing),
+    };
+
+    if (isOffline) {
+      const localClaimId = makeLocalClaimId();
+      const localClaim: Claim = {
+        id: localClaimId,
+        listingId: listing.id,
+        requestId: requestMatch.requestId ?? null,
+        claimerId: viewerUserId ?? 'unknown-claimer',
+        listingOwnerId: listing.userId,
+        quantityClaimed: String(payload.quantityClaimed),
+        status: 'pending',
+        notes: null,
+        claimedAt: new Date().toISOString(),
+        confirmedAt: null,
+        completedAt: null,
+        cancelledAt: null,
+      };
+
+      setSessionClaims((previous) => upsertSessionClaim(previous, localClaim));
+      enqueueCreateClaimAction(payload, localClaimId, viewerUserId);
+      setClaimSuccessMessage('You are offline. Claim was queued and will sync when you reconnect.');
+      return;
+    }
+
+    try {
+      const createdClaim = await createClaimMutation.mutateAsync(payload);
+
+      setSessionClaims((previous) => upsertSessionClaim(previous, createdClaim));
+      setClaimSuccessMessage('Claim submitted.');
+      logger.info('Claim created', { claimId: createdClaim.id, listingId: createdClaim.listingId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create claim';
+      setClaimError(message);
+      logger.error('Claim creation failed', error as Error);
+    }
+  };
+
+  const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+
+    let didStart = false;
+    setTransitioningClaimIds((current) => {
+      if (current.includes(claimId)) {
+        return current;
+      }
+
+      didStart = true;
+      return [...current, claimId];
+    });
+
+    if (!didStart) {
+      return;
+    }
+
+    const previousClaim = sessionClaims.find((claim) => claim.id === claimId) ?? null;
+
+    setSessionClaims((current) =>
+      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
+    );
+
+    try {
+      if (isOffline) {
+        enqueueTransitionClaimAction(claimId, { status }, viewerUserId);
+        setClaimSuccessMessage('You are offline. Claim transition was queued and will sync when you reconnect.');
+        return;
+      }
+
+      const resolvedClaimId = isLocalClaimId(claimId) ? previousClaim?.id : claimId;
+      if (!resolvedClaimId || isLocalClaimId(resolvedClaimId)) {
+        throw new Error('Claim is not synced yet. Reconnect to sync queued actions first.');
+      }
+
+      const updated = await transitionClaimMutation.mutateAsync({ claimId: resolvedClaimId, status });
+      setSessionClaims((current) => upsertSessionClaim(current, updated));
+      setClaimSuccessMessage('Claim updated.');
+      logger.info('Claim updated', { claimId: updated.id, status: updated.status });
+    } catch (error) {
+      if (previousClaim) {
+        setSessionClaims((current) =>
+          current.map((claim) => (claim.id === claimId ? previousClaim : claim))
+        );
+      }
+
+      const message = error instanceof Error ? error.message : 'Failed to update claim';
+      setClaimError(message);
+      logger.error('Claim transition failed', error as Error);
+    } finally {
+      setTransitioningClaimIds((current) => current.filter((id) => id !== claimId));
     }
   };
 
@@ -463,9 +734,19 @@ export function SearcherRequestPanel({
                   </p>
                   {distanceLabel && <p className="text-xs text-neutral-500">{distanceLabel}</p>}
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => handleSelectListing(listing)}>
-                  Request this item
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => handleSelectListing(listing)}>
+                    Request this item
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={createClaimMutation.isPending}
+                    onClick={() => handleCreateClaim(listing)}
+                  >
+                    Claim this listing
+                  </Button>
+                </div>
               </div>
             </div>
           );
@@ -583,6 +864,18 @@ export function SearcherRequestPanel({
           )}
         </div>
       </Card>
+
+      <ClaimStatusList
+        title="My claim coordination"
+        description="Track your claim states and apply only valid transitions."
+        claims={visibleClaims}
+        pendingClaimIds={pendingClaimIds}
+        successMessage={claimSuccessMessage}
+        errorMessage={claimError}
+        emptyMessage="No claims tracked in this session yet."
+        getActions={(claim) => getSearcherActions(claim.status)}
+        onTransition={handleClaimTransition}
+      />
 
       <Card className="space-y-3" padding="6">
         <h4 className="text-base font-semibold text-neutral-900">Requests this session</h4>

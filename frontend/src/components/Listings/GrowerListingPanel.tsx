@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createListing,
@@ -9,11 +9,25 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
+import { createClaim, updateClaimStatus } from '../../services/claims';
 import type { Listing, UpsertListingRequest } from '../../types/listing';
+import type { Claim, ClaimStatus } from '../../types/claim';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ListingForm, type ListingQuickPickOption } from './ListingForm';
 import { createLogger } from '../../utils/logging';
+import { ClaimStatusList } from './ClaimStatusList';
+import {
+  loadSessionClaims,
+  saveSessionClaims,
+  upsertSessionClaim,
+} from '../../utils/claimSession';
+import {
+  enqueueTransitionClaimAction,
+  hasQueuedClaimActions,
+  replayQueuedClaimActions,
+  type ProcessedQueuedClaimAction,
+} from '../../utils/claimOfflineQueue';
 
 const logger = createLogger('grower-listings');
 
@@ -21,6 +35,7 @@ type ListingsView = 'create' | 'my-listings' | 'discovery';
 type MyListingsFilter = 'all' | 'active' | 'expired' | 'completed';
 
 interface GrowerListingPanelProps {
+  viewerUserId?: string;
   defaultLat?: number;
   defaultLng?: number;
 }
@@ -85,6 +100,35 @@ function isFiniteCoordinate(value: number | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function getGrowerActions(status: ClaimStatus): ClaimStatus[] {
+  if (status === 'pending') {
+    return ['confirmed', 'cancelled'];
+  }
+
+  if (status === 'confirmed') {
+    return ['completed', 'cancelled'];
+  }
+
+  return [];
+}
+
+function applyProcessedQueuedClaims(
+  existingClaims: Claim[],
+  processedActions: ProcessedQueuedClaimAction[]
+): Claim[] {
+  let next = [...existingClaims];
+
+  for (const action of processedActions) {
+    if (action.replaceClaimId && action.replaceClaimId !== action.claim.id) {
+      next = next.filter((claim) => claim.id !== action.replaceClaimId);
+    }
+
+    next = upsertSessionClaim(next, action.claim);
+  }
+
+  return next;
+}
+
 function ListingStatusChip({ status }: { status: string }) {
   const tone = statusStyles[status] ?? 'border-neutral-300 bg-neutral-100 text-neutral-800';
 
@@ -125,7 +169,7 @@ function ListingDetails({ listing }: { listing: Listing }) {
   );
 }
 
-export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPanelProps) {
+export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: GrowerListingPanelProps) {
   const queryClient = useQueryClient();
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const [selectedCropId, setSelectedCropId] = useState<string>('');
@@ -135,6 +179,44 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   const [activeView, setActiveView] = useState<ListingsView>('create');
   const [myListingsFilter, setMyListingsFilter] = useState<MyListingsFilter>('all');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims(viewerUserId));
+  const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [transitioningClaimIds, setTransitioningClaimIds] = useState<string[]>([]);
+  const [isReplayingClaimQueue, setIsReplayingClaimQueue] = useState<boolean>(false);
+
+  const replayClaimQueue = useCallback(async () => {
+    if (isOffline || isReplayingClaimQueue) {
+      return;
+    }
+
+    if (!hasQueuedClaimActions(viewerUserId)) {
+      return;
+    }
+
+    setIsReplayingClaimQueue(true);
+
+    try {
+      const result = await replayQueuedClaimActions({
+        viewerUserId,
+        createClaimHandler: createClaim,
+        transitionClaimHandler: updateClaimStatus,
+      });
+
+      if (result.processed.length > 0) {
+        setSessionClaims((current) => applyProcessedQueuedClaims(current, result.processed));
+        setClaimSuccessMessage(
+          `Synced ${result.processed.length} queued claim action${result.processed.length === 1 ? '' : 's'}.`
+        );
+      }
+
+      if (result.failed.length > 0) {
+        setClaimError('Some offline claim actions are still queued. They will retry when you reconnect.');
+      }
+    } finally {
+      setIsReplayingClaimQueue(false);
+    }
+  }, [isOffline, isReplayingClaimQueue, viewerUserId]);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -187,9 +269,17 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       updateListing(listingId, request),
   });
 
+  const transitionClaimMutation = useMutation({
+    mutationFn: ({ claimId, status }: { claimId: string; status: ClaimStatus }) =>
+      updateClaimStatus(claimId, { status }),
+  });
+
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
+    const goOnline = () => {
+      setIsOffline(false);
+      void replayClaimQueue();
+    };
 
     window.addEventListener('offline', goOffline);
     window.addEventListener('online', goOnline);
@@ -198,7 +288,15 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online', goOnline);
     };
-  }, []);
+  }, [replayClaimQueue]);
+
+  useEffect(() => {
+    saveSessionClaims(sessionClaims, viewerUserId);
+  }, [sessionClaims, viewerUserId]);
+
+  useEffect(() => {
+    void replayClaimQueue();
+  }, [replayClaimQueue]);
 
   const activeEditListing: Listing | null = useMemo(() => {
     if (!editingListingId) {
@@ -246,6 +344,7 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   }, [activeEditListing, defaultLat, defaultLng]);
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const pendingClaimIds = useMemo(() => new Set(transitioningClaimIds), [transitioningClaimIds]);
 
   const cropNameById = useMemo(() => {
     const byId = new Map<string, string>();
@@ -355,6 +454,69 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
   };
 
   const selectedListing = detailListingQuery.data ?? null;
+
+  const claimsForSelectedListing = useMemo(() => {
+    if (!selectedListing) {
+      return [];
+    }
+
+    return sessionClaims.filter((claim) => {
+      if (claim.listingId !== selectedListing.id) {
+        return false;
+      }
+
+      return viewerUserId ? claim.listingOwnerId === viewerUserId : true;
+    });
+  }, [selectedListing, sessionClaims, viewerUserId]);
+
+  const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+
+    let didStart = false;
+    setTransitioningClaimIds((current) => {
+      if (current.includes(claimId)) {
+        return current;
+      }
+
+      didStart = true;
+      return [...current, claimId];
+    });
+
+    if (!didStart) {
+      return;
+    }
+
+    const previousClaim = sessionClaims.find((claim) => claim.id === claimId) ?? null;
+    setSessionClaims((current) =>
+      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
+    );
+
+    try {
+      if (isOffline) {
+        enqueueTransitionClaimAction(claimId, { status }, viewerUserId);
+        setClaimSuccessMessage('You are offline. Claim transition was queued and will sync when you reconnect.');
+        return;
+      }
+
+      const updated = await transitionClaimMutation.mutateAsync({ claimId, status });
+      setSessionClaims((current) => upsertSessionClaim(current, updated));
+      setClaimSuccessMessage('Claim updated.');
+      logger.info('Claim updated', { claimId: updated.id, status: updated.status });
+    } catch (error) {
+      if (previousClaim) {
+        setSessionClaims((current) =>
+          current.map((claim) => (claim.id === claimId ? previousClaim : claim))
+        );
+      }
+
+      const message = error instanceof Error ? error.message : 'Failed to update claim';
+      setClaimError(message);
+      logger.error('Claim transition failed', error as Error);
+    } finally {
+      setTransitioningClaimIds((current) => current.filter((id) => id !== claimId));
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -535,7 +697,22 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             </p>
           )}
 
-          {selectedListing && <ListingDetails listing={selectedListing} />}
+          {selectedListing && (
+            <>
+              <ListingDetails listing={selectedListing} />
+              <ClaimStatusList
+                title="Claim coordination"
+                description="Review claim status and apply valid transitions."
+                claims={claimsForSelectedListing}
+                pendingClaimIds={pendingClaimIds}
+                successMessage={claimSuccessMessage}
+                errorMessage={claimError}
+                emptyMessage="No claims tracked for this listing in this session yet."
+                getActions={(claim) => getGrowerActions(claim.status)}
+                onTransition={handleClaimTransition}
+              />
+            </>
+          )}
         </Card>
       )}
 
@@ -605,7 +782,22 @@ export function GrowerListingPanel({ defaultLat, defaultLng }: GrowerListingPane
             </p>
           )}
 
-          {selectedListing && <ListingDetails listing={selectedListing} />}
+          {selectedListing && (
+            <>
+              <ListingDetails listing={selectedListing} />
+              <ClaimStatusList
+                title="Claim coordination"
+                description="Review claim status and apply valid transitions."
+                claims={claimsForSelectedListing}
+                pendingClaimIds={pendingClaimIds}
+                successMessage={claimSuccessMessage}
+                errorMessage={claimError}
+                emptyMessage="No claims tracked for this listing in this session yet."
+                getActions={(claim) => getGrowerActions(claim.status)}
+                onTransition={handleClaimTransition}
+              />
+            </>
+          )}
         </Card>
       )}
     </div>
