@@ -320,7 +320,7 @@ async fn validate_request_linkage(
         .map_err(|error| db_error(&error))?;
 
     let Some(request) = request_row else {
-        return error_response(404, "Request not found");
+        return Err(lambda_http::Error::from("Request not found"));
     };
 
     let request_owner_id: Uuid = request.get("user_id");
@@ -466,7 +466,7 @@ async fn adjust_listing_quantity_if_needed(
                 .map_err(|error| db_error(&error))?;
 
             if updated_rows == 0 {
-                return error_response(409, "Insufficient quantity remaining");
+                return Err(lambda_http::Error::from("Insufficient quantity remaining"));
             }
 
             Ok(())
