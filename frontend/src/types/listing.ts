@@ -62,6 +62,14 @@ export interface ListMyListingsResponse {
   nextOffset: number | null;
 }
 
+export interface DiscoverListingsResponse {
+  items: Listing[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
 export interface UpsertListingRequest {
   title: string;
   cropId: string;
