@@ -6,6 +6,7 @@ use aws_sdk_eventbridge::types::PutEventsRequestEntry;
 use chrono::{DateTime, Duration, Utc};
 use lambda_http::{Body, Request, Response};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio_postgres::{Client, Row};
 use tracing::{error, info};
 use uuid::Uuid;
@@ -32,7 +33,7 @@ struct NormalizedRequestInput {
     quantity: f64,
     needed_by: DateTime<Utc>,
     notes: Option<String>,
-    status: String,
+    status: Option<String>,
 }
 
 #[derive(Debug)]
@@ -71,24 +72,34 @@ pub async fn create_request(
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let payload: UpsertRequestPayload = parse_json_body(request)?;
     let normalized = normalize_payload(&payload)?;
+    let idempotency_key = extract_idempotency_key(request);
+    let request_id = idempotency_key.as_deref().map_or_else(Uuid::new_v4, |key| {
+        derive_deterministic_request_id(user_id, key)
+    });
+    let status = normalized
+        .status
+        .clone()
+        .unwrap_or_else(|| "open".to_string());
 
     let client = db::connect().await?;
     validate_catalog_links(&client, normalized.crop_id, normalized.variety_id).await?;
     let geo_context = load_gatherer_geo_context(&client, user_id).await?;
 
-    let row = client
-        .query_one(
+    let maybe_inserted_row = client
+        .query_opt(
             "
             insert into requests
-                (user_id, crop_id, variety_id, unit, quantity, needed_by, notes, geo_key, lat, lng, status)
+                (id, user_id, crop_id, variety_id, unit, quantity, needed_by, notes, geo_key, lat, lng, status)
             values
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::request_status)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::request_status)
+            on conflict (id) do nothing
             returning id, user_id, crop_id, variety_id, unit,
                       quantity::text as quantity,
                       needed_by, notes, geo_key, lat, lng,
                       status::text as status, created_at
             ",
             &[
+                &request_id,
                 &user_id,
                 &normalized.crop_id,
                 &normalized.variety_id,
@@ -99,18 +110,46 @@ pub async fn create_request(
                 &geo_context.geo_key,
                 &geo_context.lat,
                 &geo_context.lng,
-                &normalized.status,
+                &status,
             ],
         )
         .await
         .map_err(|error| db_error(&error))?;
 
-    emit_request_event_best_effort("request.created", &row, correlation_id).await;
+    let (row, is_new_row) = if let Some(inserted_row) = maybe_inserted_row {
+        (inserted_row, true)
+    } else {
+        let existing_row = client
+            .query_opt(
+                "
+                select id, user_id, crop_id, variety_id, unit,
+                       quantity::text as quantity,
+                       needed_by, notes, geo_key, lat, lng,
+                       status::text as status, created_at
+                from requests
+                where id = $1
+                  and user_id = $2
+                  and deleted_at is null
+                ",
+                &[&request_id, &user_id],
+            )
+            .await
+            .map_err(|error| db_error(&error))?;
+        let Some(existing_row) = existing_row else {
+            return error_response(409, "Idempotency key collision with an existing request");
+        };
+        (existing_row, false)
+    };
+
+    if is_new_row {
+        emit_request_event_best_effort("request.created", &row, correlation_id).await;
+    }
 
     info!(
         correlation_id = correlation_id,
         user_id = %user_id,
         request_id = %row.get::<_, Uuid>("id"),
+        idempotency_replay = !is_new_row,
         "Created gatherer request"
     );
 
@@ -149,7 +188,7 @@ pub async fn update_request(
                 geo_key = $7,
                 lat = $8,
                 lng = $9,
-                status = $10::request_status
+                status = coalesce($10::request_status, status)
             where id = $11
               and user_id = $12
               and deleted_at is null
@@ -212,13 +251,15 @@ fn normalize_payload(
         ));
     }
 
-    let status = payload.status.clone().unwrap_or_else(|| "open".to_string());
-    if !ALLOWED_REQUEST_STATUS.contains(&status.as_str()) {
-        return Err(lambda_http::Error::from(format!(
-            "Invalid status '{}'. Allowed values: {}",
-            status,
-            ALLOWED_REQUEST_STATUS.join(", ")
-        )));
+    let status = payload.status.clone();
+    if let Some(status_value) = &status {
+        if !ALLOWED_REQUEST_STATUS.contains(&status_value.as_str()) {
+            return Err(lambda_http::Error::from(format!(
+                "Invalid status '{}'. Allowed values: {}",
+                status_value,
+                ALLOWED_REQUEST_STATUS.join(", ")
+            )));
+        }
     }
 
     Ok(NormalizedRequestInput {
@@ -230,6 +271,30 @@ fn normalize_payload(
         notes: normalize_optional_text(payload.notes.as_deref()),
         status,
     })
+}
+
+fn extract_idempotency_key(request: &Request) -> Option<String> {
+    request
+        .headers()
+        .get("Idempotency-Key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn derive_deterministic_request_id(user_id: Uuid, idempotency_key: &str) -> Uuid {
+    let mut hasher = Sha256::new();
+    hasher.update(user_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(idempotency_key.as_bytes());
+
+    let digest = hasher.finalize();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
 }
 
 fn normalize_optional_text(value: Option<&str>) -> Option<String> {
@@ -470,9 +535,17 @@ mod tests {
     fn normalize_payload_accepts_valid_input() {
         let payload = valid_payload();
         let normalized = normalize_payload(&payload).unwrap();
-        assert_eq!(normalized.status, "open");
+        assert_eq!(normalized.status.as_deref(), Some("open"));
         assert!((normalized.quantity - 12.5).abs() < f64::EPSILON);
         assert_eq!(normalized.unit.as_deref(), Some("lb"));
+    }
+
+    #[test]
+    fn normalize_payload_keeps_status_none_when_not_provided() {
+        let mut payload = valid_payload();
+        payload.status = None;
+        let normalized = normalize_payload(&payload).unwrap();
+        assert!(normalized.status.is_none());
     }
 
     #[test]
@@ -500,5 +573,22 @@ mod tests {
         let result = normalize_payload(&payload);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid status"));
+    }
+
+    #[test]
+    fn derive_deterministic_request_id_is_stable_per_user_and_key() {
+        let user_id = Uuid::parse_str("6b7a6e9d-e31d-4ac2-b688-15f0490adf9b").unwrap();
+        let one = derive_deterministic_request_id(user_id, "retry-1");
+        let two = derive_deterministic_request_id(user_id, "retry-1");
+        assert_eq!(one, two);
+    }
+
+    #[test]
+    fn derive_deterministic_request_id_differs_by_user() {
+        let user_one = Uuid::parse_str("6b7a6e9d-e31d-4ac2-b688-15f0490adf9b").unwrap();
+        let user_two = Uuid::parse_str("b630af9b-6de5-44cd-9d83-d37df86ce2ef").unwrap();
+        let one = derive_deterministic_request_id(user_one, "retry-1");
+        let two = derive_deterministic_request_id(user_two, "retry-1");
+        assert_ne!(one, two);
     }
 }
