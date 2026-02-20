@@ -41,6 +41,7 @@ function renderPanel() {
 describe('SearcherRequestPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     Object.defineProperty(window.navigator, 'onLine', {
       configurable: true,
