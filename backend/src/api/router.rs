@@ -218,6 +218,10 @@ fn map_api_error_to_response(
         return crop::error_response(409, &message);
     }
 
+    if message.contains("Request not found") || message.contains("Claim not found") {
+        return crop::error_response(404, &message);
+    }
+
     if message.contains("Geocoding service unavailable") {
         return crop::error_response(503, &message);
     }
@@ -270,5 +274,12 @@ mod tests {
         let error = lambda_http::Error::from("Insufficient quantity remaining".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 409);
+    }
+
+    #[test]
+    fn map_api_error_maps_request_not_found_to_404() {
+        let error = lambda_http::Error::from("Request not found".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 404);
     }
 }
