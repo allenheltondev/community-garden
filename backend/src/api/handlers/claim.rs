@@ -1,4 +1,6 @@
-use crate::auth::{extract_auth_context, require_user_type, UserType};
+use crate::auth::{
+    extract_auth_context, require_participant_user_type, require_user_type, UserType,
+};
 use crate::db;
 use crate::models::crop::ErrorResponse;
 use aws_config::BehaviorVersion;
@@ -513,12 +515,7 @@ async fn adjust_listing_quantity_if_needed(
 fn require_claim_transition_user_type(
     user_type: Option<&UserType>,
 ) -> Result<(), lambda_http::Error> {
-    match user_type {
-        Some(UserType::Grower | UserType::Gatherer) => Ok(()),
-        None => Err(lambda_http::Error::from(
-            "Forbidden: User type not set. Please complete onboarding.",
-        )),
-    }
+    require_participant_user_type(user_type)
 }
 
 fn is_claimable_listing_status(status: &str) -> bool {
