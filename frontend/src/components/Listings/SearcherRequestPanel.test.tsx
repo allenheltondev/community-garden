@@ -153,7 +153,7 @@ describe('SearcherRequestPanel', () => {
     expect(await screen.findByText(/requests this session/i)).toBeInTheDocument();
   });
 
-  it('shows empty and error states for discovery', async () => {
+  it('shows an empty state when no listings are discovered', async () => {
     mockDiscoverListings.mockResolvedValueOnce({
       items: [],
       limit: 30,
@@ -165,8 +165,11 @@ describe('SearcherRequestPanel', () => {
     renderPanel();
 
     expect(await screen.findByText(/no listings found in this area yet/i)).toBeInTheDocument();
+  });
 
+  it('shows an error state when discovery fails', async () => {
     mockDiscoverListings.mockRejectedValueOnce(new Error('Discovery failed'));
+
     renderPanel();
 
     await waitFor(() => {
