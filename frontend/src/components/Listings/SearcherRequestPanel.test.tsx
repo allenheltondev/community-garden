@@ -25,6 +25,13 @@ const mockUpdateRequest = vi.mocked(updateRequest);
 const mockCreateClaim = vi.mocked(createClaim);
 const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
 
+function setOnlineStatus(isOnline: boolean) {
+  Object.defineProperty(window.navigator, 'onLine', {
+    configurable: true,
+    value: isOnline,
+  });
+}
+
 function renderPanel() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -52,10 +59,7 @@ describe('SearcherRequestPanel', () => {
     vi.clearAllMocks();
     window.localStorage.clear();
 
-    Object.defineProperty(window.navigator, 'onLine', {
-      configurable: true,
-      value: true,
-    });
+    setOnlineStatus(true);
 
     mockListCatalogCrops.mockResolvedValue([
       {
@@ -284,5 +288,56 @@ describe('SearcherRequestPanel', () => {
 
     expect(await screen.findByText(/transition failed/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+  });
+
+  it('queues claim creation while offline and replays when online', async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+
+    setOnlineStatus(false);
+    window.dispatchEvent(new Event('offline'));
+
+    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+
+    expect(mockCreateClaim).not.toHaveBeenCalled();
+    expect(await screen.findByText(/claim was queued/i)).toBeInTheDocument();
+
+    setOnlineStatus(true);
+    window.dispatchEvent(new Event('online'));
+
+    await waitFor(() => {
+      expect(mockCreateClaim).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not incorrectly link a claim when multiple open requests match', async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /request this item/i }));
+    await user.click(screen.getByRole('button', { name: /create request/i }));
+    await user.click(screen.getByRole('button', { name: /request this item/i }));
+    await user.click(screen.getByRole('button', { name: /create request/i }));
+
+    await waitFor(() => {
+      expect(mockCreateRequest).toHaveBeenCalledTimes(2);
+    });
+
+    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+
+    await waitFor(() => {
+      expect(mockCreateClaim).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listingId: 'listing-1',
+          requestId: undefined,
+        })
+      );
+    });
   });
 });

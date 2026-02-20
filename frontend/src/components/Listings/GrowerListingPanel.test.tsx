@@ -275,7 +275,7 @@ describe('GrowerListingPanel', () => {
     mockGetMyListing.mockResolvedValue(makeListing({ id: 'listing-1', title: 'Tomatoes Basket' }));
 
     window.localStorage.setItem(
-      'claim-session-v1',
+      'claim-session-v1:user-1',
       JSON.stringify([
         {
           id: 'claim-1',

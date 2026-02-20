@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createListing,
@@ -9,7 +9,7 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
-import { updateClaimStatus } from '../../services/claims';
+import { createClaim, updateClaimStatus } from '../../services/claims';
 import type { Listing, UpsertListingRequest } from '../../types/listing';
 import type { Claim, ClaimStatus } from '../../types/claim';
 import { Button } from '../ui/Button';
@@ -22,6 +22,12 @@ import {
   saveSessionClaims,
   upsertSessionClaim,
 } from '../../utils/claimSession';
+import {
+  enqueueTransitionClaimAction,
+  hasQueuedClaimActions,
+  replayQueuedClaimActions,
+  type ProcessedQueuedClaimAction,
+} from '../../utils/claimOfflineQueue';
 
 const logger = createLogger('grower-listings');
 
@@ -106,6 +112,23 @@ function getGrowerActions(status: ClaimStatus): ClaimStatus[] {
   return [];
 }
 
+function applyProcessedQueuedClaims(
+  existingClaims: Claim[],
+  processedActions: ProcessedQueuedClaimAction[]
+): Claim[] {
+  let next = [...existingClaims];
+
+  for (const action of processedActions) {
+    if (action.replaceClaimId && action.replaceClaimId !== action.claim.id) {
+      next = next.filter((claim) => claim.id !== action.replaceClaimId);
+    }
+
+    next = upsertSessionClaim(next, action.claim);
+  }
+
+  return next;
+}
+
 function ListingStatusChip({ status }: { status: string }) {
   const tone = statusStyles[status] ?? 'border-neutral-300 bg-neutral-100 text-neutral-800';
 
@@ -156,10 +179,44 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
   const [activeView, setActiveView] = useState<ListingsView>('create');
   const [myListingsFilter, setMyListingsFilter] = useState<MyListingsFilter>('all');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
-  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims());
+  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims(viewerUserId));
   const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
-  const [transitioningClaimId, setTransitioningClaimId] = useState<string | null>(null);
+  const [transitioningClaimIds, setTransitioningClaimIds] = useState<string[]>([]);
+  const [isReplayingClaimQueue, setIsReplayingClaimQueue] = useState<boolean>(false);
+
+  const replayClaimQueue = useCallback(async () => {
+    if (isOffline || isReplayingClaimQueue) {
+      return;
+    }
+
+    if (!hasQueuedClaimActions(viewerUserId)) {
+      return;
+    }
+
+    setIsReplayingClaimQueue(true);
+
+    try {
+      const result = await replayQueuedClaimActions({
+        viewerUserId,
+        createClaimHandler: createClaim,
+        transitionClaimHandler: updateClaimStatus,
+      });
+
+      if (result.processed.length > 0) {
+        setSessionClaims((current) => applyProcessedQueuedClaims(current, result.processed));
+        setClaimSuccessMessage(
+          `Synced ${result.processed.length} queued claim action${result.processed.length === 1 ? '' : 's'}.`
+        );
+      }
+
+      if (result.failed.length > 0) {
+        setClaimError('Some offline claim actions are still queued. They will retry when you reconnect.');
+      }
+    } finally {
+      setIsReplayingClaimQueue(false);
+    }
+  }, [isOffline, isReplayingClaimQueue, viewerUserId]);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -219,7 +276,10 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
+    const goOnline = () => {
+      setIsOffline(false);
+      void replayClaimQueue();
+    };
 
     window.addEventListener('offline', goOffline);
     window.addEventListener('online', goOnline);
@@ -228,11 +288,15 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online', goOnline);
     };
-  }, []);
+  }, [replayClaimQueue]);
 
   useEffect(() => {
-    saveSessionClaims(sessionClaims);
-  }, [sessionClaims]);
+    saveSessionClaims(sessionClaims, viewerUserId);
+  }, [sessionClaims, viewerUserId]);
+
+  useEffect(() => {
+    void replayClaimQueue();
+  }, [replayClaimQueue]);
 
   const activeEditListing: Listing | null = useMemo(() => {
     if (!editingListingId) {
@@ -280,6 +344,7 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
   }, [activeEditListing, defaultLat, defaultLng]);
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const pendingClaimIds = useMemo(() => new Set(transitioningClaimIds), [transitioningClaimIds]);
 
   const cropNameById = useMemo(() => {
     const byId = new Map<string, string>();
@@ -407,25 +472,49 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
   const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
     setClaimError(null);
     setClaimSuccessMessage(null);
-    setTransitioningClaimId(claimId);
 
-    const previousClaims = sessionClaims;
+    let didStart = false;
+    setTransitioningClaimIds((current) => {
+      if (current.includes(claimId)) {
+        return current;
+      }
+
+      didStart = true;
+      return [...current, claimId];
+    });
+
+    if (!didStart) {
+      return;
+    }
+
+    const previousClaim = sessionClaims.find((claim) => claim.id === claimId) ?? null;
     setSessionClaims((current) =>
       current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
     );
 
     try {
+      if (isOffline) {
+        enqueueTransitionClaimAction(claimId, { status }, viewerUserId);
+        setClaimSuccessMessage('You are offline. Claim transition was queued and will sync when you reconnect.');
+        return;
+      }
+
       const updated = await transitionClaimMutation.mutateAsync({ claimId, status });
       setSessionClaims((current) => upsertSessionClaim(current, updated));
       setClaimSuccessMessage('Claim updated.');
       logger.info('Claim updated', { claimId: updated.id, status: updated.status });
     } catch (error) {
-      setSessionClaims(previousClaims);
+      if (previousClaim) {
+        setSessionClaims((current) =>
+          current.map((claim) => (claim.id === claimId ? previousClaim : claim))
+        );
+      }
+
       const message = error instanceof Error ? error.message : 'Failed to update claim';
       setClaimError(message);
       logger.error('Claim transition failed', error as Error);
     } finally {
-      setTransitioningClaimId(null);
+      setTransitioningClaimIds((current) => current.filter((id) => id !== claimId));
     }
   };
 
@@ -615,7 +704,7 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
                 title="Claim coordination"
                 description="Review claim status and apply valid transitions."
                 claims={claimsForSelectedListing}
-                pendingClaimId={transitioningClaimId}
+                pendingClaimIds={pendingClaimIds}
                 successMessage={claimSuccessMessage}
                 errorMessage={claimError}
                 emptyMessage="No claims tracked for this listing in this session yet."
@@ -700,7 +789,7 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
                 title="Claim coordination"
                 description="Review claim status and apply valid transitions."
                 claims={claimsForSelectedListing}
-                pendingClaimId={transitioningClaimId}
+                pendingClaimIds={pendingClaimIds}
                 successMessage={claimSuccessMessage}
                 errorMessage={claimError}
                 emptyMessage="No claims tracked for this listing in this session yet."

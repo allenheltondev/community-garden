@@ -5,7 +5,7 @@ interface ClaimStatusListProps {
   title: string;
   description: string;
   claims: Claim[];
-  pendingClaimId: string | null;
+  pendingClaimIds: ReadonlySet<string>;
   successMessage: string | null;
   errorMessage: string | null;
   emptyMessage: string;
@@ -29,7 +29,7 @@ export function ClaimStatusList({
   title,
   description,
   claims,
-  pendingClaimId,
+  pendingClaimIds,
   successMessage,
   errorMessage,
   emptyMessage,
@@ -80,7 +80,7 @@ export function ClaimStatusList({
                   key={`${claim.id}:${status}`}
                   size="sm"
                   variant="outline"
-                  disabled={pendingClaimId === claim.id}
+                  disabled={pendingClaimIds.has(claim.id)}
                   onClick={() => onTransition(claim.id, status)}
                 >
                   {actionLabels[status]}

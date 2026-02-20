@@ -2,6 +2,27 @@ import type { Claim } from '../types/claim';
 
 const CLAIM_SESSION_STORAGE_KEY = 'claim-session-v1';
 
+function resolveClaimSessionStorageKey(viewerUserId?: string): string {
+  return viewerUserId ? `${CLAIM_SESSION_STORAGE_KEY}:${viewerUserId}` : CLAIM_SESSION_STORAGE_KEY;
+}
+
+function parseClaims(serialized: string | null): Claim[] {
+  if (!serialized) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isClaim);
+  } catch {
+    return [];
+  }
+}
+
 function isClaim(value: unknown): value is Claim {
   if (!value || typeof value !== 'object') {
     return false;
@@ -17,27 +38,26 @@ function isClaim(value: unknown): value is Claim {
   );
 }
 
-export function loadSessionClaims(): Claim[] {
-  try {
-    const serialized = window.localStorage.getItem(CLAIM_SESSION_STORAGE_KEY);
-    if (!serialized) {
-      return [];
-    }
-
-    const parsed = JSON.parse(serialized);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter(isClaim);
-  } catch {
-    return [];
+export function loadSessionClaims(viewerUserId?: string): Claim[] {
+  const scopedKey = resolveClaimSessionStorageKey(viewerUserId);
+  const scopedClaims = parseClaims(window.localStorage.getItem(scopedKey));
+  if (scopedClaims.length > 0 || !viewerUserId) {
+    return scopedClaims;
   }
+
+  // Backward-compatible fallback to the legacy unscoped key.
+  const legacyClaims = parseClaims(window.localStorage.getItem(CLAIM_SESSION_STORAGE_KEY));
+  if (legacyClaims.length > 0) {
+    saveSessionClaims(legacyClaims, viewerUserId);
+  }
+
+  return legacyClaims;
 }
 
-export function saveSessionClaims(claims: Claim[]): void {
+export function saveSessionClaims(claims: Claim[], viewerUserId?: string): void {
   try {
-    window.localStorage.setItem(CLAIM_SESSION_STORAGE_KEY, JSON.stringify(claims));
+    const key = resolveClaimSessionStorageKey(viewerUserId);
+    window.localStorage.setItem(key, JSON.stringify(claims));
   } catch {
     // Ignore localStorage write failures in restricted environments.
   }
