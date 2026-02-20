@@ -275,7 +275,7 @@ describe('GrowerListingPanel', () => {
     mockGetMyListing.mockResolvedValue(makeListing({ id: 'listing-1', title: 'Tomatoes Basket' }));
 
     window.localStorage.setItem(
-      'claim-session-v1',
+      'claim-session-v1:user-1',
       JSON.stringify([
         {
           id: 'claim-1',
@@ -300,7 +300,7 @@ describe('GrowerListingPanel', () => {
     await user.click(screen.getByRole('button', { name: /view details/i }));
 
     expect(await screen.findByText(/claim coordination/i)).toBeInTheDocument();
-    expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^confirm$/i }));
