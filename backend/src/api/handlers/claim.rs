@@ -10,7 +10,8 @@ use tokio_postgres::{Row, Transaction};
 use tracing::{error, info};
 use uuid::Uuid;
 
-const ALLOWED_CLAIM_STATUSES: [&str; 5] = ["pending", "confirmed", "completed", "cancelled", "no_show"];
+const ALLOWED_CLAIM_STATUSES: [&str; 5] =
+    ["pending", "confirmed", "completed", "cancelled", "no_show"];
 const CLAIMABLE_LISTING_STATUSES: [&str; 2] = ["active", "pending"];
 
 #[derive(Debug, Deserialize)]
@@ -97,7 +98,10 @@ pub async fn create_claim(
     let normalized = normalize_create_payload(&payload)?;
 
     let mut client = db::connect().await?;
-    let tx = client.transaction().await.map_err(|error| db_error(&error))?;
+    let tx = client
+        .transaction()
+        .await
+        .map_err(|error| db_error(&error))?;
 
     let listing_row = tx
         .query_opt(
@@ -194,7 +198,10 @@ pub async fn transition_claim(
     let notes = normalize_optional_text(payload.notes.as_deref());
 
     let mut client = db::connect().await?;
-    let tx = client.transaction().await.map_err(|error| db_error(&error))?;
+    let tx = client
+        .transaction()
+        .await
+        .map_err(|error| db_error(&error))?;
 
     let claim_context_row = tx
         .query_opt(
@@ -229,8 +236,13 @@ pub async fn transition_claim(
     let actor_role = determine_actor_role(actor_user_id, claimer_id, listing_owner_id)?;
     let decision = evaluate_transition(current_status, target_status, actor_role)?;
 
-    adjust_listing_quantity_if_needed(&tx, listing_id, quantity_claimed, decision.quantity_adjustment)
-        .await?;
+    adjust_listing_quantity_if_needed(
+        &tx,
+        listing_id,
+        quantity_claimed,
+        decision.quantity_adjustment,
+    )
+    .await?;
 
     let updated_claim = tx
         .query_one(
@@ -498,9 +510,11 @@ async fn adjust_listing_quantity_if_needed(
     }
 }
 
-fn require_claim_transition_user_type(user_type: Option<&UserType>) -> Result<(), lambda_http::Error> {
+fn require_claim_transition_user_type(
+    user_type: Option<&UserType>,
+) -> Result<(), lambda_http::Error> {
     match user_type {
-        Some(UserType::Grower) | Some(UserType::Gatherer) => Ok(()),
+        Some(UserType::Grower | UserType::Gatherer) => Ok(()),
         None => Err(lambda_http::Error::from(
             "Forbidden: User type not set. Please complete onboarding.",
         )),
@@ -531,13 +545,13 @@ fn parse_claim_status(value: &str) -> Result<ClaimStatus, lambda_http::Error> {
 }
 
 impl ClaimStatus {
-    fn as_db_value(self) -> &'static str {
+    const fn as_db_value(self) -> &'static str {
         match self {
-            ClaimStatus::Pending => "pending",
-            ClaimStatus::Confirmed => "confirmed",
-            ClaimStatus::Completed => "completed",
-            ClaimStatus::Cancelled => "cancelled",
-            ClaimStatus::NoShow => "no_show",
+            Self::Pending => "pending",
+            Self::Confirmed => "confirmed",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::NoShow => "no_show",
         }
     }
 }
@@ -648,7 +662,11 @@ async fn emit_claim_event(
     Ok(())
 }
 
-async fn emit_claim_event_best_effort(detail_type: &str, claim: &ClaimResponse, correlation_id: &str) {
+async fn emit_claim_event_best_effort(
+    detail_type: &str,
+    claim: &ClaimResponse,
+    correlation_id: &str,
+) {
     if let Err(event_error) = emit_claim_event(detail_type, claim, correlation_id).await {
         error!(
             correlation_id = correlation_id,
@@ -706,10 +724,7 @@ mod tests {
         let normalized = normalize_create_payload(&valid_create_payload()).unwrap();
         assert!((normalized.quantity_claimed - 3.5).abs() < f64::EPSILON);
         assert!(normalized.request_id.is_some());
-        assert_eq!(
-            normalized.notes.as_deref(),
-            Some("Can pick up tomorrow")
-        );
+        assert_eq!(normalized.notes.as_deref(), Some("Can pick up tomorrow"));
     }
 
     #[test]
@@ -718,10 +733,7 @@ mod tests {
         payload.quantity_claimed = 0.0;
         let result = normalize_create_payload(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("quantityClaimed"));
+        assert!(result.unwrap_err().to_string().contains("quantityClaimed"));
     }
 
     #[test]
@@ -765,9 +777,18 @@ mod tests {
     #[test]
     fn parse_claim_status_accepts_valid_values() {
         assert_eq!(parse_claim_status("pending").unwrap(), ClaimStatus::Pending);
-        assert_eq!(parse_claim_status("confirmed").unwrap(), ClaimStatus::Confirmed);
-        assert_eq!(parse_claim_status("completed").unwrap(), ClaimStatus::Completed);
-        assert_eq!(parse_claim_status("cancelled").unwrap(), ClaimStatus::Cancelled);
+        assert_eq!(
+            parse_claim_status("confirmed").unwrap(),
+            ClaimStatus::Confirmed
+        );
+        assert_eq!(
+            parse_claim_status("completed").unwrap(),
+            ClaimStatus::Completed
+        );
+        assert_eq!(
+            parse_claim_status("cancelled").unwrap(),
+            ClaimStatus::Cancelled
+        );
         assert_eq!(parse_claim_status("no_show").unwrap(), ClaimStatus::NoShow);
     }
 
@@ -775,7 +796,10 @@ mod tests {
     fn parse_claim_status_rejects_invalid_values() {
         let result = parse_claim_status("closed");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid claim status"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid claim status"));
     }
 
     #[test]
@@ -813,7 +837,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(result.quantity_adjustment, ListingQuantityAdjustment::Decrement);
+        assert_eq!(
+            result.quantity_adjustment,
+            ListingQuantityAdjustment::Decrement
+        );
         assert!(result.stamp_confirmed_at);
         assert!(!result.stamp_completed_at);
         assert!(!result.stamp_cancelled_at);
@@ -828,7 +855,10 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Only listing owner"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Only listing owner"));
     }
 
     #[test]
@@ -847,8 +877,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(claimer_result.quantity_adjustment, ListingQuantityAdjustment::None);
-        assert_eq!(owner_result.quantity_adjustment, ListingQuantityAdjustment::None);
+        assert_eq!(
+            claimer_result.quantity_adjustment,
+            ListingQuantityAdjustment::None
+        );
+        assert_eq!(
+            owner_result.quantity_adjustment,
+            ListingQuantityAdjustment::None
+        );
         assert!(claimer_result.stamp_cancelled_at);
         assert!(owner_result.stamp_cancelled_at);
     }
@@ -871,7 +907,10 @@ mod tests {
 
         assert!(claimer_result.stamp_completed_at);
         assert!(owner_result.stamp_completed_at);
-        assert_eq!(claimer_result.quantity_adjustment, ListingQuantityAdjustment::None);
+        assert_eq!(
+            claimer_result.quantity_adjustment,
+            ListingQuantityAdjustment::None
+        );
     }
 
     #[test]
@@ -883,7 +922,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(result.quantity_adjustment, ListingQuantityAdjustment::Increment);
+        assert_eq!(
+            result.quantity_adjustment,
+            ListingQuantityAdjustment::Increment
+        );
         assert!(result.stamp_cancelled_at);
     }
 
@@ -902,7 +944,10 @@ mod tests {
             ClaimActorRole::Claimer,
         );
 
-        assert_eq!(owner_result.quantity_adjustment, ListingQuantityAdjustment::Increment);
+        assert_eq!(
+            owner_result.quantity_adjustment,
+            ListingQuantityAdjustment::Increment
+        );
         assert!(claimer_result.is_err());
         assert!(claimer_result
             .unwrap_err()
