@@ -91,11 +91,7 @@ pub async fn list_claims(
         limit: query.limit,
         offset: query.offset,
         has_more,
-        next_offset: if has_more {
-            Some(query.offset + query.limit)
-        } else {
-            None
-        },
+        next_offset: compute_next_offset(query.offset, query.limit, has_more),
     };
 
     info!(
@@ -316,6 +312,14 @@ fn ensure_request_scope(
     }
 }
 
+fn compute_next_offset(offset: i64, limit: i64, has_more: bool) -> Option<i64> {
+    if has_more {
+        offset.checked_add(limit)
+    } else {
+        None
+    }
+}
+
 fn parse_uuid(value: &str, field_name: &str) -> Result<Uuid, lambda_http::Error> {
     Uuid::parse_str(value)
         .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid UUID")))
@@ -496,5 +500,23 @@ mod tests {
         let result = ensure_request_scope(request_owner_id, user_id, false);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Forbidden"));
+    }
+
+    #[test]
+    fn compute_next_offset_returns_some_when_has_more() {
+        let next = compute_next_offset(20, 10, true);
+        assert_eq!(next, Some(30));
+    }
+
+    #[test]
+    fn compute_next_offset_returns_none_when_no_more() {
+        let next = compute_next_offset(20, 10, false);
+        assert_eq!(next, None);
+    }
+
+    #[test]
+    fn compute_next_offset_returns_none_on_overflow() {
+        let next = compute_next_offset(i64::MAX, 1, true);
+        assert_eq!(next, None);
     }
 }
