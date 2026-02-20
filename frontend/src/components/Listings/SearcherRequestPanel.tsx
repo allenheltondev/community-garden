@@ -23,6 +23,7 @@ import {
 import {
   enqueueCreateClaimAction,
   enqueueTransitionClaimAction,
+  hasQueuedClaimActions,
   replayQueuedClaimActions,
   type ProcessedQueuedClaimAction,
 } from '../../utils/claimOfflineQueue';
@@ -246,6 +247,10 @@ export function SearcherRequestPanel({
 
   const replayClaimQueue = useCallback(async () => {
     if (isOffline || isReplayingClaimQueue) {
+      return;
+    }
+
+    if (!hasQueuedClaimActions(viewerUserId)) {
       return;
     }
 
