@@ -5,7 +5,9 @@ Adds a derived-table entity for rolling supply/demand signals grouped by geo bou
 
 ## Geo-boundary model
 - `geo_boundary_key`: normalized lowercase geohash prefix.
+- Allowed format: base32 geohash characters only (`[0-9b-hjkmnp-z]`).
 - `geo_precision`: derived length of `geo_boundary_key` (1-12), used to enforce explicit geographic scope.
+- `geo_precision` must always equal `char_length(geo_boundary_key)`.
 - Reads are prefix based to support expanding search boundaries safely.
 
 ## Versioning model

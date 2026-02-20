@@ -15,6 +15,8 @@ Each row represents an aggregate snapshot for:
 ## Geo-boundary behavior
 - Geographic scope is explicit in `geo_boundary_key` and `geo_precision`.
 - Boundaries are normalized to lowercase geohash prefixes.
+- Geohash format is constrained to base32 characters: `[0-9b-hjkmnp-z]`.
+- `geo_precision` is constrained to match `char_length(geo_boundary_key)`.
 - Reads use prefix matching to support controlled expansion across neighboring cells.
 
 ## Versioning and forward compatibility
