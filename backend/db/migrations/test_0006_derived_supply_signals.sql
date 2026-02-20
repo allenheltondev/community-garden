@@ -32,6 +32,16 @@ begin
     raise exception 'idx_derived_supply_signals_identity does not exist';
   end if;
 
+  if not exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and tablename = 'derived_supply_signals'
+      and indexname = 'idx_derived_supply_signals_geo_window_latest'
+  ) then
+    raise exception 'idx_derived_supply_signals_geo_window_latest does not exist';
+  end if;
+
   if to_regprocedure('upsert_derived_supply_signal(integer,text,smallint,timestamp with time zone,uuid,integer,integer,numeric,numeric,numeric,numeric,jsonb,timestamp with time zone,timestamp with time zone)') is null then
     raise exception 'upsert_derived_supply_signal function does not exist';
   end if;
@@ -114,6 +124,67 @@ begin
   if (v_payload ->> 'confidence') <> '0.91' then
     raise exception 'Expected payload confidence 0.91, found %', v_payload ->> 'confidence';
   end if;
+
+  begin
+    insert into derived_supply_signals (
+      schema_version,
+      geo_boundary_key,
+      geo_precision,
+      window_days,
+      bucket_start,
+      listing_count,
+      request_count,
+      supply_quantity,
+      demand_quantity,
+      scarcity_score,
+      abundance_score,
+      computed_at,
+      expires_at
+    ) values (
+      1,
+      '9q8yyi',
+      5,
+      7,
+      v_bucket_start,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      v_now,
+      v_now + interval '1 day'
+    );
+    raise exception 'Expected geo precision/key mismatch to fail';
+  exception
+    when check_violation then
+      null;
+  end;
+
+  begin
+    perform upsert_derived_supply_signal(
+      1,
+      '9q8yy!',
+      7,
+      v_bucket_start,
+      null,
+      1,
+      1,
+      1.000,
+      1.000,
+      0.100,
+      0.100,
+      '{"confidence":0.10}'::jsonb,
+      v_now,
+      v_now + interval '1 day'
+    );
+    raise exception 'Expected invalid geohash prefix to fail';
+  exception
+    when raise_exception then
+      if position('valid geohash prefix' in sqlerrm) = 0 then
+        raise;
+      end if;
+  end;
 
   perform upsert_derived_supply_signal(
     1,

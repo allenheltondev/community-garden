@@ -26,10 +26,17 @@ create table if not exists derived_supply_signals (
 
   constraint derived_supply_signals_schema_version_positive check (schema_version > 0),
   constraint derived_supply_signals_geo_precision_range check (geo_precision between 1 and 12),
-  constraint derived_supply_signals_window_days_allowed check (window_days in (7, 14, 30)),
+  constraint derived_supply_signals_geo_precision_matches_key check (
+    geo_precision = char_length(geo_boundary_key)
+  ),
+  constraint derived_supply_signals_geo_boundary_format check (
+    geo_boundary_key ~ '^[0-9b-hjkmnp-z]{1,12}$'
+  ),
   constraint derived_supply_signals_geo_boundary_normalized check (
     geo_boundary_key = lower(geo_boundary_key)
+    and geo_boundary_key = btrim(geo_boundary_key)
   ),
+  constraint derived_supply_signals_window_days_allowed check (window_days in (7, 14, 30)),
   constraint derived_supply_signals_counts_nonnegative check (
     listing_count >= 0 and request_count >= 0
   ),
@@ -54,8 +61,9 @@ create unique index if not exists idx_derived_supply_signals_identity
 create index if not exists idx_derived_supply_signals_geo_window_latest
   on derived_supply_signals (
     schema_version,
-    geo_boundary_key text_pattern_ops,
     window_days,
+    geo_boundary_key text_pattern_ops,
+    crop_scope_id,
     computed_at desc,
     id desc
   );
@@ -97,6 +105,10 @@ begin
 
   if normalized_precision < 1 or normalized_precision > 12 then
     raise exception 'geo_boundary_key must be 1-12 chars';
+  end if;
+
+  if normalized_geo_key !~ '^[0-9b-hjkmnp-z]{1,12}$' then
+    raise exception 'geo_boundary_key must be a valid geohash prefix';
   end if;
 
   insert into derived_supply_signals (
