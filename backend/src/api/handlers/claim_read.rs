@@ -312,7 +312,7 @@ fn ensure_request_scope(
     }
 }
 
-fn compute_next_offset(offset: i64, limit: i64, has_more: bool) -> Option<i64> {
+const fn compute_next_offset(offset: i64, limit: i64, has_more: bool) -> Option<i64> {
     if has_more {
         offset.checked_add(limit)
     } else {
