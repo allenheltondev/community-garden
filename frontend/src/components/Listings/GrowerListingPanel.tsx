@@ -24,6 +24,7 @@ import {
 } from '../../utils/claimSession';
 import {
   enqueueTransitionClaimAction,
+  hasQueuedClaimActions,
   replayQueuedClaimActions,
   type ProcessedQueuedClaimAction,
 } from '../../utils/claimOfflineQueue';
@@ -186,6 +187,10 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
 
   const replayClaimQueue = useCallback(async () => {
     if (isOffline || isReplayingClaimQueue) {
+      return;
+    }
+
+    if (!hasQueuedClaimActions(viewerUserId)) {
       return;
     }
 
