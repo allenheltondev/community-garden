@@ -13,6 +13,7 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
+import { updateClaimStatus } from '../../services/claims';
 
 vi.mock('../../services/api', () => ({
   createListing: vi.fn(),
@@ -24,6 +25,10 @@ vi.mock('../../services/api', () => ({
   updateListing: vi.fn(),
 }));
 
+vi.mock('../../services/claims', () => ({
+  updateClaimStatus: vi.fn(),
+}));
+
 const mockListCatalogCrops = vi.mocked(listCatalogCrops);
 const mockListCatalogVarieties = vi.mocked(listCatalogVarieties);
 const mockListMyCrops = vi.mocked(listMyCrops);
@@ -31,6 +36,7 @@ const mockListMyListings = vi.mocked(listMyListings);
 const mockGetMyListing = vi.mocked(getMyListing);
 const mockCreateListing = vi.mocked(createListing);
 const mockUpdateListing = vi.mocked(updateListing);
+const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
 
 function makeListing(overrides: Partial<Listing>): Listing {
   return {
@@ -70,7 +76,7 @@ function renderPanel() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <GrowerListingPanel defaultLat={30.2672} defaultLng={-97.7431} />
+      <GrowerListingPanel viewerUserId="user-1" defaultLat={30.2672} defaultLng={-97.7431} />
     </QueryClientProvider>
   );
 }
@@ -78,6 +84,7 @@ function renderPanel() {
 describe('GrowerListingPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     mockListCatalogCrops.mockResolvedValue([
       {
@@ -93,6 +100,20 @@ describe('GrowerListingPanel', () => {
     mockListMyCrops.mockResolvedValue([]);
     mockCreateListing.mockResolvedValue(makeListing({ id: 'new-listing' }));
     mockUpdateListing.mockResolvedValue(makeListing({ id: 'updated-listing' }));
+    mockUpdateClaimStatus.mockResolvedValue({
+      id: 'claim-1',
+      listingId: 'listing-1',
+      requestId: null,
+      claimerId: 'gatherer-1',
+      listingOwnerId: 'user-1',
+      quantityClaimed: '1',
+      status: 'confirmed',
+      notes: null,
+      claimedAt: '2026-02-20T11:00:00.000Z',
+      confirmedAt: '2026-02-20T11:02:00.000Z',
+      completedAt: null,
+      cancelledAt: null,
+    });
   });
 
   it('renders my listings, applies status filters, and opens listing details', async () => {
@@ -239,5 +260,53 @@ describe('GrowerListingPanel', () => {
     expect(screen.getByLabelText(/listing title/i)).toHaveValue('Tomatoes Basket');
 
     resolveDetail?.(activeListing);
+  });
+
+  it('shows grower claim transitions and confirms pending claims', async () => {
+    const user = userEvent.setup();
+
+    mockListMyListings.mockResolvedValue({
+      items: [makeListing({ id: 'listing-1', title: 'Tomatoes Basket', status: 'active' })],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+    mockGetMyListing.mockResolvedValue(makeListing({ id: 'listing-1', title: 'Tomatoes Basket' }));
+
+    window.localStorage.setItem(
+      'claim-session-v1',
+      JSON.stringify([
+        {
+          id: 'claim-1',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'gatherer-1',
+          listingOwnerId: 'user-1',
+          quantityClaimed: '1',
+          status: 'pending',
+          notes: null,
+          claimedAt: '2026-02-20T11:00:00.000Z',
+          confirmedAt: null,
+          completedAt: null,
+          cancelledAt: null,
+        },
+      ])
+    );
+
+    renderPanel();
+
+    await user.click(screen.getByRole('tab', { name: /my listings/i }));
+    await user.click(screen.getByRole('button', { name: /view details/i }));
+
+    expect(await screen.findByText(/claim coordination/i)).toBeInTheDocument();
+    expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^confirm$/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateClaimStatus).toHaveBeenCalledWith('claim-1', { status: 'confirmed' });
+    });
   });
 });
