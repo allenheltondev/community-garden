@@ -14,7 +14,7 @@ type WizardStep = 'location' | 'preferences';
 
 interface FormData {
   address: string;
-  searchRadiusKm: number;
+  searchRadiusMiles: number;
   organizationAffiliation: string;
   units: 'metric' | 'imperial';
   locale: string;
@@ -22,7 +22,7 @@ interface FormData {
 
 interface ValidationErrors {
   location?: string;
-  searchRadiusKm?: string;
+  searchRadiusMiles?: string;
 }
 
 async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
@@ -62,7 +62,7 @@ export function GathererWizard({ onComplete, onBack }: GathererWizardProps) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     address: '',
-    searchRadiusKm: 10,
+    searchRadiusMiles: 10,
     organizationAffiliation: '',
     units: 'imperial',
     locale: navigator.language || 'en-US',
@@ -146,10 +146,10 @@ export function GathererWizard({ onComplete, onBack }: GathererWizardProps) {
   const validatePreferences = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    if (formData.searchRadiusKm <= 0) {
-      newErrors.searchRadiusKm = 'Search radius must be greater than 0';
-    } else if (formData.searchRadiusKm > 100) {
-      newErrors.searchRadiusKm = 'Search radius must be 100 or less';
+    if (formData.searchRadiusMiles <= 0) {
+      newErrors.searchRadiusMiles = 'Search radius must be greater than 0';
+    } else if (formData.searchRadiusMiles > 100) {
+      newErrors.searchRadiusMiles = 'Search radius must be 100 or less';
     }
 
     setErrors(newErrors);
@@ -188,7 +188,7 @@ export function GathererWizard({ onComplete, onBack }: GathererWizardProps) {
     try {
       const profileData: GathererProfileInput = {
         address: formData.address.trim(),
-        searchRadiusKm: formData.searchRadiusKm,
+        searchRadiusMiles: formData.searchRadiusMiles,
         organizationAffiliation: formData.organizationAffiliation.trim() || undefined,
         units: formData.units,
         locale: formData.locale,
@@ -292,26 +292,26 @@ export function GathererWizard({ onComplete, onBack }: GathererWizardProps) {
                     min="1"
                     max="50"
                     step="1"
-                    value={formData.searchRadiusKm}
+                    value={formData.searchRadiusMiles}
                     onChange={(e) => {
                       setFormData((prev) => ({
                         ...prev,
-                        searchRadiusKm: parseInt(e.target.value, 10),
+                        searchRadiusMiles: parseInt(e.target.value, 10),
                       }));
-                      if (errors.searchRadiusKm) {
-                        setErrors((prev) => ({ ...prev, searchRadiusKm: undefined }));
+                      if (errors.searchRadiusMiles) {
+                        setErrors((prev) => ({ ...prev, searchRadiusMiles: undefined }));
                       }
                     }}
                     className="flex-1"
-                    aria-label="Search radius in kilometers"
+                    aria-label="Search radius in miles"
                   />
                   <span className="text-neutral-700 font-medium min-w-[4rem] text-right">
-                    {formData.searchRadiusKm} km
+                    {formData.searchRadiusMiles} mi
                   </span>
                 </div>
-                {errors.searchRadiusKm && (
+                {errors.searchRadiusMiles && (
                   <p className="text-sm text-error mt-1" role="alert">
-                    {errors.searchRadiusKm}
+                    {errors.searchRadiusMiles}
                   </p>
                 )}
                 <p className="text-sm text-neutral-500 mt-1">

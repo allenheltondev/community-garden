@@ -184,6 +184,8 @@ fn map_api_error_to_response(
         || message.contains("geoKey")
         || message.contains("radiusKm")
         || message.contains("radiusMiles")
+        || message.contains("shareRadiusMiles")
+        || message.contains("searchRadiusMiles")
     {
         return crop::error_response(400, &message);
     }
@@ -205,4 +207,25 @@ fn map_api_error_to_response(
     }
 
     crop::error_response(500, &message)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::map_api_error_to_response;
+
+    #[test]
+    fn map_api_error_maps_share_radius_miles_validation_to_400() {
+        let error = lambda_http::Error::from("shareRadiusMiles must be greater than 0".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_search_radius_miles_validation_to_400() {
+        let error =
+            lambda_http::Error::from("searchRadiusMiles must be greater than 0".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
 }

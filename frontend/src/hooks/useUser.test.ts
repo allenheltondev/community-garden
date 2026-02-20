@@ -30,7 +30,7 @@ describe('useUser', () => {
       geoKey: '9q8yy9',
       lat: 37.7749,
       lng: -122.4194,
-      shareRadiusKm: 5.0,
+      shareRadiusMiles: 5.0,
       units: 'imperial',
       locale: 'en-US',
     },
@@ -86,7 +86,7 @@ describe('useUser', () => {
 
     expect(result.current.user?.growerProfile).toBeDefined();
     expect(result.current.user?.growerProfile?.homeZone).toBe('8a');
-    expect(result.current.user?.growerProfile?.shareRadiusKm).toBe(5.0);
+    expect(result.current.user?.growerProfile?.shareRadiusMiles).toBe(5.0);
     expect(result.current.user?.gathererProfile).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe('useUser', () => {
         geoKey: '9q8yy9',
         lat: 37.7749,
         lng: -122.4194,
-        searchRadiusKm: 10.0,
+        searchRadiusMiles: 10.0,
         organizationAffiliation: 'SF Food Bank',
         units: 'metric',
         locale: 'en-US',
@@ -116,7 +116,7 @@ describe('useUser', () => {
     });
 
     expect(result.current.user?.gathererProfile).toBeDefined();
-    expect(result.current.user?.gathererProfile?.searchRadiusKm).toBe(10.0);
+    expect(result.current.user?.gathererProfile?.searchRadiusMiles).toBe(10.0);
     expect(result.current.user?.gathererProfile?.organizationAffiliation).toBe('SF Food Bank');
     expect(result.current.user?.growerProfile).toBeNull();
   });

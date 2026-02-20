@@ -84,7 +84,7 @@ describe('OnboardingGuard', () => {
           geoKey: '9q8yy9',
           lat: 37.7749,
           lng: -122.4194,
-          shareRadiusKm: 5.0,
+          shareRadiusMiles: 5.0,
           units: 'imperial',
           locale: 'en-US',
         },

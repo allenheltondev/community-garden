@@ -40,8 +40,8 @@ paths:
       description: |
         Updates the authenticated user's profile. This single endpoint handles:
         - User type selection (grower or gatherer)
-        - Grower-specific profile data (homeZone, location, shareRadiusKm, etc.)
-        - Gatherer-specific profile data (location, searchRadiusKm, organizationAffiliation, etc.)
+        - Grower-specific profile data (homeZone, location, shareRadiusMiles, etc.)
+        - Gatherer-specific profile data (location, searchRadiusMiles, organizationAffiliation, etc.)
         - Onboarding completion (automatically set when required profile data is provided)
 
         **Authorization**: Requires valid JWT token. Users can only update their own profile.
@@ -49,7 +49,7 @@ paths:
         **Validation Rules**:
         - Exactly one of growerProfile or gathererProfile should be provided per request
         - Profile type must match userType
-        - shareRadiusKm and searchRadiusKm must be > 0
+        - shareRadiusMiles and searchRadiusMiles must be > 0
         - lat must be in range [-90, 90]
         - lng must be in range [-180, 180]
         - units must be 'metric' or 'imperial'
@@ -301,7 +301,7 @@ components:
 
     GrowerProfile:
       type: object
-      required: [share_radius_km, units]
+      required: [share_radius_miles, units]
       properties:
         home_zone:
           type: string
@@ -325,9 +325,9 @@ components:
           minimum: -180
           maximum: 180
           description: Longitude of grower's location
-        share_radius_km:
+        share_radius_miles:
           type: string
-          description: Maximum distance (in km) the grower is willing to share within
+          description: Maximum distance (in miles) the grower is willing to share within
         units:
           type: string
           enum: [imperial, metric]
@@ -339,7 +339,7 @@ components:
 
     GathererProfile:
       type: object
-      required: [geoKey, lat, lng, searchRadiusKm, units]
+      required: [geoKey, lat, lng, searchRadiusMiles, units]
       properties:
         geoKey:
           type: string
@@ -356,9 +356,9 @@ components:
           minimum: -180
           maximum: 180
           description: Longitude of gatherer's location
-        searchRadiusKm:
+        searchRadiusMiles:
           type: string
-          description: Maximum search distance (in km) for finding available food
+          description: Maximum search distance (in miles) for finding available food
         organizationAffiliation:
           type: string
           nullable: true
@@ -474,27 +474,18 @@ components:
           description: |
             Grower-specific profile data. Should only be provided when userType is 'grower'.
             Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
-          required: [homeZone, lat, lng, shareRadiusKm, units, locale]
+          required: [homeZone, address, shareRadiusMiles, units, locale]
           properties:
             homeZone:
               type: string
               description: USDA hardiness zone or equivalent
-            lat:
+            address:
+              type: string
+              description: Mailing address used for geocoding and pickup context
+            shareRadiusMiles:
               type: number
               format: double
-              minimum: -90
-              maximum: 90
-              description: Latitude of grower's location
-            lng:
-              type: number
-              format: double
-              minimum: -180
-              maximum: 180
-              description: Longitude of grower's location
-            shareRadiusKm:
-              type: number
-              format: double
-              description: Maximum sharing distance in kilometers (must be > 0)
+              description: Maximum sharing distance in miles (must be > 0)
               minimum: 0
               exclusiveMinimum: true
             units:
@@ -510,26 +501,17 @@ components:
           description: |
             Gatherer-specific profile data. Should only be provided when userType is 'gatherer'.
             Providing both growerProfile and gathererProfile in the same request will result in a 400 error.
-          required: [lat, lng, searchRadiusKm, units, locale]
+          required: [address, searchRadiusMiles, units, locale]
           properties:
-            lat:
-              type: number
-              format: double
-              minimum: -90
-              maximum: 90
-              description: Latitude of gatherer's location
-            lng:
-              type: number
-              format: double
-              minimum: -180
-              maximum: 180
-              description: Longitude of gatherer's location
-            searchRadiusKm:
+            address:
+              type: string
+              description: Mailing address used for geocoding and discovery context
+            searchRadiusMiles:
               type: number
               format: double
               minimum: 0
               exclusiveMinimum: true
-              description: Maximum search distance in kilometers (must be > 0)
+              description: Maximum search distance in miles (must be > 0)
             organizationAffiliation:
               type: string
               nullable: true

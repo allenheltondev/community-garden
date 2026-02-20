@@ -143,13 +143,13 @@ export interface UpdateUserProfileRequest {
   growerProfile?: {
     homeZone: string;
     address: string;
-    shareRadiusKm: number;
+    shareRadiusMiles: number;
     units: GrowerProfile['units'];
     locale: string;
   };
   gathererProfile?: {
     address: string;
-    searchRadiusKm: number;
+    searchRadiusMiles: number;
     organizationAffiliation?: string;
     units: GathererProfile['units'];
     locale: string;
