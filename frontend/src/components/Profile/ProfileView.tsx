@@ -5,6 +5,7 @@ import { AppShell } from '../layout/AppShell';
 import { PlantLoader } from '../branding/PlantLoader';
 import { Button } from '../ui/Button';
 import { GrowerListingPanel } from '../Listings/GrowerListingPanel';
+import { SearcherRequestPanel } from '../Listings/SearcherRequestPanel';
 
 /**
  * ProfileView Component
@@ -115,6 +116,10 @@ export function ProfileView() {
     caretaker: 'bg-green-100 text-green-800',
   };
 
+  const phaseLabel = profile.userType === 'gatherer'
+    ? 'Phase 2: Search and Request Flow'
+    : 'Phase 1: Grower Listing Flow';
+
   return (
     <AppShell>
       <div className="bg-gray-50 p-4">
@@ -167,6 +172,15 @@ export function ProfileView() {
             />
           )}
 
+          {profile.userType === 'gatherer' && (
+            <SearcherRequestPanel
+              gathererGeoKey={profile.gathererProfile?.geoKey}
+              defaultLat={profile.gathererProfile?.lat}
+              defaultLng={profile.gathererProfile?.lng}
+              defaultRadiusMiles={profile.gathererProfile?.searchRadiusMiles}
+            />
+          )}
+
           <Button
             onClick={handleSignOut}
             variant="outline"
@@ -177,7 +191,7 @@ export function ProfileView() {
           </Button>
 
           <p className="text-center text-sm text-gray-500 mt-6">
-            Phase 1: Grower Listing Flow
+            {phaseLabel}
           </p>
         </div>
       </div>
