@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod claim;
+pub mod claim_read;
 pub mod crop;
 pub mod listing;
 pub mod listing_discovery;

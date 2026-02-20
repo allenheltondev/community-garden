@@ -1,4 +1,4 @@
-use crate::handlers::{catalog, claim, crop, listing, listing_discovery, request, user};
+use crate::handlers::{catalog, claim, claim_read, crop, listing, listing_discovery, request, user};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };
@@ -62,6 +62,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         }
         ("POST", "/listings") => handle(listing::create_listing(event, &correlation_id).await)?,
         ("POST", "/requests") => handle(request::create_request(event, &correlation_id).await)?,
+        ("GET", "/claims") => handle(claim_read::list_claims(event, &correlation_id).await)?,
         ("POST", "/claims") => handle(claim::create_claim(event, &correlation_id).await)?,
 
         ("GET", "/catalog/crops") => handle(catalog::list_catalog_crops().await)?,
@@ -218,7 +219,10 @@ fn map_api_error_to_response(
         return crop::error_response(409, &message);
     }
 
-    if message.contains("Request not found") || message.contains("Claim not found") {
+    if message.contains("Request not found")
+        || message.contains("Claim not found")
+        || message.contains("Listing not found")
+    {
         return crop::error_response(404, &message);
     }
 
@@ -279,6 +283,13 @@ mod tests {
     #[test]
     fn map_api_error_maps_request_not_found_to_404() {
         let error = lambda_http::Error::from("Request not found".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 404);
+    }
+
+    #[test]
+    fn map_api_error_maps_listing_not_found_to_404() {
+        let error = lambda_http::Error::from("Listing not found".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 404);
     }
