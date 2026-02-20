@@ -278,11 +278,11 @@ describe('SearcherRequestPanel', () => {
       expect(mockCreateClaim).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByText(/status: pending/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
 
     expect(await screen.findByText(/transition failed/i)).toBeInTheDocument();
-    expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
   });
 });

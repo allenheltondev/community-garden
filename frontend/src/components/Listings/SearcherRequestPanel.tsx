@@ -239,7 +239,7 @@ export function SearcherRequestPanel({
   });
 
   const isSubmitting = createRequestMutation.isPending || updateRequestMutation.isPending;
-  const listings = discoveryQuery.data?.items ?? [];
+  const listings = useMemo(() => discoveryQuery.data?.items ?? [], [discoveryQuery.data?.items]);
 
   const cropNameById = useMemo(() => {
     const byId = new Map<string, string>();
