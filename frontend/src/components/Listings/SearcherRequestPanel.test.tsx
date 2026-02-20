@@ -292,11 +292,14 @@ describe('SearcherRequestPanel', () => {
 
   it('queues claim creation while offline and replays when online', async () => {
     const user = userEvent.setup();
-    setOnlineStatus(false);
 
     renderPanel();
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+
+    setOnlineStatus(false);
+    window.dispatchEvent(new Event('offline'));
+
     await user.click(screen.getByRole('button', { name: /claim this listing/i }));
 
     expect(mockCreateClaim).not.toHaveBeenCalled();
