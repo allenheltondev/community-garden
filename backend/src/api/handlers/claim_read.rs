@@ -1,5 +1,6 @@
-use crate::auth::{extract_auth_context, UserType};
+use crate::auth::{extract_auth_context, require_participant_user_type};
 use crate::db;
+use crate::handlers::claim::ClaimResponse;
 use crate::models::crop::ErrorResponse;
 use chrono::{DateTime, Utc};
 use lambda_http::{Body, Request, Response};
@@ -22,23 +23,6 @@ struct ListClaimsQuery {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ClaimResponse {
-    pub id: String,
-    pub listing_id: String,
-    pub request_id: Option<String>,
-    pub claimer_id: String,
-    pub listing_owner_id: String,
-    pub quantity_claimed: String,
-    pub status: String,
-    pub notes: Option<String>,
-    pub claimed_at: String,
-    pub confirmed_at: Option<String>,
-    pub completed_at: Option<String>,
-    pub cancelled_at: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ListClaimsResponse {
     pub items: Vec<ClaimResponse>,
     pub limit: i64,
@@ -52,7 +36,7 @@ pub async fn list_claims(
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context(request)?;
-    require_claim_read_user_type(auth_context.user_type.as_ref())?;
+    require_participant_user_type(auth_context.user_type.as_ref())?;
 
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
@@ -240,10 +224,7 @@ async fn ensure_listing_filter_access(
         return Err(lambda_http::Error::from("Listing not found"));
     };
 
-    if owner_row.get::<_, Uuid>("user_id") == user_id {
-        return Ok(());
-    }
-
+    let listing_owner_id = owner_row.get::<_, Uuid>("user_id");
     let is_claimer = client
         .query_one(
             "
@@ -260,13 +241,7 @@ async fn ensure_listing_filter_access(
         .map_err(|error| db_error(&error))?
         .get::<_, bool>(0);
 
-    if is_claimer {
-        Ok(())
-    } else {
-        Err(lambda_http::Error::from(
-            "Forbidden: You are not permitted to access claims for this listing",
-        ))
-    }
+    ensure_listing_scope(listing_owner_id, user_id, is_claimer)
 }
 
 async fn ensure_request_filter_access(
@@ -291,10 +266,7 @@ async fn ensure_request_filter_access(
         return Err(lambda_http::Error::from("Request not found"));
     };
 
-    if owner_row.get::<_, Uuid>("user_id") == user_id {
-        return Ok(());
-    }
-
+    let request_owner_id = owner_row.get::<_, Uuid>("user_id");
     let is_listing_owner_for_request = client
         .query_one(
             "
@@ -313,21 +285,34 @@ async fn ensure_request_filter_access(
         .map_err(|error| db_error(&error))?
         .get::<_, bool>(0);
 
-    if is_listing_owner_for_request {
+    ensure_request_scope(request_owner_id, user_id, is_listing_owner_for_request)
+}
+
+fn ensure_listing_scope(
+    listing_owner_id: Uuid,
+    user_id: Uuid,
+    is_claimer: bool,
+) -> Result<(), lambda_http::Error> {
+    if listing_owner_id == user_id || is_claimer {
+        Ok(())
+    } else {
+        Err(lambda_http::Error::from(
+            "Forbidden: You are not permitted to access claims for this listing",
+        ))
+    }
+}
+
+fn ensure_request_scope(
+    request_owner_id: Uuid,
+    user_id: Uuid,
+    is_listing_owner_for_request: bool,
+) -> Result<(), lambda_http::Error> {
+    if request_owner_id == user_id || is_listing_owner_for_request {
         Ok(())
     } else {
         Err(lambda_http::Error::from(
             "Forbidden: You are not permitted to access claims for this request",
         ))
-    }
-}
-
-fn require_claim_read_user_type(user_type: Option<&UserType>) -> Result<(), lambda_http::Error> {
-    match user_type {
-        Some(UserType::Grower | UserType::Gatherer) => Ok(()),
-        None => Err(lambda_http::Error::from(
-            "Forbidden: User type not set. Please complete onboarding.",
-        )),
     }
 }
 
@@ -466,18 +451,50 @@ mod tests {
     }
 
     #[test]
-    fn require_claim_read_user_type_accepts_grower_and_gatherer() {
-        assert!(require_claim_read_user_type(Some(&UserType::Grower)).is_ok());
-        assert!(require_claim_read_user_type(Some(&UserType::Gatherer)).is_ok());
+    fn ensure_listing_scope_allows_listing_owner() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let result = ensure_listing_scope(user_id, user_id, false);
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn require_claim_read_user_type_rejects_missing_type() {
-        let result = require_claim_read_user_type(None);
+    fn ensure_listing_scope_allows_claimer() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let owner_id = Uuid::parse_str("3c861fd9-69eb-42f3-ab57-9ef8f85eb6da").unwrap();
+        let result = ensure_listing_scope(owner_id, user_id, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_listing_scope_rejects_non_participant() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let owner_id = Uuid::parse_str("3c861fd9-69eb-42f3-ab57-9ef8f85eb6da").unwrap();
+        let result = ensure_listing_scope(owner_id, user_id, false);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("User type not set"));
+        assert!(result.unwrap_err().to_string().contains("Forbidden"));
+    }
+
+    #[test]
+    fn ensure_request_scope_allows_request_owner() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let result = ensure_request_scope(user_id, user_id, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_request_scope_allows_listing_owner_for_request() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let request_owner_id = Uuid::parse_str("3c861fd9-69eb-42f3-ab57-9ef8f85eb6da").unwrap();
+        let result = ensure_request_scope(request_owner_id, user_id, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_request_scope_rejects_non_participant() {
+        let user_id = Uuid::parse_str("5df666d4-f6b1-4e6f-97d6-321e531ad7ca").unwrap();
+        let request_owner_id = Uuid::parse_str("3c861fd9-69eb-42f3-ab57-9ef8f85eb6da").unwrap();
+        let result = ensure_request_scope(request_owner_id, user_id, false);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Forbidden"));
     }
 }
