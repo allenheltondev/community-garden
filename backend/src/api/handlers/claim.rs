@@ -11,7 +11,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 const ALLOWED_CLAIM_STATUSES: [&str; 5] = ["pending", "confirmed", "completed", "cancelled", "no_show"];
-const CLAIMABLE_LISTING_STATUSES: [&str; 3] = ["active", "pending", "claimed"];
+const CLAIMABLE_LISTING_STATUSES: [&str; 2] = ["active", "pending"];
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,7 +122,7 @@ pub async fn create_claim(
     let listing_status: String = listing.get("status");
     let listing_crop_id: Uuid = listing.get("crop_id");
 
-    if !CLAIMABLE_LISTING_STATUSES.contains(&listing_status.as_str()) {
+    if !is_claimable_listing_status(&listing_status) {
         return Err(lambda_http::Error::from(
             "Listing is not claimable in its current status",
         ));
@@ -183,6 +183,8 @@ pub async fn transition_claim(
     claim_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context(request)?;
+    require_claim_transition_user_type(auth_context.user_type.as_ref())?;
+
     let actor_user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let id = parse_uuid(claim_id, "claimId")?;
@@ -333,9 +335,9 @@ async fn validate_request_linkage(
         ));
     }
 
-    if request_status == "closed" {
+    if !is_linkable_request_status(&request_status) {
         return Err(lambda_http::Error::from(
-            "requestId references a closed request",
+            "requestId must reference an open request",
         ));
     }
 
@@ -494,6 +496,23 @@ async fn adjust_listing_quantity_if_needed(
             Ok(())
         }
     }
+}
+
+fn require_claim_transition_user_type(user_type: Option<&UserType>) -> Result<(), lambda_http::Error> {
+    match user_type {
+        Some(UserType::Grower) | Some(UserType::Gatherer) => Ok(()),
+        None => Err(lambda_http::Error::from(
+            "Forbidden: User type not set. Please complete onboarding.",
+        )),
+    }
+}
+
+fn is_claimable_listing_status(status: &str) -> bool {
+    CLAIMABLE_LISTING_STATUSES.contains(&status)
+}
+
+fn is_linkable_request_status(status: &str) -> bool {
+    status == "open"
 }
 
 fn parse_claim_status(value: &str) -> Result<ClaimStatus, lambda_http::Error> {
@@ -711,6 +730,36 @@ mod tests {
         payload.notes = Some("   ".to_string());
         let normalized = normalize_create_payload(&payload).unwrap();
         assert_eq!(normalized.notes, None);
+    }
+
+    #[test]
+    fn require_claim_transition_user_type_accepts_grower_and_gatherer() {
+        assert!(require_claim_transition_user_type(Some(&UserType::Grower)).is_ok());
+        assert!(require_claim_transition_user_type(Some(&UserType::Gatherer)).is_ok());
+    }
+
+    #[test]
+    fn require_claim_transition_user_type_rejects_missing_type() {
+        let result = require_claim_transition_user_type(None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("User type not set"));
+    }
+
+    #[test]
+    fn is_claimable_listing_status_rejects_claimed() {
+        assert!(is_claimable_listing_status("active"));
+        assert!(is_claimable_listing_status("pending"));
+        assert!(!is_claimable_listing_status("claimed"));
+    }
+
+    #[test]
+    fn is_linkable_request_status_requires_open() {
+        assert!(is_linkable_request_status("open"));
+        assert!(!is_linkable_request_status("matched"));
+        assert!(!is_linkable_request_status("closed"));
     }
 
     #[test]
