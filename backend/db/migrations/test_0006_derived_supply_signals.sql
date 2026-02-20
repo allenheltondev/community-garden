@@ -46,7 +46,7 @@ begin
     raise exception 'upsert_derived_supply_signal function does not exist';
   end if;
 
-  if to_regprocedure('list_latest_derived_supply_signals(text,smallint,integer,integer,timestamp with time zone)') is null then
+  if to_regprocedure('list_latest_derived_supply_signals(text,integer,integer,integer,timestamp with time zone)') is null then
     raise exception 'list_latest_derived_supply_signals function does not exist';
   end if;
 
