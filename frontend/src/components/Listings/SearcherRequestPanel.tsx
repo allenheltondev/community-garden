@@ -15,9 +15,11 @@ import { Input } from '../ui/Input';
 
 const logger = createLogger('searcher-requests');
 const REQUEST_DRAFT_KEY = 'searcher-request-draft-v1';
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface RequestDraft {
   cropId: string;
+  varietyId: string;
   quantity: string;
   unit: string;
   neededByLocal: string;
@@ -55,10 +57,20 @@ function toDateTimeLocalValue(date: Date): string {
   return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
 }
 
+function parseRfc3339ToDateTimeLocal(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return createDefaultDraft().neededByLocal;
+  }
+
+  return toDateTimeLocalValue(parsed);
+}
+
 function createDefaultDraft(): RequestDraft {
-  const nextDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const nextDay = new Date(Date.now() + MS_PER_DAY);
   return {
     cropId: '',
+    varietyId: '',
     quantity: '1',
     unit: '',
     neededByLocal: toDateTimeLocalValue(nextDay),
@@ -76,6 +88,7 @@ function loadRequestDraft(): RequestDraft {
     const parsed = JSON.parse(serialized) as Partial<RequestDraft>;
     return {
       cropId: parsed.cropId ?? '',
+      varietyId: parsed.varietyId ?? '',
       quantity: parsed.quantity ?? '1',
       unit: parsed.unit ?? '',
       neededByLocal: parsed.neededByLocal ?? createDefaultDraft().neededByLocal,
@@ -92,6 +105,24 @@ function formatDateTime(value: string): string {
     return value;
   }
   return parsed.toLocaleString();
+}
+
+function validateNeededByWindow(value: Date): string | null {
+  if (Number.isNaN(value.getTime())) {
+    return 'Needed by must be a valid date and time.';
+  }
+
+  const now = new Date();
+  if (value < now) {
+    return 'Needed by must be in the future.';
+  }
+
+  const max = new Date(now.getTime() + 365 * MS_PER_DAY);
+  if (value > max) {
+    return 'Needed by must be within the next 365 days.';
+  }
+
+  return null;
 }
 
 export function SearcherRequestPanel({
@@ -189,6 +220,19 @@ export function SearcherRequestPanel({
     }
 
     return [...filteredListings].sort((left, right) => {
+      const leftHasCoordinates = Number.isFinite(left.lat) && Number.isFinite(left.lng);
+      const rightHasCoordinates = Number.isFinite(right.lat) && Number.isFinite(right.lng);
+
+      if (!leftHasCoordinates && !rightHasCoordinates) {
+        return 0;
+      }
+      if (!leftHasCoordinates) {
+        return 1;
+      }
+      if (!rightHasCoordinates) {
+        return -1;
+      }
+
       const leftDistance = distanceInMiles(defaultLat, defaultLng, left.lat, left.lng);
       const rightDistance = distanceInMiles(defaultLat, defaultLng, right.lat, right.lng);
       return leftDistance - rightDistance;
@@ -200,6 +244,7 @@ export function SearcherRequestPanel({
     setDraft((previous) => ({
       ...previous,
       cropId: listing.cropId,
+      varietyId: listing.varietyId ?? '',
       unit: previous.unit || listing.unit,
     }));
     setSubmitError(null);
@@ -211,9 +256,10 @@ export function SearcherRequestPanel({
     setSelectedListingId('');
     setDraft({
       cropId: request.cropId,
+      varietyId: request.varietyId ?? '',
       quantity: request.quantity,
       unit: request.unit ?? '',
-      neededByLocal: toDateTimeLocalValue(new Date(request.neededBy)),
+      neededByLocal: parseRfc3339ToDateTimeLocal(request.neededBy),
       notes: request.notes ?? '',
     });
     setSubmitError(null);
@@ -243,8 +289,9 @@ export function SearcherRequestPanel({
     }
 
     const neededByDate = new Date(draft.neededByLocal);
-    if (Number.isNaN(neededByDate.getTime())) {
-      setSubmitError('Needed by must be a valid date and time.');
+    const neededByValidationError = validateNeededByWindow(neededByDate);
+    if (neededByValidationError) {
+      setSubmitError(neededByValidationError);
       return;
     }
 
@@ -256,7 +303,7 @@ export function SearcherRequestPanel({
 
     const payload: UpsertRequestPayload = {
       cropId,
-      varietyId: selectedListing?.varietyId ?? undefined,
+      varietyId: selectedListing?.varietyId ?? draft.varietyId || undefined,
       unit: draft.unit.trim() || selectedListing?.unit || undefined,
       quantity,
       neededBy: neededByDate.toISOString(),
@@ -384,7 +431,12 @@ export function SearcherRequestPanel({
         )}
 
         {sortedListings.map((listing) => {
-          const canShowDistance = isFiniteCoordinate(defaultLat) && isFiniteCoordinate(defaultLng);
+          const canShowDistance =
+            isFiniteCoordinate(defaultLat) &&
+            isFiniteCoordinate(defaultLng) &&
+            Number.isFinite(listing.lat) &&
+            Number.isFinite(listing.lng);
+
           const distanceLabel = canShowDistance
             ? `${distanceInMiles(defaultLat, defaultLng, listing.lat, listing.lng).toFixed(1)} mi away`
             : null;
@@ -456,7 +508,11 @@ export function SearcherRequestPanel({
               value={selectedListing ? selectedListing.cropId : draft.cropId}
               onChange={(event) => {
                 setSelectedListingId('');
-                setDraft((previous) => ({ ...previous, cropId: event.target.value }));
+                setDraft((previous) => ({
+                  ...previous,
+                  cropId: event.target.value,
+                  varietyId: '',
+                }));
               }}
               className="w-full rounded-base border-2 border-neutral-300 bg-white px-3 py-2 text-base text-neutral-800"
             >
