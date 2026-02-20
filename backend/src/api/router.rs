@@ -241,9 +241,8 @@ mod tests {
 
     #[test]
     fn map_api_error_maps_request_needed_by_validation_to_400() {
-        let error = lambda_http::Error::from(
-            "neededBy must be within the next 365 days".to_string(),
-        );
+        let error =
+            lambda_http::Error::from("neededBy must be within the next 365 days".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 400);
     }

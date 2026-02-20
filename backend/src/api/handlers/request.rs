@@ -192,11 +192,11 @@ pub async fn update_request(
     error_response(404, "Request not found")
 }
 
-fn normalize_payload(payload: &UpsertRequestPayload) -> Result<NormalizedRequestInput, lambda_http::Error> {
+fn normalize_payload(
+    payload: &UpsertRequestPayload,
+) -> Result<NormalizedRequestInput, lambda_http::Error> {
     if payload.quantity <= 0.0 {
-        return Err(lambda_http::Error::from(
-            "quantity must be greater than 0",
-        ));
+        return Err(lambda_http::Error::from("quantity must be greater than 0"));
     }
 
     let now = Utc::now();
@@ -212,10 +212,7 @@ fn normalize_payload(payload: &UpsertRequestPayload) -> Result<NormalizedRequest
         ));
     }
 
-    let status = payload
-        .status
-        .clone()
-        .unwrap_or_else(|| "open".to_string());
+    let status = payload.status.clone().unwrap_or_else(|| "open".to_string());
     if !ALLOWED_REQUEST_STATUS.contains(&status.as_str()) {
         return Err(lambda_http::Error::from(format!(
             "Invalid status '{}'. Allowed values: {}",
@@ -385,8 +382,9 @@ fn parse_optional_uuid(
 }
 
 fn parse_datetime(value: &str, field_name: &str) -> Result<DateTime<Utc>, lambda_http::Error> {
-    let parsed = DateTime::parse_from_rfc3339(value)
-        .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid RFC3339 timestamp")))?;
+    let parsed = DateTime::parse_from_rfc3339(value).map_err(|_| {
+        lambda_http::Error::from(format!("{field_name} must be a valid RFC3339 timestamp"))
+    })?;
     Ok(parsed.with_timezone(&Utc))
 }
 
@@ -409,7 +407,9 @@ fn row_to_write_response(row: &Row) -> RequestWriteResponse {
         id: row.get::<_, Uuid>("id").to_string(),
         user_id: row.get::<_, Uuid>("user_id").to_string(),
         crop_id: row.get::<_, Uuid>("crop_id").to_string(),
-        variety_id: row.get::<_, Option<Uuid>>("variety_id").map(|id| id.to_string()),
+        variety_id: row
+            .get::<_, Option<Uuid>>("variety_id")
+            .map(|id| id.to_string()),
         unit: row.get("unit"),
         quantity: row.get("quantity"),
         needed_by: row.get::<_, DateTime<Utc>>("needed_by").to_rfc3339(),
@@ -471,7 +471,7 @@ mod tests {
         let payload = valid_payload();
         let normalized = normalize_payload(&payload).unwrap();
         assert_eq!(normalized.status, "open");
-        assert_eq!(normalized.quantity, 12.5);
+        assert!((normalized.quantity - 12.5).abs() < f64::EPSILON);
         assert_eq!(normalized.unit.as_deref(), Some("lb"));
     }
 
