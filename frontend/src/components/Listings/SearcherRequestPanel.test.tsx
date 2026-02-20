@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearcherRequestPanel } from './SearcherRequestPanel';
 import { createRequest, discoverListings, listCatalogCrops, updateRequest } from '../../services/api';
+import { createClaim, updateClaimStatus } from '../../services/claims';
 
 vi.mock('../../services/api', () => ({
   createRequest: vi.fn(),
@@ -12,10 +13,17 @@ vi.mock('../../services/api', () => ({
   updateRequest: vi.fn(),
 }));
 
+vi.mock('../../services/claims', () => ({
+  createClaim: vi.fn(),
+  updateClaimStatus: vi.fn(),
+}));
+
 const mockCreateRequest = vi.mocked(createRequest);
 const mockDiscoverListings = vi.mocked(discoverListings);
 const mockListCatalogCrops = vi.mocked(listCatalogCrops);
 const mockUpdateRequest = vi.mocked(updateRequest);
+const mockCreateClaim = vi.mocked(createClaim);
+const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
 
 function renderPanel() {
   const queryClient = new QueryClient({
@@ -29,6 +37,7 @@ function renderPanel() {
   return render(
     <QueryClientProvider client={queryClient}>
       <SearcherRequestPanel
+        viewerUserId="gatherer-1"
         gathererGeoKey="9v6kn"
         defaultLat={30.2672}
         defaultLng={-97.7431}
@@ -130,6 +139,36 @@ describe('SearcherRequestPanel', () => {
       status: 'open',
       createdAt: '2026-02-20T10:15:00.000Z',
     });
+
+    mockCreateClaim.mockResolvedValue({
+      id: 'claim-1',
+      listingId: 'listing-1',
+      requestId: null,
+      claimerId: 'gatherer-1',
+      listingOwnerId: 'grower-1',
+      quantityClaimed: '1',
+      status: 'pending',
+      notes: null,
+      claimedAt: '2026-02-20T11:00:00.000Z',
+      confirmedAt: null,
+      completedAt: null,
+      cancelledAt: null,
+    });
+
+    mockUpdateClaimStatus.mockResolvedValue({
+      id: 'claim-1',
+      listingId: 'listing-1',
+      requestId: null,
+      claimerId: 'gatherer-1',
+      listingOwnerId: 'grower-1',
+      quantityClaimed: '1',
+      status: 'cancelled',
+      notes: null,
+      claimedAt: '2026-02-20T11:00:00.000Z',
+      confirmedAt: null,
+      completedAt: null,
+      cancelledAt: '2026-02-20T11:05:00.000Z',
+    });
   });
 
   it('lets a searcher discover a listing and submit a request in one session', async () => {
@@ -203,5 +242,47 @@ describe('SearcherRequestPanel', () => {
       'request-1',
       expect.objectContaining({ quantity: 5 })
     );
+  });
+
+  it('creates a claim and allows valid transitions from pending', async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+
+    await waitFor(() => {
+      expect(mockCreateClaim).toHaveBeenCalledTimes(1);
+    });
+
+    expect(await screen.findByText(/claim submitted/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateClaimStatus).toHaveBeenCalledWith('claim-1', { status: 'cancelled' });
+    });
+  });
+
+  it('restores previous claim state when transition fails', async () => {
+    const user = userEvent.setup();
+    mockUpdateClaimStatus.mockRejectedValueOnce(new Error('Transition failed'));
+
+    renderPanel();
+
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+
+    await waitFor(() => {
+      expect(mockCreateClaim).toHaveBeenCalledTimes(1);
+    });
+
+    expect(await screen.findByText(/status: pending/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    expect(await screen.findByText(/transition failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/status: pending/i)).toBeInTheDocument();
   });
 });
