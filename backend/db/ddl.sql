@@ -508,7 +508,7 @@ create index if not exists idx_derived_supply_signals_expires_at
 create or replace function upsert_derived_supply_signal(
   p_schema_version integer,
   p_geo_boundary_key text,
-  p_window_days smallint,
+  p_window_days integer,
   p_bucket_start timestamptz,
   p_crop_id uuid,
   p_listing_count integer,
@@ -568,7 +568,7 @@ begin
     p_schema_version,
     normalized_geo_key,
     normalized_precision,
-    p_window_days,
+    p_window_days::smallint,
     p_bucket_start,
     p_crop_id,
     p_listing_count,
@@ -603,7 +603,7 @@ $$;
 
 create or replace function list_latest_derived_supply_signals(
   p_geo_boundary_prefix text,
-  p_window_days smallint,
+  p_window_days integer,
   p_schema_version integer default 1,
   p_limit integer default 50,
   p_as_of timestamptz default now()
@@ -616,7 +616,7 @@ as $$
     d.*
   from derived_supply_signals d
   where d.schema_version = p_schema_version
-    and d.window_days = p_window_days
+    and d.window_days = p_window_days::smallint
     and d.geo_boundary_key like lower(btrim(p_geo_boundary_prefix)) || '%'
     and d.expires_at > p_as_of
   order by

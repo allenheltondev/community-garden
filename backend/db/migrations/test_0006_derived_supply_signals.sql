@@ -42,7 +42,7 @@ begin
     raise exception 'idx_derived_supply_signals_geo_window_latest does not exist';
   end if;
 
-  if to_regprocedure('upsert_derived_supply_signal(integer,text,smallint,timestamp with time zone,uuid,integer,integer,numeric,numeric,numeric,numeric,jsonb,timestamp with time zone,timestamp with time zone)') is null then
+  if to_regprocedure('upsert_derived_supply_signal(integer,text,integer,timestamp with time zone,uuid,integer,integer,numeric,numeric,numeric,numeric,jsonb,timestamp with time zone,timestamp with time zone)') is null then
     raise exception 'upsert_derived_supply_signal function does not exist';
   end if;
 
