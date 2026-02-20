@@ -1,4 +1,6 @@
-use crate::handlers::{catalog, claim, claim_read, crop, listing, listing_discovery, request, user};
+use crate::handlers::{
+    catalog, claim, claim_read, crop, listing, listing_discovery, request, user,
+};
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
 };

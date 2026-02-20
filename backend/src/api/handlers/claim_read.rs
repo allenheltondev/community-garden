@@ -369,8 +369,9 @@ fn json_response<T: serde::Serialize>(
     status: u16,
     payload: &T,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let body = serde_json::to_string(payload)
-        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize response: {error}")))?;
+    let body = serde_json::to_string(payload).map_err(|error| {
+        lambda_http::Error::from(format!("Failed to serialize response: {error}"))
+    })?;
 
     Response::builder()
         .status(status)
