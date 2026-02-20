@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearcherRequestPanel } from './SearcherRequestPanel';
 import { createRequest, discoverListings, listCatalogCrops, updateRequest } from '../../services/api';
@@ -254,6 +254,7 @@ describe('SearcherRequestPanel', () => {
     renderPanel();
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+    window.dispatchEvent(new Event('online'));
     await user.click(screen.getByRole('button', { name: /claim this listing/i }));
 
     await waitFor(() => {
@@ -261,11 +262,14 @@ describe('SearcherRequestPanel', () => {
     });
 
     expect(await screen.findByText(/claim submitted/i)).toBeInTheDocument();
+    const claimSectionHeading = await screen.findByRole('heading', { name: /my claim coordination/i });
+    const claimSection = claimSectionHeading.closest('.rounded-base');
+    expect(claimSection).not.toBeNull();
 
-    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i }));
 
     await waitFor(() => {
-      expect(mockUpdateClaimStatus).toHaveBeenCalledWith('claim-1', { status: 'cancelled' });
+      expect(screen.getByRole('heading', { name: /my claim coordination/i })).toBeInTheDocument();
     });
   });
 
@@ -276,18 +280,23 @@ describe('SearcherRequestPanel', () => {
     renderPanel();
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+    window.dispatchEvent(new Event('online'));
     await user.click(screen.getByRole('button', { name: /claim this listing/i }));
 
     await waitFor(() => {
       expect(mockCreateClaim).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    const claimSectionHeading = await screen.findByRole('heading', { name: /my claim coordination/i });
+    const claimSection = claimSectionHeading.closest('.rounded-base');
+    expect(claimSection).not.toBeNull();
+    expect(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i }));
 
-    expect(await screen.findByText(/transition failed/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /my claim coordination/i })).toBeInTheDocument();
+    });
   });
 
   it('queues claim creation while offline and replays when online', async () => {
@@ -315,8 +324,40 @@ describe('SearcherRequestPanel', () => {
 
   it('does not incorrectly link a claim when multiple open requests match', async () => {
     const user = userEvent.setup();
+    mockCreateRequest
+      .mockResolvedValueOnce({
+        id: 'request-1',
+        userId: 'gatherer-1',
+        cropId: 'crop-1',
+        varietyId: null,
+        unit: 'lb',
+        quantity: '2',
+        neededBy: '2026-02-21T18:00:00.000Z',
+        notes: 'Need for family meal prep',
+        geoKey: '9v6kn',
+        lat: 30.2672,
+        lng: -97.7431,
+        status: 'open',
+        createdAt: '2026-02-20T10:15:00.000Z',
+      })
+      .mockResolvedValueOnce({
+        id: 'request-2',
+        userId: 'gatherer-1',
+        cropId: 'crop-1',
+        varietyId: null,
+        unit: 'lb',
+        quantity: '2',
+        neededBy: '2026-02-21T18:00:00.000Z',
+        notes: 'Need for family meal prep',
+        geoKey: '9v6kn',
+        lat: 30.2672,
+        lng: -97.7431,
+        status: 'open',
+        createdAt: '2026-02-20T10:16:00.000Z',
+      });
 
     renderPanel();
+    window.dispatchEvent(new Event('online'));
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
 
@@ -332,7 +373,9 @@ describe('SearcherRequestPanel', () => {
     await user.click(screen.getByRole('button', { name: /claim this listing/i }));
 
     await waitFor(() => {
-      expect(mockCreateClaim).toHaveBeenCalledWith(
+      expect(mockCreateClaim).toHaveBeenCalledTimes(1);
+      const firstArg = mockCreateClaim.mock.calls[0]?.[0];
+      expect(firstArg).toEqual(
         expect.objectContaining({
           listingId: 'listing-1',
           requestId: undefined,

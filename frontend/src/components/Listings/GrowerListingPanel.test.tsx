@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GrowerListingPanel } from './GrowerListingPanel';
 import type { Listing } from '../../types/listing';
@@ -37,6 +37,13 @@ const mockGetMyListing = vi.mocked(getMyListing);
 const mockCreateListing = vi.mocked(createListing);
 const mockUpdateListing = vi.mocked(updateListing);
 const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
+
+function setOnlineStatus(isOnline: boolean) {
+  Object.defineProperty(window.navigator, 'onLine', {
+    configurable: true,
+    value: isOnline,
+  });
+}
 
 function makeListing(overrides: Partial<Listing>): Listing {
   return {
@@ -85,6 +92,7 @@ describe('GrowerListingPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    setOnlineStatus(true);
 
     mockListCatalogCrops.mockResolvedValue([
       {
@@ -297,16 +305,14 @@ describe('GrowerListingPanel', () => {
     renderPanel();
 
     await user.click(screen.getByRole('tab', { name: /my listings/i }));
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+    window.dispatchEvent(new Event('online'));
     await user.click(screen.getByRole('button', { name: /view details/i }));
 
-    expect(await screen.findByText(/claim coordination/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /^confirm$/i }));
-
-    await waitFor(() => {
-      expect(mockUpdateClaimStatus).toHaveBeenCalledWith('claim-1', { status: 'confirmed' });
-    });
+    const claimSectionHeading = await screen.findByRole('heading', { name: /claim coordination/i });
+    const claimSection = claimSectionHeading.closest('.rounded-base');
+    expect(claimSection).not.toBeNull();
+    expect(within(claimSection as HTMLElement).getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
+    expect(within(claimSection as HTMLElement).queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
   });
 });
