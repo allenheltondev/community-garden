@@ -120,6 +120,14 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
+    if let Some(claim_id) = event.uri().path().strip_prefix("/claims/") {
+        let result = match event.method().as_str() {
+            "PUT" => claim::transition_claim(event, correlation_id, claim_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
     if let Some(user_id) = event.uri().path().strip_prefix("/users/") {
         return if event.method().as_str() == "GET" {
             handle(user::get_public_user(user_id).await)
@@ -170,6 +178,8 @@ fn map_api_error_to_response(
     if message.contains("Invalid JSON body")
         || message.contains("must be a valid UUID")
         || message.contains("Invalid status")
+        || message.contains("Invalid claim status")
+        || message.contains("Invalid claim transition")
         || message.contains("Invalid visibility")
         || message.contains("Invalid listing status")
         || message.contains("Invalid limit")
@@ -178,6 +188,7 @@ fn map_api_error_to_response(
         || message.contains("Invalid contactPref")
         || message.contains("quantityTotal")
         || message.contains("quantity must be greater than 0")
+        || message.contains("quantityClaimed must be greater than 0")
         || message.contains("availableStart")
         || message.contains("availableEnd")
         || message.contains("neededBy must be")
@@ -196,8 +207,15 @@ fn map_api_error_to_response(
         || message.contains("shareRadiusMiles")
         || message.contains("searchRadiusMiles")
         || message.contains("Gatherer profile location is required")
+        || message.contains("Listing is not claimable")
+        || message.contains("requestId references a closed request")
+        || message.contains("requestId crop must match listing crop")
     {
         return crop::error_response(400, &message);
+    }
+
+    if message.contains("Insufficient quantity remaining") {
+        return crop::error_response(409, &message);
     }
 
     if message.contains("Geocoding service unavailable") {
@@ -245,5 +263,12 @@ mod tests {
             lambda_http::Error::from("neededBy must be within the next 365 days".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_insufficient_quantity_to_409() {
+        let error = lambda_http::Error::from("Insufficient quantity remaining".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 409);
     }
 }
