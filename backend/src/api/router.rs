@@ -112,6 +112,14 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
+    if let Some(request_id) = event.uri().path().strip_prefix("/requests/") {
+        let result = match event.method().as_str() {
+            "PUT" => request::update_request(event, correlation_id, request_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
     if let Some(user_id) = event.uri().path().strip_prefix("/users/") {
         return if event.method().as_str() == "GET" {
             handle(user::get_public_user(user_id).await)
@@ -169,23 +177,25 @@ fn map_api_error_to_response(
         || message.contains("Invalid pickupDisclosurePolicy")
         || message.contains("Invalid contactPref")
         || message.contains("quantityTotal")
+        || message.contains("quantity must be greater than 0")
         || message.contains("availableStart")
         || message.contains("availableEnd")
+        || message.contains("neededBy must be")
         || message.contains("title is required")
         || message.contains("unit is required")
         || message.contains("does not reference an existing catalog crop")
         || message.contains("must belong to the specified crop_id")
+        || message.contains("must belong to the specified cropId")
         || message.contains("Request body is required")
-        || message.contains("share_radius_km")
         || message.contains("units must be one of")
         || message.contains("homeZone")
         || message.contains("address is required")
         || message.contains("pickupAddress is required because grower profile address is missing")
         || message.contains("geoKey")
-        || message.contains("radiusKm")
         || message.contains("radiusMiles")
         || message.contains("shareRadiusMiles")
         || message.contains("searchRadiusMiles")
+        || message.contains("Gatherer profile location is required")
     {
         return crop::error_response(400, &message);
     }
@@ -225,6 +235,15 @@ mod tests {
     fn map_api_error_maps_search_radius_miles_validation_to_400() {
         let error =
             lambda_http::Error::from("searchRadiusMiles must be greater than 0".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_request_needed_by_validation_to_400() {
+        let error = lambda_http::Error::from(
+            "neededBy must be within the next 365 days".to_string(),
+        );
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 400);
     }
