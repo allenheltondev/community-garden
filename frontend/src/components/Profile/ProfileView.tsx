@@ -167,6 +167,7 @@ export function ProfileView() {
 
           {profile.userType === 'grower' && (
             <GrowerListingPanel
+              viewerUserId={profile.userId}
               defaultLat={profile.growerProfile?.lat}
               defaultLng={profile.growerProfile?.lng}
             />
@@ -174,6 +175,7 @@ export function ProfileView() {
 
           {profile.userType === 'gatherer' && (
             <SearcherRequestPanel
+              viewerUserId={profile.userId}
               gathererGeoKey={profile.gathererProfile?.geoKey}
               defaultLat={profile.gathererProfile?.lat}
               defaultLng={profile.gathererProfile?.lng}
