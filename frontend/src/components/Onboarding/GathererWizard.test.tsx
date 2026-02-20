@@ -19,7 +19,7 @@ describe('GathererWizard', () => {
     // @ts-expect-error test geolocation override
     global.navigator.geolocation = mockGeolocation;
     mockGeolocation.getCurrentPosition.mockImplementation(
-      (_success: unknown, error: (e: { code: number; message: string }) => void) => {
+      (_success: unknown, error: (e: { code: number; message: string; }) => void) => {
         error({ code: 1, message: 'denied' });
       }
     );
@@ -39,7 +39,7 @@ describe('GathererWizard', () => {
   });
 
   it('fills address from geolocation when reverse geocoding succeeds', async () => {
-    mockGeolocation.getCurrentPosition.mockImplementation((success: (v: { coords: { latitude: number; longitude: number } }) => void) => {
+    mockGeolocation.getCurrentPosition.mockImplementation((success: (v: { coords: { latitude: number; longitude: number; }; }) => void) => {
       success({
         coords: {
           latitude: 37.7749,
@@ -77,4 +77,4 @@ describe('GathererWizard', () => {
       );
     });
   });
-}
+});

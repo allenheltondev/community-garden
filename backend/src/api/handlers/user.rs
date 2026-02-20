@@ -300,7 +300,8 @@ fn should_mark_onboarding_complete(payload: &PutMeRequest) -> bool {
             }
             UserType::Gatherer => {
                 if let Some(gatherer) = &payload.gatherer_profile {
-                    return !gatherer.address.trim().is_empty() && gatherer.search_radius_miles > 0.0;
+                    return !gatherer.address.trim().is_empty()
+                        && gatherer.search_radius_miles > 0.0;
                 }
             }
         }
@@ -439,8 +440,7 @@ fn km_text_to_miles_text(km_text: &str) -> String {
     km_text
         .parse::<f64>()
         .map(km_to_miles)
-        .map(normalize_radius_text)
-        .unwrap_or_else(|_| km_text.to_string())
+        .map_or_else(|_| km_text.to_string(), normalize_radius_text)
 }
 
 fn parse_json_body<T: serde::de::DeserializeOwned>(

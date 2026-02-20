@@ -489,7 +489,10 @@ mod put_me_tests {
             "ratingSummary": null
         });
 
-        assert_eq!(updated_response["growerProfile"]["shareRadiusMiles"], "10.0");
+        assert_eq!(
+            updated_response["growerProfile"]["shareRadiusMiles"],
+            "10.0"
+        );
         assert_eq!(updated_response["onboardingCompleted"], true);
     }
 
