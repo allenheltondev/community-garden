@@ -301,9 +301,11 @@ export function SearcherRequestPanel({
       return;
     }
 
+    const resolvedVarietyId = selectedListing?.varietyId ?? draft.varietyId;
+
     const payload: UpsertRequestPayload = {
       cropId,
-      varietyId: selectedListing?.varietyId ?? draft.varietyId || undefined,
+      varietyId: resolvedVarietyId || undefined,
       unit: draft.unit.trim() || selectedListing?.unit || undefined,
       quantity,
       neededBy: neededByDate.toISOString(),
