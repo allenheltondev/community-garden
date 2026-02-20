@@ -6,12 +6,20 @@ import {
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
+import { createClaim, updateClaimStatus } from '../../services/claims';
 import type { Listing } from '../../types/listing';
 import type { RequestItem, UpsertRequestPayload } from '../../types/request';
+import type { Claim, ClaimStatus } from '../../types/claim';
 import { createLogger } from '../../utils/logging';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
+import { ClaimStatusList } from './ClaimStatusList';
+import {
+  loadSessionClaims,
+  saveSessionClaims,
+  upsertSessionClaim,
+} from '../../utils/claimSession';
 
 const logger = createLogger('searcher-requests');
 const REQUEST_DRAFT_KEY = 'searcher-request-draft-v1';
@@ -27,6 +35,7 @@ interface RequestDraft {
 }
 
 export interface SearcherRequestPanelProps {
+  viewerUserId?: string;
   gathererGeoKey?: string;
   defaultLat?: number;
   defaultLng?: number;
@@ -125,7 +134,29 @@ function validateNeededByWindow(value: Date): string | null {
   return null;
 }
 
+function resolveDefaultClaimQuantity(listing: Listing): number {
+  const remaining = Number(listing.quantityRemaining);
+  if (!Number.isFinite(remaining) || remaining <= 0) {
+    return 1;
+  }
+
+  return Math.min(1, remaining);
+}
+
+function getSearcherActions(status: ClaimStatus): ClaimStatus[] {
+  if (status === 'pending') {
+    return ['cancelled'];
+  }
+
+  if (status === 'confirmed') {
+    return ['completed', 'cancelled'];
+  }
+
+  return [];
+}
+
 export function SearcherRequestPanel({
+  viewerUserId,
   gathererGeoKey,
   defaultLat,
   defaultLng,
@@ -137,9 +168,13 @@ export function SearcherRequestPanel({
   const [selectedListingId, setSelectedListingId] = useState<string>('');
   const [draft, setDraft] = useState<RequestDraft>(() => loadRequestDraft());
   const [sessionRequests, setSessionRequests] = useState<RequestItem[]>([]);
+  const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims());
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
+  const [transitioningClaimId, setTransitioningClaimId] = useState<string | null>(null);
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
@@ -161,6 +196,10 @@ export function SearcherRequestPanel({
       // Ignore localStorage write failures in restricted environments.
     }
   }, [draft]);
+
+  useEffect(() => {
+    saveSessionClaims(sessionClaims);
+  }, [sessionClaims]);
 
   const cropsQuery = useQuery({
     queryKey: ['catalogCrops'],
@@ -188,6 +227,15 @@ export function SearcherRequestPanel({
   const updateRequestMutation = useMutation({
     mutationFn: ({ requestId, payload }: { requestId: string; payload: UpsertRequestPayload }) =>
       updateRequest(requestId, payload),
+  });
+
+  const createClaimMutation = useMutation({
+    mutationFn: createClaim,
+  });
+
+  const transitionClaimMutation = useMutation({
+    mutationFn: ({ claimId, status }: { claimId: string; status: ClaimStatus }) =>
+      updateClaimStatus(claimId, { status }),
   });
 
   const isSubmitting = createRequestMutation.isPending || updateRequestMutation.isPending;
@@ -239,6 +287,11 @@ export function SearcherRequestPanel({
     });
   }, [defaultLat, defaultLng, filteredListings]);
 
+  const visibleClaims = useMemo(
+    () => sessionClaims.filter((claim) => (viewerUserId ? claim.claimerId === viewerUserId : true)),
+    [sessionClaims, viewerUserId]
+  );
+
   const handleSelectListing = (listing: Listing) => {
     setSelectedListingId(listing.id);
     setDraft((previous) => ({
@@ -249,6 +302,8 @@ export function SearcherRequestPanel({
     }));
     setSubmitError(null);
     setSuccessMessage(null);
+    setClaimError(null);
+    setClaimSuccessMessage(null);
   };
 
   const handleStartEditing = (request: RequestItem) => {
@@ -335,6 +390,61 @@ export function SearcherRequestPanel({
       const message = error instanceof Error ? error.message : 'Failed to submit request';
       setSubmitError(message);
       logger.error('Request submission failed', error as Error);
+    }
+  };
+
+  const handleCreateClaim = async (listing: Listing) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+
+    if (isOffline) {
+      setClaimError('You are offline. Reconnect to create claims.');
+      return;
+    }
+
+    const matchingRequestId = sessionRequests.find(
+      (request) => request.status === 'open' && request.cropId === listing.cropId
+    )?.id;
+
+    try {
+      const createdClaim = await createClaimMutation.mutateAsync({
+        listingId: listing.id,
+        requestId: matchingRequestId,
+        quantityClaimed: resolveDefaultClaimQuantity(listing),
+      });
+
+      setSessionClaims((previous) => upsertSessionClaim(previous, createdClaim));
+      setClaimSuccessMessage('Claim submitted.');
+      logger.info('Claim created', { claimId: createdClaim.id, listingId: createdClaim.listingId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create claim';
+      setClaimError(message);
+      logger.error('Claim creation failed', error as Error);
+    }
+  };
+
+  const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
+    setClaimError(null);
+    setClaimSuccessMessage(null);
+    setTransitioningClaimId(claimId);
+
+    const previousClaims = sessionClaims;
+    setSessionClaims((current) =>
+      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
+    );
+
+    try {
+      const updated = await transitionClaimMutation.mutateAsync({ claimId, status });
+      setSessionClaims((current) => upsertSessionClaim(current, updated));
+      setClaimSuccessMessage('Claim updated.');
+      logger.info('Claim updated', { claimId: updated.id, status: updated.status });
+    } catch (error) {
+      setSessionClaims(previousClaims);
+      const message = error instanceof Error ? error.message : 'Failed to update claim';
+      setClaimError(message);
+      logger.error('Claim transition failed', error as Error);
+    } finally {
+      setTransitioningClaimId(null);
     }
   };
 
@@ -463,9 +573,19 @@ export function SearcherRequestPanel({
                   </p>
                   {distanceLabel && <p className="text-xs text-neutral-500">{distanceLabel}</p>}
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => handleSelectListing(listing)}>
-                  Request this item
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => handleSelectListing(listing)}>
+                    Request this item
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={createClaimMutation.isPending}
+                    onClick={() => handleCreateClaim(listing)}
+                  >
+                    Claim this listing
+                  </Button>
+                </div>
               </div>
             </div>
           );
@@ -583,6 +703,18 @@ export function SearcherRequestPanel({
           )}
         </div>
       </Card>
+
+      <ClaimStatusList
+        title="My claim coordination"
+        description="Track your claim states and apply only valid transitions."
+        claims={visibleClaims}
+        pendingClaimId={transitioningClaimId}
+        successMessage={claimSuccessMessage}
+        errorMessage={claimError}
+        emptyMessage="No claims tracked in this session yet."
+        getActions={(claim) => getSearcherActions(claim.status)}
+        onTransition={handleClaimTransition}
+      />
 
       <Card className="space-y-3" padding="6">
         <h4 className="text-base font-semibold text-neutral-900">Requests this session</h4>
