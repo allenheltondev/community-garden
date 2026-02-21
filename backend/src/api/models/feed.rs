@@ -1,0 +1,39 @@
+use crate::models::listing::ListingItem;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedFeedSignal {
+    pub geo_boundary_key: String,
+    pub crop_id: Option<String>,
+    pub window_days: i32,
+    pub listing_count: i32,
+    pub request_count: i32,
+    pub supply_quantity: String,
+    pub demand_quantity: String,
+    pub scarcity_score: f64,
+    pub abundance_score: f64,
+    pub computed_at: String,
+    pub expires_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedFeedFreshness {
+    pub as_of: String,
+    pub is_stale: bool,
+    pub stale_fallback_used: bool,
+    pub stale_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedFeedResponse {
+    pub items: Vec<ListingItem>,
+    pub signals: Vec<DerivedFeedSignal>,
+    pub freshness: DerivedFeedFreshness,
+    pub limit: i64,
+    pub offset: i64,
+    pub has_more: bool,
+    pub next_offset: Option<i64>,
+}

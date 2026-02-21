@@ -2,6 +2,7 @@ pub mod catalog;
 pub mod claim;
 pub mod claim_read;
 pub mod crop;
+pub mod feed;
 pub mod listing;
 pub mod listing_discovery;
 pub mod request;

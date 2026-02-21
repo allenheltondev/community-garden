@@ -1,5 +1,5 @@
 use crate::handlers::{
-    catalog, claim, claim_read, crop, listing, listing_discovery, request, user,
+    catalog, claim, claim_read, crop, feed, listing, listing_discovery, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -62,6 +62,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("GET", "/listings/discover") => {
             handle(listing_discovery::discover_listings(event, &correlation_id).await)?
         }
+        ("GET", "/feed/derived") => handle(feed::get_derived_feed(event, &correlation_id).await)?,
         ("POST", "/listings") => handle(listing::create_listing(event, &correlation_id).await)?,
         ("POST", "/requests") => handle(request::create_request(event, &correlation_id).await)?,
         ("GET", "/claims") => handle(claim_read::list_claims(event, &correlation_id).await)?,
@@ -206,6 +207,7 @@ fn map_api_error_to_response(
         || message.contains("address is required")
         || message.contains("pickupAddress is required because grower profile address is missing")
         || message.contains("geoKey")
+        || message.contains("windowDays")
         || message.contains("radiusMiles")
         || message.contains("shareRadiusMiles")
         || message.contains("searchRadiusMiles")
