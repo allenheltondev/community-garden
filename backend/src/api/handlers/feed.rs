@@ -24,6 +24,7 @@ struct DerivedFeedQuery {
     offset: i64,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn get_derived_feed(
     request: &Request,
     correlation_id: &str,
@@ -127,7 +128,9 @@ pub async fn get_derived_feed(
                 as_of: as_of.to_rfc3339(),
                 is_stale: true,
                 stale_fallback_used: true,
-                stale_reason: Some("No non-expired derived signals available for requested scope".to_string()),
+                stale_reason: Some(
+                    "No non-expired derived signals available for requested scope".to_string(),
+                ),
             },
         )
     } else {
@@ -313,7 +316,9 @@ fn row_to_listing_item(row: &Row) -> ListingItem {
 fn row_to_signal(row: &Row) -> DerivedFeedSignal {
     DerivedFeedSignal {
         geo_boundary_key: row.get("geo_boundary_key"),
-        crop_id: row.get::<_, Option<Uuid>>("crop_id").map(|id| id.to_string()),
+        crop_id: row
+            .get::<_, Option<Uuid>>("crop_id")
+            .map(|id| id.to_string()),
         window_days: row.get("window_days"),
         listing_count: row.get("listing_count"),
         request_count: row.get("request_count"),
@@ -366,7 +371,7 @@ async fn load_or_generate_ai_summary(
     }
 
     let generator = SummaryGenerator::from_env();
-    let artifact = generator.generate(geo_prefix, window_days, signals).await?;
+    let artifact = generator.generate(geo_prefix, window_days, signals)?;
     persist_ai_summary(client, geo_prefix, window_days, signals, &artifact).await?;
 
     Ok(Some(DerivedFeedAiSummary {
@@ -386,8 +391,9 @@ async fn persist_ai_summary(
     signals: &[DerivedFeedSignal],
     artifact: &SummaryArtifact,
 ) -> Result<(), lambda_http::Error> {
-    let snapshot = serde_json::to_value(signals)
-        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}")))?;
+    let snapshot = serde_json::to_string(signals).map_err(|error| {
+        lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}"))
+    })?;
 
     client
         .execute(
@@ -405,7 +411,7 @@ async fn persist_ai_summary(
               created_at,
               updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, now(), now())
             on conflict (schema_version, geo_boundary_key, window_days)
             do update
               set summary_text = excluded.summary_text,
@@ -434,6 +440,7 @@ async fn persist_ai_summary(
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
