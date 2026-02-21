@@ -439,6 +439,56 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
+  RollingGeoAggregationWorkerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: rolling-geo-aggregation-worker
+    Properties:
+      CodeUri: .
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Timeout: 15
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          RUST_LOG: info
+          RUST_BACKTRACE: "1"
+      Events:
+        ListingCreatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            Pattern:
+              source:
+                - community-garden.api
+              detail-type:
+                - listing.created
+                - listing.updated
+        RequestCreatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            Pattern:
+              source:
+                - community-garden.api
+              detail-type:
+                - request.created
+                - request.updated
+        ClaimCreatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            Pattern:
+              source:
+                - community-garden.api
+              detail-type:
+                - claim.created
+                - claim.updated
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL

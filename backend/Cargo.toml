@@ -61,6 +61,10 @@ path = "src/auth/post_confirmation.rs"
 name = "api"
 path = "src/api/main.rs"
 
+[[bin]]
+name = "rolling-geo-aggregation-worker"
+path = "src/workers/rolling_geo_aggregation.rs"
+
 [workspace.dependencies]
 lambda_runtime = "0.13"
 lambda_http = "0.13"
