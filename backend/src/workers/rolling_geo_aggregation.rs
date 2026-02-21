@@ -21,8 +21,12 @@ struct GeoScope {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum DomainEvent {
-    Listing { listing_id: Uuid },
-    Request { request_id: Uuid },
+    Listing {
+        listing_id: Uuid,
+    },
+    Request {
+        request_id: Uuid,
+    },
     Claim {
         listing_id: Option<Uuid>,
         request_id: Option<Uuid>,
@@ -84,7 +88,9 @@ async fn handler(event: LambdaEvent<EventBridgeEvent<Value>>) -> Result<(), Erro
 
     let client = connect_db().await.map_err(Error::from)?;
 
-    let scopes = resolve_scopes(&client, &domain_event).await.map_err(Error::from)?;
+    let scopes = resolve_scopes(&client, &domain_event)
+        .await
+        .map_err(Error::from)?;
     if scopes.is_empty() {
         warn!(
             detail_type = detail_type,
@@ -165,10 +171,9 @@ async fn connect_db() -> Result<Client, String> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| "DATABASE_URL environment variable is required".to_string())?;
 
-    let (client, connection) =
-        tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
-            .await
-            .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
+    let (client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+        .await
+        .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -313,7 +318,11 @@ async fn recompute_and_upsert(
               and geo_key like $2
               and ($3::uuid is null or crop_id = $3)
             ",
-            &[&window_start, &format!("{}%", scope.geo_boundary_key), &scope.crop_id],
+            &[
+                &window_start,
+                &format!("{}%", scope.geo_boundary_key),
+                &scope.crop_id,
+            ],
         )
         .await
         .map_err(|e| format!("Failed to aggregate listings: {e}"))?;
@@ -331,7 +340,11 @@ async fn recompute_and_upsert(
               and geo_key like $2
               and ($3::uuid is null or crop_id = $3)
             ",
-            &[&window_start, &format!("{}%", scope.geo_boundary_key), &scope.crop_id],
+            &[
+                &window_start,
+                &format!("{}%", scope.geo_boundary_key),
+                &scope.crop_id,
+            ],
         )
         .await
         .map_err(|e| format!("Failed to aggregate requests: {e}"))?;
@@ -413,10 +426,7 @@ mod tests {
     #[test]
     fn expand_geo_scopes_deduplicates_duplicate_events() {
         let crop = Some(Uuid::parse_str("8b5a1a3e-d7ad-4ca4-9f56-2f188db4e6ef").unwrap());
-        let source = vec![
-            ("9q8yyk8".to_string(), crop),
-            ("9q8yyk8".to_string(), crop),
-        ];
+        let source = vec![("9q8yyk8".to_string(), crop), ("9q8yyk8".to_string(), crop)];
 
         let scopes = expand_geo_scopes(&source);
         let unique: HashSet<(String, Option<Uuid>)> = scopes

@@ -127,7 +127,9 @@ pub async fn get_derived_feed(
                 as_of: as_of.to_rfc3339(),
                 is_stale: true,
                 stale_fallback_used: true,
-                stale_reason: Some("No non-expired derived signals available for requested scope".to_string()),
+                stale_reason: Some(
+                    "No non-expired derived signals available for requested scope".to_string(),
+                ),
             },
         )
     } else {
@@ -313,7 +315,9 @@ fn row_to_listing_item(row: &Row) -> ListingItem {
 fn row_to_signal(row: &Row) -> DerivedFeedSignal {
     DerivedFeedSignal {
         geo_boundary_key: row.get("geo_boundary_key"),
-        crop_id: row.get::<_, Option<Uuid>>("crop_id").map(|id| id.to_string()),
+        crop_id: row
+            .get::<_, Option<Uuid>>("crop_id")
+            .map(|id| id.to_string()),
         window_days: row.get("window_days"),
         listing_count: row.get("listing_count"),
         request_count: row.get("request_count"),
@@ -386,8 +390,9 @@ async fn persist_ai_summary(
     signals: &[DerivedFeedSignal],
     artifact: &SummaryArtifact,
 ) -> Result<(), lambda_http::Error> {
-    let snapshot = serde_json::to_value(signals)
-        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}")))?;
+    let snapshot = serde_json::to_value(signals).map_err(|error| {
+        lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}"))
+    })?;
 
     client
         .execute(
