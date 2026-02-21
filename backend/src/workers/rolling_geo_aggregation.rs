@@ -4,6 +4,7 @@ use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use tokio_postgres::types::Json;
 use tokio_postgres::Client;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -196,16 +197,16 @@ async fn resolve_scopes(client: &Client, event: &DomainEvent) -> Result<Vec<GeoS
             listing_id,
             request_id,
         } => {
-            if let Some(listing_id) = listing_id
-                && let Some(pair) = load_listing_scope(client, *listing_id).await?
-            {
-                source_pairs.push(pair);
+            if let Some(listing_id) = listing_id {
+                if let Some(pair) = load_listing_scope(client, *listing_id).await? {
+                    source_pairs.push(pair);
+                }
             }
 
-            if let Some(request_id) = request_id
-                && let Some(pair) = load_request_scope(client, *request_id).await?
-            {
-                source_pairs.push(pair);
+            if let Some(request_id) = request_id {
+                if let Some(pair) = load_request_scope(client, *request_id).await? {
+                    source_pairs.push(pair);
+                }
             }
         }
     }
@@ -266,7 +267,7 @@ fn expand_geo_scopes(source_pairs: &[(String, Option<Uuid>)]) -> Vec<GeoScope> {
 
     for (geo_key, crop_id) in source_pairs {
         for prefix in geo_prefixes(geo_key) {
-            dedupe.insert((prefix, *crop_id));
+            dedupe.insert((prefix.clone(), *crop_id));
             dedupe.insert((prefix, None));
         }
     }
@@ -370,7 +371,7 @@ async fn recompute_and_upsert(
                 &demand_quantity,
                 &scarcity_score,
                 &abundance_score,
-                &serde_json::to_value(signal_payload).map_err(|e| e.to_string())?,
+                &Json(serde_json::to_value(signal_payload).map_err(|e| e.to_string())?),
                 &Utc::now(),
                 &expires_at,
             ],
