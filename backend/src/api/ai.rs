@@ -31,7 +31,7 @@ impl SummaryGenerator {
         Self { provider }
     }
 
-    pub async fn generate(
+    pub fn generate(
         &self,
         geo_boundary_key: &str,
         window_days: i32,
@@ -118,11 +118,11 @@ fn bedrock_generate(
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn mock_generator_emits_traceable_metadata() {
+    #[test]
+    fn mock_generator_emits_traceable_metadata() {
         std::env::set_var("AI_SUMMARY_PROVIDER", "mock");
         let generator = SummaryGenerator::from_env();
-        let artifact = generator.generate("9q8y", 7, &[]).await.unwrap();
+        let artifact = generator.generate("9q8y", 7, &[]).unwrap();
 
         assert_eq!(artifact.model_id, "mock.derived-signal-summarizer");
         assert_eq!(artifact.model_version, "v1");

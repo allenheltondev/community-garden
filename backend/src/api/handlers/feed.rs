@@ -371,7 +371,7 @@ async fn load_or_generate_ai_summary(
     }
 
     let generator = SummaryGenerator::from_env();
-    let artifact = generator.generate(geo_prefix, window_days, signals).await?;
+    let artifact = generator.generate(geo_prefix, window_days, signals)?;
     persist_ai_summary(client, geo_prefix, window_days, signals, &artifact).await?;
 
     Ok(Some(DerivedFeedAiSummary {
