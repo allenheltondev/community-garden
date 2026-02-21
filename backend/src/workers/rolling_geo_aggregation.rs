@@ -4,7 +4,6 @@ use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use tokio_postgres::types::Json;
 use tokio_postgres::Client;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -368,7 +367,7 @@ async fn recompute_and_upsert(
             select upsert_derived_supply_signal(
               $1, $2, $3, $4, $5,
               $6, $7, $8, $9,
-              $10, $11, $12,
+              $10, $11, $12::jsonb,
               $13, $14
             )
             ",
@@ -384,7 +383,7 @@ async fn recompute_and_upsert(
                 &demand_quantity,
                 &scarcity_score,
                 &abundance_score,
-                &Json(serde_json::to_value(signal_payload).map_err(|e| e.to_string())?),
+                &serde_json::to_string(&signal_payload).map_err(|e| e.to_string())?,
                 &Utc::now(),
                 &expires_at,
             ],

@@ -410,7 +410,7 @@ async fn persist_ai_summary(
               created_at,
               updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, now(), now())
             on conflict (schema_version, geo_boundary_key, window_days)
             do update
               set summary_text = excluded.summary_text,
