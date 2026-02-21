@@ -1,7 +1,10 @@
+use crate::ai::{SummaryArtifact, SummaryGenerator};
 use crate::auth::extract_auth_context;
 use crate::db;
 use crate::location;
-use crate::models::feed::{DerivedFeedFreshness, DerivedFeedResponse, DerivedFeedSignal};
+use crate::models::feed::{
+    DerivedFeedAiSummary, DerivedFeedFreshness, DerivedFeedResponse, DerivedFeedSignal,
+};
 use crate::models::listing::ListingItem;
 use chrono::{DateTime, Utc};
 use lambda_http::{Body, Request, Response};
@@ -144,10 +147,18 @@ pub async fn get_derived_feed(
         .map(|row| row_to_signal(&row))
         .collect::<Vec<_>>();
 
+    let ai_summary = load_or_generate_ai_summary(&client, &geo_prefix, query.window_days, &signals)
+        .await
+        .unwrap_or_else(|error| {
+            tracing::warn!(error = %error, "AI summary generation failed; degrading gracefully");
+            None
+        });
+
     let response = DerivedFeedResponse {
         items,
         signals,
         freshness,
+        ai_summary,
         limit: query.limit,
         offset: query.offset,
         has_more,
@@ -313,6 +324,114 @@ fn row_to_signal(row: &Row) -> DerivedFeedSignal {
         computed_at: row.get::<_, DateTime<Utc>>("computed_at").to_rfc3339(),
         expires_at: row.get::<_, DateTime<Utc>>("expires_at").to_rfc3339(),
     }
+}
+
+async fn load_or_generate_ai_summary(
+    client: &tokio_postgres::Client,
+    geo_prefix: &str,
+    window_days: i32,
+    signals: &[DerivedFeedSignal],
+) -> Result<Option<DerivedFeedAiSummary>, lambda_http::Error> {
+    if signals.is_empty() {
+        return Ok(None);
+    }
+
+    let now = Utc::now();
+    let cached_row = client
+        .query_opt(
+            "
+            select summary_text, model_id, model_version, generated_at, expires_at
+            from derived_signal_summaries
+            where schema_version = 1
+              and geo_boundary_key = $1
+              and window_days = $2
+              and expires_at > $3
+            order by generated_at desc, id desc
+            limit 1
+            ",
+            &[&geo_prefix, &window_days, &now],
+        )
+        .await
+        .map_err(db_error)?;
+
+    if let Some(row) = cached_row {
+        return Ok(Some(DerivedFeedAiSummary {
+            summary_text: row.get("summary_text"),
+            model_id: row.get("model_id"),
+            model_version: row.get("model_version"),
+            generated_at: row.get::<_, DateTime<Utc>>("generated_at").to_rfc3339(),
+            expires_at: row.get::<_, DateTime<Utc>>("expires_at").to_rfc3339(),
+            from_cache: true,
+        }));
+    }
+
+    let generator = SummaryGenerator::from_env();
+    let artifact = generator.generate(geo_prefix, window_days, signals).await?;
+    persist_ai_summary(client, geo_prefix, window_days, signals, &artifact).await?;
+
+    Ok(Some(DerivedFeedAiSummary {
+        summary_text: artifact.summary_text,
+        model_id: artifact.model_id,
+        model_version: artifact.model_version,
+        generated_at: artifact.generated_at.to_rfc3339(),
+        expires_at: artifact.expires_at.to_rfc3339(),
+        from_cache: false,
+    }))
+}
+
+async fn persist_ai_summary(
+    client: &tokio_postgres::Client,
+    geo_prefix: &str,
+    window_days: i32,
+    signals: &[DerivedFeedSignal],
+    artifact: &SummaryArtifact,
+) -> Result<(), lambda_http::Error> {
+    let snapshot = serde_json::to_value(signals)
+        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}")))?;
+
+    client
+        .execute(
+            "
+            insert into derived_signal_summaries (
+              schema_version,
+              geo_boundary_key,
+              window_days,
+              summary_text,
+              model_id,
+              model_version,
+              signal_snapshot,
+              generated_at,
+              expires_at,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+            on conflict (schema_version, geo_boundary_key, window_days)
+            do update
+              set summary_text = excluded.summary_text,
+                  model_id = excluded.model_id,
+                  model_version = excluded.model_version,
+                  signal_snapshot = excluded.signal_snapshot,
+                  generated_at = excluded.generated_at,
+                  expires_at = excluded.expires_at,
+                  updated_at = now()
+            ",
+            &[
+                &1,
+                &geo_prefix,
+                &window_days,
+                &artifact.summary_text,
+                &artifact.model_id,
+                &artifact.model_version,
+                &snapshot,
+                &artifact.generated_at,
+                &artifact.expires_at,
+            ],
+        )
+        .await
+        .map_err(db_error)?;
+
+    Ok(())
 }
 
 fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {

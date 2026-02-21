@@ -28,10 +28,22 @@ pub struct DerivedFeedFreshness {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DerivedFeedAiSummary {
+    pub summary_text: String,
+    pub model_id: String,
+    pub model_version: String,
+    pub generated_at: String,
+    pub expires_at: String,
+    pub from_cache: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DerivedFeedResponse {
     pub items: Vec<ListingItem>,
     pub signals: Vec<DerivedFeedSignal>,
     pub freshness: DerivedFeedFreshness,
+    pub ai_summary: Option<DerivedFeedAiSummary>,
     pub limit: i64,
     pub offset: i64,
     pub has_more: bool,
