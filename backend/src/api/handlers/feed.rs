@@ -24,6 +24,7 @@ struct DerivedFeedQuery {
     offset: i64,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn get_derived_feed(
     request: &Request,
     correlation_id: &str,
@@ -439,6 +440,7 @@ async fn persist_ai_summary(
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }

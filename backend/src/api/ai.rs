@@ -42,7 +42,7 @@ impl SummaryGenerator {
             SummaryProvider::Bedrock => {
                 // Bedrock integration is intentionally behind this abstraction.
                 // If unavailable or failing, callers should degrade gracefully.
-                bedrock_generate(geo_boundary_key, window_days, signals).await
+                bedrock_generate(geo_boundary_key, window_days, signals)
             }
         }
     }
@@ -57,14 +57,19 @@ fn mock_generate(
         .iter()
         .max_by(|a, b| a.scarcity_score.total_cmp(&b.scarcity_score));
 
-    let summary_text = if let Some(top) = strongest {
-        format!(
-            "Derived signal summary for {geo_boundary_key} ({window_days}d): {} listings, {} requests, scarcity {:.2}, abundance {:.2}.",
-            top.listing_count, top.request_count, top.scarcity_score, top.abundance_score
-        )
-    } else {
-        format!("Derived signal summary for {geo_boundary_key} ({window_days}d): no signal rows available.")
-    };
+    let summary_text = strongest.map_or_else(
+        || {
+            format!(
+                "Derived signal summary for {geo_boundary_key} ({window_days}d): no signal rows available."
+            )
+        },
+        |top| {
+            format!(
+                "Derived signal summary for {geo_boundary_key} ({window_days}d): {} listings, {} requests, scarcity {:.2}, abundance {:.2}.",
+                top.listing_count, top.request_count, top.scarcity_score, top.abundance_score
+            )
+        },
+    );
 
     let generated_at = Utc::now();
     SummaryArtifact {
@@ -76,7 +81,7 @@ fn mock_generate(
     }
 }
 
-async fn bedrock_generate(
+fn bedrock_generate(
     geo_boundary_key: &str,
     window_days: i32,
     signals: &[DerivedFeedSignal],
