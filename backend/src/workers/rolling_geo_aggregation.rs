@@ -360,6 +360,8 @@ async fn recompute_and_upsert(
     signal_payload.insert("listingCount", serde_json::json!(listing_count));
     signal_payload.insert("requestCount", serde_json::json!(request_count));
     signal_payload.insert("windowDays", serde_json::json!(window_days));
+    let signal_payload_json = serde_json::to_string(&signal_payload)
+        .map_err(|e| format!("Invalid signal payload JSON: {e}"))?;
 
     client
         .execute(
@@ -383,7 +385,7 @@ async fn recompute_and_upsert(
                 &demand_quantity,
                 &scarcity_score,
                 &abundance_score,
-                &serde_json::to_string(&signal_payload).map_err(|e| e.to_string())?,
+                &signal_payload_json,
                 &Utc::now(),
                 &expires_at,
             ],
