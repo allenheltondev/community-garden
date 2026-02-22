@@ -196,16 +196,16 @@ async fn resolve_scopes(client: &Client, event: &DomainEvent) -> Result<Vec<GeoS
             listing_id,
             request_id,
         } => {
-            if let Some(listing_id) = listing_id
-                && let Some(pair) = load_listing_scope(client, *listing_id).await?
-            {
-                source_pairs.push(pair);
+            if let Some(listing_id) = listing_id {
+                if let Some(pair) = load_listing_scope(client, *listing_id).await? {
+                    source_pairs.push(pair);
+                }
             }
 
-            if let Some(request_id) = request_id
-                && let Some(pair) = load_request_scope(client, *request_id).await?
-            {
-                source_pairs.push(pair);
+            if let Some(request_id) = request_id {
+                if let Some(pair) = load_request_scope(client, *request_id).await? {
+                    source_pairs.push(pair);
+                }
             }
         }
     }
