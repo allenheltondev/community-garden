@@ -20,8 +20,12 @@ struct GeoScope {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum DomainEvent {
-    Listing { listing_id: Uuid },
-    Request { request_id: Uuid },
+    Listing {
+        listing_id: Uuid,
+    },
+    Request {
+        request_id: Uuid,
+    },
     Claim {
         listing_id: Option<Uuid>,
         request_id: Option<Uuid>,
@@ -83,7 +87,9 @@ async fn handler(event: LambdaEvent<EventBridgeEvent<Value>>) -> Result<(), Erro
 
     let client = connect_db().await.map_err(Error::from)?;
 
-    let scopes = resolve_scopes(&client, &domain_event).await.map_err(Error::from)?;
+    let scopes = resolve_scopes(&client, &domain_event)
+        .await
+        .map_err(Error::from)?;
     if scopes.is_empty() {
         warn!(
             detail_type = detail_type,
@@ -164,10 +170,9 @@ async fn connect_db() -> Result<Client, String> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| "DATABASE_URL environment variable is required".to_string())?;
 
-    let (client, connection) =
-        tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
-            .await
-            .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
+    let (client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+        .await
+        .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -266,7 +271,7 @@ fn expand_geo_scopes(source_pairs: &[(String, Option<Uuid>)]) -> Vec<GeoScope> {
 
     for (geo_key, crop_id) in source_pairs {
         for prefix in geo_prefixes(geo_key) {
-            dedupe.insert((prefix, *crop_id));
+            dedupe.insert((prefix.clone(), *crop_id));
             dedupe.insert((prefix, None));
         }
     }
@@ -312,7 +317,11 @@ async fn recompute_and_upsert(
               and geo_key like $2
               and ($3::uuid is null or crop_id = $3)
             ",
-            &[&window_start, &format!("{}%", scope.geo_boundary_key), &scope.crop_id],
+            &[
+                &window_start,
+                &format!("{}%", scope.geo_boundary_key),
+                &scope.crop_id,
+            ],
         )
         .await
         .map_err(|e| format!("Failed to aggregate listings: {e}"))?;
@@ -330,7 +339,11 @@ async fn recompute_and_upsert(
               and geo_key like $2
               and ($3::uuid is null or crop_id = $3)
             ",
-            &[&window_start, &format!("{}%", scope.geo_boundary_key), &scope.crop_id],
+            &[
+                &window_start,
+                &format!("{}%", scope.geo_boundary_key),
+                &scope.crop_id,
+            ],
         )
         .await
         .map_err(|e| format!("Failed to aggregate requests: {e}"))?;
@@ -347,6 +360,8 @@ async fn recompute_and_upsert(
     signal_payload.insert("listingCount", serde_json::json!(listing_count));
     signal_payload.insert("requestCount", serde_json::json!(request_count));
     signal_payload.insert("windowDays", serde_json::json!(window_days));
+    let signal_payload_json = serde_json::to_string(&signal_payload)
+        .map_err(|e| format!("Invalid signal payload JSON: {e}"))?;
 
     client
         .execute(
@@ -354,7 +369,7 @@ async fn recompute_and_upsert(
             select upsert_derived_supply_signal(
               $1, $2, $3, $4, $5,
               $6, $7, $8, $9,
-              $10, $11, $12,
+              $10, $11, $12::jsonb,
               $13, $14
             )
             ",
@@ -370,7 +385,7 @@ async fn recompute_and_upsert(
                 &demand_quantity,
                 &scarcity_score,
                 &abundance_score,
-                &serde_json::to_value(signal_payload).map_err(|e| e.to_string())?,
+                &signal_payload_json,
                 &Utc::now(),
                 &expires_at,
             ],
@@ -412,10 +427,7 @@ mod tests {
     #[test]
     fn expand_geo_scopes_deduplicates_duplicate_events() {
         let crop = Some(Uuid::parse_str("8b5a1a3e-d7ad-4ca4-9f56-2f188db4e6ef").unwrap());
-        let source = vec![
-            ("9q8yyk8".to_string(), crop),
-            ("9q8yyk8".to_string(), crop),
-        ];
+        let source = vec![("9q8yyk8".to_string(), crop), ("9q8yyk8".to_string(), crop)];
 
         let scopes = expand_geo_scopes(&source);
         let unique: HashSet<(String, Option<Uuid>)> = scopes
