@@ -4,9 +4,10 @@ use crate::db;
 use crate::location;
 use crate::models::feed::{
     DerivedFeedAiSummary, DerivedFeedFreshness, DerivedFeedResponse, DerivedFeedSignal,
+    GrowerGuidance, GrowerGuidanceExplanation, GrowerGuidanceSignalRef,
 };
 use crate::models::listing::ListingItem;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use lambda_http::{Body, Request, Response};
 use serde::Serialize;
 use tokio_postgres::Row;
@@ -24,6 +25,7 @@ struct DerivedFeedQuery {
     offset: i64,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn get_derived_feed(
     request: &Request,
     correlation_id: &str,
@@ -127,7 +129,9 @@ pub async fn get_derived_feed(
                 as_of: as_of.to_rfc3339(),
                 is_stale: true,
                 stale_fallback_used: true,
-                stale_reason: Some("No non-expired derived signals available for requested scope".to_string()),
+                stale_reason: Some(
+                    "No non-expired derived signals available for requested scope".to_string(),
+                ),
             },
         )
     } else {
@@ -147,6 +151,8 @@ pub async fn get_derived_feed(
         .map(|row| row_to_signal(&row))
         .collect::<Vec<_>>();
 
+    let grower_guidance = build_deterministic_grower_guidance(&signals, query.window_days, as_of);
+
     let ai_summary = load_or_generate_ai_summary(&client, &geo_prefix, query.window_days, &signals)
         .await
         .unwrap_or_else(|error| {
@@ -159,6 +165,7 @@ pub async fn get_derived_feed(
         signals,
         freshness,
         ai_summary,
+        grower_guidance,
         limit: query.limit,
         offset: query.offset,
         has_more,
@@ -313,7 +320,9 @@ fn row_to_listing_item(row: &Row) -> ListingItem {
 fn row_to_signal(row: &Row) -> DerivedFeedSignal {
     DerivedFeedSignal {
         geo_boundary_key: row.get("geo_boundary_key"),
-        crop_id: row.get::<_, Option<Uuid>>("crop_id").map(|id| id.to_string()),
+        crop_id: row
+            .get::<_, Option<Uuid>>("crop_id")
+            .map(|id| id.to_string()),
         window_days: row.get("window_days"),
         listing_count: row.get("listing_count"),
         request_count: row.get("request_count"),
@@ -324,6 +333,122 @@ fn row_to_signal(row: &Row) -> DerivedFeedSignal {
         computed_at: row.get::<_, DateTime<Utc>>("computed_at").to_rfc3339(),
         expires_at: row.get::<_, DateTime<Utc>>("expires_at").to_rfc3339(),
     }
+}
+
+fn build_deterministic_grower_guidance(
+    signals: &[DerivedFeedSignal],
+    window_days: i32,
+    as_of: DateTime<Utc>,
+) -> Option<GrowerGuidance> {
+    if signals.is_empty() {
+        return None;
+    }
+
+    let season = season_from_month(as_of.month());
+    let signal_count = count_as_f64(signals.len());
+    let avg_scarcity = signals
+        .iter()
+        .map(|signal| signal.scarcity_score)
+        .sum::<f64>()
+        / signal_count;
+    let avg_abundance = signals
+        .iter()
+        .map(|signal| signal.abundance_score)
+        .sum::<f64>()
+        / signal_count;
+
+    let strategy = if avg_scarcity >= avg_abundance {
+        "increase-resilience"
+    } else {
+        "share-surplus"
+    };
+
+    let strongest_scarcity_signal = strongest_signal_by(signals, |left, right| {
+        left.scarcity_score.total_cmp(&right.scarcity_score)
+    })
+    .map(to_signal_ref);
+
+    let strongest_abundance_signal = strongest_signal_by(signals, |left, right| {
+        left.abundance_score.total_cmp(&right.abundance_score)
+    })
+    .map(to_signal_ref);
+
+    let guidance_text = match strategy {
+        "increase-resilience" => format!(
+            "{} guidance: local demand signals are outpacing supply. Prioritize dependable {} plantings and staggered harvest windows to reduce scarcity pressure over the next {} days.",
+            capitalize_first(season),
+            season,
+            window_days
+        ),
+        _ => format!(
+            "{} guidance: local supply signals are stronger than demand. Plan shared pickups and preserve {} surplus so abundance can be redistributed effectively over the next {} days.",
+            capitalize_first(season),
+            season,
+            window_days
+        ),
+    };
+
+    Some(GrowerGuidance {
+        guidance_text,
+        explanation: GrowerGuidanceExplanation {
+            season: season.to_string(),
+            strategy: strategy.to_string(),
+            window_days,
+            source_signal_count: signals.len(),
+            strongest_scarcity_signal,
+            strongest_abundance_signal,
+        },
+    })
+}
+
+fn count_as_f64(count: usize) -> f64 {
+    u32::try_from(count).map_or_else(|_| f64::from(u32::MAX), f64::from)
+}
+
+fn strongest_signal_by<F>(signals: &[DerivedFeedSignal], cmp: F) -> Option<&DerivedFeedSignal>
+where
+    F: Fn(&DerivedFeedSignal, &DerivedFeedSignal) -> std::cmp::Ordering,
+{
+    signals.iter().max_by(|left, right| {
+        let primary = cmp(left, right);
+        if primary != std::cmp::Ordering::Equal {
+            return primary;
+        }
+
+        let geo_order = left.geo_boundary_key.cmp(&right.geo_boundary_key).reverse();
+        if geo_order != std::cmp::Ordering::Equal {
+            return geo_order;
+        }
+
+        left.crop_id.cmp(&right.crop_id).reverse()
+    })
+}
+
+fn to_signal_ref(signal: &DerivedFeedSignal) -> GrowerGuidanceSignalRef {
+    GrowerGuidanceSignalRef {
+        geo_boundary_key: signal.geo_boundary_key.clone(),
+        crop_id: signal.crop_id.clone(),
+        scarcity_score: signal.scarcity_score,
+        abundance_score: signal.abundance_score,
+        listing_count: signal.listing_count,
+        request_count: signal.request_count,
+    }
+}
+
+const fn season_from_month(month: u32) -> &'static str {
+    match month {
+        3..=5 => "spring",
+        6..=8 => "summer",
+        9..=11 => "fall",
+        _ => "winter",
+    }
+}
+
+fn capitalize_first(value: &str) -> String {
+    let mut chars = value.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().collect::<String>() + chars.as_str()
+    })
 }
 
 async fn load_or_generate_ai_summary(
@@ -366,7 +491,7 @@ async fn load_or_generate_ai_summary(
     }
 
     let generator = SummaryGenerator::from_env();
-    let artifact = generator.generate(geo_prefix, window_days, signals).await?;
+    let artifact = generator.generate(geo_prefix, window_days, signals)?;
     persist_ai_summary(client, geo_prefix, window_days, signals, &artifact).await?;
 
     Ok(Some(DerivedFeedAiSummary {
@@ -386,8 +511,9 @@ async fn persist_ai_summary(
     signals: &[DerivedFeedSignal],
     artifact: &SummaryArtifact,
 ) -> Result<(), lambda_http::Error> {
-    let snapshot = serde_json::to_value(signals)
-        .map_err(|error| lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}")))?;
+    let snapshot = serde_json::to_string(signals).map_err(|error| {
+        lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}"))
+    })?;
 
     client
         .execute(
@@ -405,7 +531,7 @@ async fn persist_ai_summary(
               created_at,
               updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, now(), now())
             on conflict (schema_version, geo_boundary_key, window_days)
             do update
               set summary_text = excluded.summary_text,
@@ -434,6 +560,7 @@ async fn persist_ai_summary(
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
@@ -497,5 +624,86 @@ mod tests {
     fn derive_geo_prefix_uses_4_char_scope() {
         assert_eq!(derive_geo_prefix("9q8yyk8"), "9q8y");
         assert_eq!(derive_geo_prefix("9q8"), "9q8");
+    }
+
+    #[test]
+    fn deterministic_grower_guidance_prefers_scarcity_strategy() {
+        let signals = vec![
+            DerivedFeedSignal {
+                geo_boundary_key: "9q8y".to_string(),
+                crop_id: None,
+                window_days: 7,
+                listing_count: 4,
+                request_count: 9,
+                supply_quantity: "12".to_string(),
+                demand_quantity: "25".to_string(),
+                scarcity_score: 0.91,
+                abundance_score: 0.22,
+                computed_at: "2026-02-21T00:00:00Z".to_string(),
+                expires_at: "2026-02-22T00:00:00Z".to_string(),
+            },
+            DerivedFeedSignal {
+                geo_boundary_key: "9q8y".to_string(),
+                crop_id: Some("11111111-1111-1111-1111-111111111111".to_string()),
+                window_days: 7,
+                listing_count: 5,
+                request_count: 8,
+                supply_quantity: "20".to_string(),
+                demand_quantity: "26".to_string(),
+                scarcity_score: 0.61,
+                abundance_score: 0.39,
+                computed_at: "2026-02-21T00:00:00Z".to_string(),
+                expires_at: "2026-02-22T00:00:00Z".to_string(),
+            },
+        ];
+
+        let guidance = build_deterministic_grower_guidance(
+            &signals,
+            7,
+            DateTime::parse_from_rfc3339("2026-02-21T12:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+        )
+        .unwrap();
+
+        assert_eq!(guidance.explanation.strategy, "increase-resilience");
+        assert_eq!(guidance.explanation.season, "winter");
+        assert_eq!(guidance.explanation.source_signal_count, 2);
+        let scarcity_score = guidance
+            .explanation
+            .strongest_scarcity_signal
+            .unwrap()
+            .scarcity_score;
+        assert!((scarcity_score - 0.91).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn deterministic_grower_guidance_prefers_abundance_strategy() {
+        let signals = vec![DerivedFeedSignal {
+            geo_boundary_key: "9q8y".to_string(),
+            crop_id: None,
+            window_days: 14,
+            listing_count: 12,
+            request_count: 3,
+            supply_quantity: "54".to_string(),
+            demand_quantity: "11".to_string(),
+            scarcity_score: 0.20,
+            abundance_score: 0.84,
+            computed_at: "2026-07-01T00:00:00Z".to_string(),
+            expires_at: "2026-07-02T00:00:00Z".to_string(),
+        }];
+
+        let guidance = build_deterministic_grower_guidance(
+            &signals,
+            14,
+            DateTime::parse_from_rfc3339("2026-07-01T12:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+        )
+        .unwrap();
+
+        assert_eq!(guidance.explanation.strategy, "share-surplus");
+        assert_eq!(guidance.explanation.season, "summer");
+        assert!(guidance.guidance_text.contains("Summer guidance"));
     }
 }

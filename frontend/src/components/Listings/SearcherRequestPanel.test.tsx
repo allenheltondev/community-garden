@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearcherRequestPanel } from './SearcherRequestPanel';
 import { createRequest, discoverListings, listCatalogCrops, updateRequest } from '../../services/api';
@@ -235,6 +235,12 @@ describe('SearcherRequestPanel', () => {
     await user.click(screen.getByRole('button', { name: /edit request/i }));
     await user.clear(screen.getByLabelText(/quantity/i));
     await user.type(screen.getByLabelText(/quantity/i), '5');
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const neededByLocal = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 16);
+    fireEvent.change(screen.getByLabelText(/needed by/i), { target: { value: neededByLocal } });
 
     await user.click(screen.getByRole('button', { name: /update request/i }));
 
