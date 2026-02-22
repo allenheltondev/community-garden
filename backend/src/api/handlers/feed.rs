@@ -25,6 +25,7 @@ struct DerivedFeedQuery {
     offset: i64,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn get_derived_feed(
     request: &Request,
     correlation_id: &str,
@@ -344,16 +345,17 @@ fn build_deterministic_grower_guidance(
     }
 
     let season = season_from_month(as_of.month());
+    let signal_count = count_as_f64(signals.len());
     let avg_scarcity = signals
         .iter()
         .map(|signal| signal.scarcity_score)
         .sum::<f64>()
-        / signals.len() as f64;
+        / signal_count;
     let avg_abundance = signals
         .iter()
         .map(|signal| signal.abundance_score)
         .sum::<f64>()
-        / signals.len() as f64;
+        / signal_count;
 
     let strategy = if avg_scarcity >= avg_abundance {
         "increase-resilience"
@@ -399,10 +401,11 @@ fn build_deterministic_grower_guidance(
     })
 }
 
-fn strongest_signal_by<'a, F>(
-    signals: &'a [DerivedFeedSignal],
-    cmp: F,
-) -> Option<&'a DerivedFeedSignal>
+fn count_as_f64(count: usize) -> f64 {
+    u32::try_from(count).map_or_else(|_| f64::from(u32::MAX), f64::from)
+}
+
+fn strongest_signal_by<F>(signals: &[DerivedFeedSignal], cmp: F) -> Option<&DerivedFeedSignal>
 where
     F: Fn(&DerivedFeedSignal, &DerivedFeedSignal) -> std::cmp::Ordering,
 {
@@ -432,7 +435,7 @@ fn to_signal_ref(signal: &DerivedFeedSignal) -> GrowerGuidanceSignalRef {
     }
 }
 
-fn season_from_month(month: u32) -> &'static str {
+const fn season_from_month(month: u32) -> &'static str {
     match month {
         3..=5 => "spring",
         6..=8 => "summer",
@@ -443,10 +446,9 @@ fn season_from_month(month: u32) -> &'static str {
 
 fn capitalize_first(value: &str) -> String {
     let mut chars = value.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().collect::<String>() + chars.as_str()
+    })
 }
 
 async fn load_or_generate_ai_summary(
@@ -489,7 +491,7 @@ async fn load_or_generate_ai_summary(
     }
 
     let generator = SummaryGenerator::from_env();
-    let artifact = generator.generate(geo_prefix, window_days, signals).await?;
+    let artifact = generator.generate(geo_prefix, window_days, signals)?;
     persist_ai_summary(client, geo_prefix, window_days, signals, &artifact).await?;
 
     Ok(Some(DerivedFeedAiSummary {
@@ -558,6 +560,7 @@ async fn persist_ai_summary(
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
@@ -666,14 +669,12 @@ mod tests {
         assert_eq!(guidance.explanation.strategy, "increase-resilience");
         assert_eq!(guidance.explanation.season, "winter");
         assert_eq!(guidance.explanation.source_signal_count, 2);
-        assert_eq!(
-            guidance
-                .explanation
-                .strongest_scarcity_signal
-                .unwrap()
-                .scarcity_score,
-            0.91
-        );
+        let scarcity_score = guidance
+            .explanation
+            .strongest_scarcity_signal
+            .unwrap()
+            .scarcity_score;
+        assert!((scarcity_score - 0.91).abs() < f64::EPSILON);
     }
 
     #[test]

@@ -396,11 +396,10 @@ async fn recompute_and_upsert(
     Ok(())
 }
 
-fn retention_days(window_days: i32) -> i32 {
+const fn retention_days(window_days: i32) -> i32 {
     match window_days {
         7 => 35,
         14 => 49,
-        30 => 90,
         _ => 90,
     }
 }
