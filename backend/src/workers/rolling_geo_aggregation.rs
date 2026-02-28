@@ -82,6 +82,8 @@ async fn handler(event: LambdaEvent<EventBridgeEvent<Value>>) -> Result<(), Erro
         detail_type = detail_type,
         correlation_id = correlation_id,
         processing_lag_seconds = processing_lag_seconds,
+        metric_name = "rolling_geo_aggregation.processing_lag_seconds",
+        metric_value = processing_lag_seconds,
         "Received aggregation event"
     );
 
@@ -99,9 +101,11 @@ async fn handler(event: LambdaEvent<EventBridgeEvent<Value>>) -> Result<(), Erro
         return Ok(());
     }
 
+    let bucket_start = compute_bucket_start(occurred_at);
+
     for scope in scopes {
         for window_days in SUPPORTED_WINDOWS_DAYS {
-            recompute_and_upsert(&client, &scope, window_days)
+            recompute_and_upsert(&client, &scope, window_days, bucket_start)
                 .await
                 .map_err(Error::from)?;
         }
@@ -299,10 +303,10 @@ async fn recompute_and_upsert(
     client: &Client,
     scope: &GeoScope,
     window_days: i32,
+    bucket_start: DateTime<Utc>,
 ) -> Result<(), String> {
     let window_start = Utc::now() - Duration::days(i64::from(window_days));
     let expires_at = Utc::now() + Duration::days(i64::from(retention_days(window_days)));
-    let bucket_start = Utc::now();
 
     let listing_row = client
         .query_one(
@@ -396,6 +400,14 @@ async fn recompute_and_upsert(
     Ok(())
 }
 
+fn compute_bucket_start(occurred_at: DateTime<Utc>) -> DateTime<Utc> {
+    let seconds = occurred_at.timestamp();
+    let bucket_seconds = 5 * 60;
+    let floored = seconds - seconds.rem_euclid(bucket_seconds);
+
+    DateTime::<Utc>::from_timestamp(floored, 0).unwrap_or(occurred_at)
+}
+
 const fn retention_days(window_days: i32) -> i32 {
     match window_days {
         7 => 35,
@@ -449,5 +461,18 @@ mod tests {
         assert_eq!(retention_days(7), 35);
         assert_eq!(retention_days(14), 49);
         assert_eq!(retention_days(30), 90);
+    }
+
+    #[test]
+    fn compute_bucket_start_is_deterministic_for_duplicate_event_replays() {
+        let occurred_at = DateTime::parse_from_rfc3339("2026-02-20T21:03:19Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let first = compute_bucket_start(occurred_at);
+        let second = compute_bucket_start(occurred_at);
+
+        assert_eq!(first, second);
+        assert_eq!(first.to_rfc3339(), "2026-02-20T21:00:00+00:00");
     }
 }
