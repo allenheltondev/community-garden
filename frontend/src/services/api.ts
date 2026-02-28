@@ -12,6 +12,7 @@ import type {
   UpsertListingRequest,
 } from '../types/listing';
 import type { RequestItem, UpsertRequestPayload } from '../types/request';
+import type { DerivedFeedResponse } from '../types/feed';
 
 /**
  * API Client for the Community Food Coordination Platform
@@ -295,6 +296,57 @@ interface RawRequestWriteResponse {
   created_at?: string;
 }
 
+interface RawDerivedFeedResponse {
+  items: Array<Record<string, unknown>>;
+  signals: Array<Record<string, unknown>>;
+  freshness: {
+    asOf?: string;
+    as_of?: string;
+    isStale?: boolean;
+    is_stale?: boolean;
+    staleFallbackUsed?: boolean;
+    stale_fallback_used?: boolean;
+    staleReason?: string | null;
+    stale_reason?: string | null;
+  };
+  aiSummary?: {
+    summaryText?: string;
+    summary_text?: string;
+    modelId?: string;
+    model_id?: string;
+    modelVersion?: string;
+    model_version?: string;
+    generatedAt?: string;
+    generated_at?: string;
+    expiresAt?: string;
+    expires_at?: string;
+    fromCache?: boolean;
+    from_cache?: boolean;
+  } | null;
+  growerGuidance?: {
+    guidanceText?: string;
+    guidance_text?: string;
+    explanation?: {
+      season?: string;
+      strategy?: string;
+      windowDays?: number;
+      window_days?: number;
+      sourceSignalCount?: number;
+      source_signal_count?: number;
+      strongestScarcitySignal?: Record<string, unknown> | null;
+      strongest_scarcity_signal?: Record<string, unknown> | null;
+      strongestAbundanceSignal?: Record<string, unknown> | null;
+      strongest_abundance_signal?: Record<string, unknown> | null;
+    };
+  } | null;
+  limit: number;
+  offset: number;
+  hasMore?: boolean;
+  has_more?: boolean;
+  nextOffset?: number | null;
+  next_offset?: number | null;
+}
+
 function mapCatalogCrop(raw: RawCatalogCrop): CatalogCrop {
   return {
     id: raw.id,
@@ -454,6 +506,96 @@ function mapRequestWriteResponse(raw: RawRequestWriteResponse): RequestItem {
   };
 }
 
+function getNumberValue(raw: Record<string, unknown>, camel: string, snake: string): number {
+  const value = raw[camel] ?? raw[snake];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function mapDerivedFeedResponse(raw: RawDerivedFeedResponse): DerivedFeedResponse {
+  const signals = (raw.signals ?? []).map((signal) => ({
+    geoBoundaryKey: getStringValue(signal, 'geoBoundaryKey', 'geo_boundary_key'),
+    cropId: getNullableStringValue(signal, 'cropId', 'crop_id'),
+    windowDays: getNumberValue(signal, 'windowDays', 'window_days'),
+    listingCount: getNumberValue(signal, 'listingCount', 'listing_count'),
+    requestCount: getNumberValue(signal, 'requestCount', 'request_count'),
+    supplyQuantity: getStringValue(signal, 'supplyQuantity', 'supply_quantity'),
+    demandQuantity: getStringValue(signal, 'demandQuantity', 'demand_quantity'),
+    scarcityScore: getNumberValue(signal, 'scarcityScore', 'scarcity_score'),
+    abundanceScore: getNumberValue(signal, 'abundanceScore', 'abundance_score'),
+    computedAt: getStringValue(signal, 'computedAt', 'computed_at'),
+    expiresAt: getStringValue(signal, 'expiresAt', 'expires_at'),
+  }));
+
+  const strongestScarcitySignal =
+    raw.growerGuidance?.explanation?.strongestScarcitySignal ??
+    raw.growerGuidance?.explanation?.strongest_scarcity_signal;
+  const strongestAbundanceSignal =
+    raw.growerGuidance?.explanation?.strongestAbundanceSignal ??
+    raw.growerGuidance?.explanation?.strongest_abundance_signal;
+
+  return {
+    items: raw.items ?? [],
+    signals,
+    freshness: {
+      asOf: raw.freshness.asOf ?? raw.freshness.as_of ?? '',
+      isStale: raw.freshness.isStale ?? raw.freshness.is_stale ?? false,
+      staleFallbackUsed: raw.freshness.staleFallbackUsed ?? raw.freshness.stale_fallback_used ?? false,
+      staleReason: raw.freshness.staleReason ?? raw.freshness.stale_reason ?? null,
+    },
+    aiSummary: raw.aiSummary
+      ? {
+          summaryText: raw.aiSummary.summaryText ?? raw.aiSummary.summary_text ?? '',
+          modelId: raw.aiSummary.modelId ?? raw.aiSummary.model_id ?? '',
+          modelVersion: raw.aiSummary.modelVersion ?? raw.aiSummary.model_version ?? '',
+          generatedAt: raw.aiSummary.generatedAt ?? raw.aiSummary.generated_at ?? '',
+          expiresAt: raw.aiSummary.expiresAt ?? raw.aiSummary.expires_at ?? '',
+          fromCache: raw.aiSummary.fromCache ?? raw.aiSummary.from_cache ?? false,
+        }
+      : null,
+    growerGuidance: raw.growerGuidance
+      ? {
+          guidanceText: raw.growerGuidance.guidanceText ?? raw.growerGuidance.guidance_text ?? '',
+          explanation: {
+            season: raw.growerGuidance.explanation?.season ?? '',
+            strategy: raw.growerGuidance.explanation?.strategy ?? '',
+            windowDays:
+              raw.growerGuidance.explanation?.windowDays ??
+              raw.growerGuidance.explanation?.window_days ??
+              0,
+            sourceSignalCount:
+              raw.growerGuidance.explanation?.sourceSignalCount ??
+              raw.growerGuidance.explanation?.source_signal_count ??
+              0,
+            strongestScarcitySignal: strongestScarcitySignal
+              ? {
+                  geoBoundaryKey: getStringValue(strongestScarcitySignal, 'geoBoundaryKey', 'geo_boundary_key'),
+                  cropId: getNullableStringValue(strongestScarcitySignal, 'cropId', 'crop_id'),
+                  scarcityScore: getNumberValue(strongestScarcitySignal, 'scarcityScore', 'scarcity_score'),
+                  abundanceScore: getNumberValue(strongestScarcitySignal, 'abundanceScore', 'abundance_score'),
+                  listingCount: getNumberValue(strongestScarcitySignal, 'listingCount', 'listing_count'),
+                  requestCount: getNumberValue(strongestScarcitySignal, 'requestCount', 'request_count'),
+                }
+              : null,
+            strongestAbundanceSignal: strongestAbundanceSignal
+              ? {
+                  geoBoundaryKey: getStringValue(strongestAbundanceSignal, 'geoBoundaryKey', 'geo_boundary_key'),
+                  cropId: getNullableStringValue(strongestAbundanceSignal, 'cropId', 'crop_id'),
+                  scarcityScore: getNumberValue(strongestAbundanceSignal, 'scarcityScore', 'scarcity_score'),
+                  abundanceScore: getNumberValue(strongestAbundanceSignal, 'abundanceScore', 'abundance_score'),
+                  listingCount: getNumberValue(strongestAbundanceSignal, 'listingCount', 'listing_count'),
+                  requestCount: getNumberValue(strongestAbundanceSignal, 'requestCount', 'request_count'),
+                }
+              : null,
+          },
+        }
+      : null,
+    limit: raw.limit,
+    offset: raw.offset,
+    hasMore: raw.hasMore ?? raw.has_more ?? false,
+    nextOffset: raw.nextOffset ?? raw.next_offset ?? null,
+  };
+}
+
 export async function listCatalogCrops(): Promise<CatalogCrop[]> {
   const response = await apiFetch<RawCatalogCrop[]>('/catalog/crops');
   return response.map(mapCatalogCrop);
@@ -547,6 +689,29 @@ export async function discoverListings({
     hasMore: response.has_more ?? response.hasMore ?? false,
     nextOffset: response.next_offset ?? response.nextOffset ?? null,
   };
+}
+
+export interface DerivedFeedQuery {
+  geoKey: string;
+  windowDays?: 7 | 14 | 30;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getDerivedFeed({
+  geoKey,
+  windowDays = 7,
+  limit = 20,
+  offset = 0,
+}: DerivedFeedQuery): Promise<DerivedFeedResponse> {
+  const params = new URLSearchParams();
+  params.set('geoKey', geoKey);
+  params.set('windowDays', String(windowDays));
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+
+  const response = await apiFetch<RawDerivedFeedResponse>(`/feed/derived?${params.toString()}`);
+  return mapDerivedFeedResponse(response);
 }
 
 export async function createRequest(

@@ -3,12 +3,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearcherRequestPanel } from './SearcherRequestPanel';
-import { createRequest, discoverListings, listCatalogCrops, updateRequest } from '../../services/api';
+import {
+  createRequest,
+  discoverListings,
+  getDerivedFeed,
+  listCatalogCrops,
+  updateRequest,
+} from '../../services/api';
 import { createClaim, updateClaimStatus } from '../../services/claims';
 
 vi.mock('../../services/api', () => ({
   createRequest: vi.fn(),
   discoverListings: vi.fn(),
+  getDerivedFeed: vi.fn(),
   listCatalogCrops: vi.fn(),
   updateRequest: vi.fn(),
 }));
@@ -20,6 +27,7 @@ vi.mock('../../services/claims', () => ({
 
 const mockCreateRequest = vi.mocked(createRequest);
 const mockDiscoverListings = vi.mocked(discoverListings);
+const mockGetDerivedFeed = vi.mocked(getDerivedFeed);
 const mockListCatalogCrops = vi.mocked(listCatalogCrops);
 const mockUpdateRequest = vi.mocked(updateRequest);
 const mockCreateClaim = vi.mocked(createClaim);
@@ -107,6 +115,30 @@ describe('SearcherRequestPanel', () => {
         },
       ],
       limit: 30,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    mockGetDerivedFeed.mockResolvedValue({
+      items: [],
+      signals: [],
+      freshness: {
+        asOf: '2026-02-20T10:00:00.000Z',
+        isStale: false,
+        staleFallbackUsed: false,
+        staleReason: null,
+      },
+      aiSummary: {
+        summaryText: 'AI summary for local produce trends.',
+        modelId: 'mock-model',
+        modelVersion: 'v1',
+        generatedAt: '2026-02-20T10:05:00.000Z',
+        expiresAt: '2026-02-20T16:05:00.000Z',
+        fromCache: true,
+      },
+      growerGuidance: null,
+      limit: 20,
       offset: 0,
       hasMore: false,
       nextOffset: null,
@@ -387,6 +419,38 @@ describe('SearcherRequestPanel', () => {
           requestId: undefined,
         })
       );
+    });
+  });
+
+  it('shows AI label when AI summary is displayed', async () => {
+    renderPanel();
+
+    const aiSummaryCard = await screen.findByTestId('ai-summary-card');
+    expect(aiSummaryCard).toBeInTheDocument();
+    expect(within(aiSummaryCard).getByText(/ai-assisted/i)).toBeInTheDocument();
+    expect(within(aiSummaryCard).getByText(/ai summary for local produce trends/i)).toBeInTheDocument();
+  });
+
+  it('supports opt-out for AI insights while preserving core listing flow', async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+
+    expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
+
+    const toggle = screen.getByRole('checkbox', { name: /show ai-assisted insights/i });
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(await screen.findByText(/ai insights are off for this account on this device/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /request this item/i }));
+    await user.click(screen.getByRole('button', { name: /create request/i }));
+
+    await waitFor(() => {
+      expect(mockCreateRequest).toHaveBeenCalledTimes(1);
     });
   });
 });

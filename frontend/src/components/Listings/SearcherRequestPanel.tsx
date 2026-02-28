@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   createRequest,
   discoverListings,
+  getDerivedFeed,
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
@@ -30,6 +31,7 @@ import {
 
 const logger = createLogger('searcher-requests');
 const REQUEST_DRAFT_KEY = 'searcher-request-draft-v1';
+const AI_OPT_OUT_KEY_PREFIX = 'ai-insights-opt-out';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface RequestDraft {
@@ -117,6 +119,15 @@ function loadRequestDraft(): RequestDraft {
     };
   } catch {
     return createDefaultDraft();
+  }
+}
+
+function loadAiOptOutPreference(viewerUserId?: string): boolean {
+  try {
+    const storageKey = `${AI_OPT_OUT_KEY_PREFIX}:${viewerUserId ?? 'anonymous'}`;
+    return window.localStorage.getItem(storageKey) === 'true';
+  } catch {
+    return false;
   }
 }
 
@@ -235,6 +246,9 @@ export function SearcherRequestPanel({
   const [selectedCropId, setSelectedCropId] = useState<string>('all');
   const [selectedListingId, setSelectedListingId] = useState<string>('');
   const [draft, setDraft] = useState<RequestDraft>(() => loadRequestDraft());
+  const [aiInsightsOptOut, setAiInsightsOptOut] = useState<boolean>(() =>
+    loadAiOptOutPreference(viewerUserId)
+  );
   const [sessionRequests, setSessionRequests] = useState<RequestItem[]>([]);
   const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims(viewerUserId));
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
@@ -303,6 +317,19 @@ export function SearcherRequestPanel({
   }, [draft]);
 
   useEffect(() => {
+    setAiInsightsOptOut(loadAiOptOutPreference(viewerUserId));
+  }, [viewerUserId]);
+
+  useEffect(() => {
+    try {
+      const storageKey = `${AI_OPT_OUT_KEY_PREFIX}:${viewerUserId ?? 'anonymous'}`;
+      window.localStorage.setItem(storageKey, String(aiInsightsOptOut));
+    } catch {
+      // Ignore localStorage write failures in restricted environments.
+    }
+  }, [aiInsightsOptOut, viewerUserId]);
+
+  useEffect(() => {
     saveSessionClaims(sessionClaims, viewerUserId);
   }, [sessionClaims, viewerUserId]);
 
@@ -326,6 +353,19 @@ export function SearcherRequestPanel({
         offset: 0,
       }),
     enabled: Boolean(gathererGeoKey) && !isOffline,
+    staleTime: 30 * 1000,
+  });
+
+  const derivedFeedQuery = useQuery({
+    queryKey: ['derivedFeed', gathererGeoKey],
+    queryFn: () =>
+      getDerivedFeed({
+        geoKey: gathererGeoKey ?? '',
+        windowDays: 7,
+        limit: 20,
+        offset: 0,
+      }),
+    enabled: Boolean(gathererGeoKey) && !isOffline && !aiInsightsOptOut,
     staleTime: 30 * 1000,
   });
 
@@ -679,6 +719,60 @@ export function SearcherRequestPanel({
             </Button>
           </div>
         </div>
+      </Card>
+
+      <Card className="space-y-4" padding="6">
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h4 className="text-base font-semibold text-neutral-900">AI-assisted insights</h4>
+              <p className="text-sm text-neutral-600">
+                Optional summaries are labeled as AI-assisted and can be turned off any time.
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                checked={!aiInsightsOptOut}
+                onChange={(event) => setAiInsightsOptOut(!event.target.checked)}
+                aria-label="Show AI-assisted insights"
+              />
+              Show AI insights
+            </label>
+          </div>
+
+          <p className="text-xs text-neutral-500">
+            We only show AI-generated summary text when enabled. Core listing and request flows always remain available.
+          </p>
+        </div>
+
+        {aiInsightsOptOut && (
+          <p className="rounded-base border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700" role="status">
+            AI insights are off for this account on this device.
+          </p>
+        )}
+
+        {!aiInsightsOptOut && derivedFeedQuery.isLoading && (
+          <p className="text-sm text-neutral-600" role="status">Loading AI insights...</p>
+        )}
+
+        {!aiInsightsOptOut && derivedFeedQuery.isError && (
+          <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
+            AI insights are temporarily unavailable. You can still discover listings and submit requests.
+          </p>
+        )}
+
+        {!aiInsightsOptOut && derivedFeedQuery.data?.aiSummary && (
+          <div className="rounded-base border border-primary-200 bg-primary-50 px-3 py-3" data-testid="ai-summary-card">
+            <div className="mb-2 inline-flex items-center rounded-full border border-primary-300 bg-white px-2 py-0.5 text-xs font-medium text-primary-700">
+              AI-assisted
+            </div>
+            <p className="text-sm text-neutral-800">{derivedFeedQuery.data.aiSummary.summaryText}</p>
+            <p className="mt-2 text-xs text-neutral-600">
+              Model: {derivedFeedQuery.data.aiSummary.modelId} · Generated {formatDateTime(derivedFeedQuery.data.aiSummary.generatedAt)}
+            </p>
+          </div>
+        )}
       </Card>
 
       <Card className="space-y-4" padding="6">
