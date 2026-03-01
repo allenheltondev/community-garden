@@ -266,29 +266,7 @@ Resources:
               Bool:
                 "aws:SecureTransport": false
 
-  SecurityHeadersPolicy:
-    Type: AWS::CloudFront::ResponseHeadersPolicy
-    Properties:
-      ResponseHeadersPolicyConfig:
-        Name: !Sub "${AWS::StackName}-security-headers"
-        SecurityHeadersConfig:
-          StrictTransportSecurity:
-            AccessControlMaxAgeSec: 63072000
-            IncludeSubdomains: true
-            Override: true
-          ContentTypeOptions:
-            Override: true
-          FrameOptions:
-            FrameOption: DENY
-            Override: true
-          XSSProtection:
-            ModeBlock: true
-            Protection: true
-            Override: true
-          ReferrerPolicy:
-            ReferrerPolicy: strict-origin-when-cross-origin
-            Override: true
-
+  # Using AWS managed ResponseHeadersPolicy instead of stack-managed custom policy.
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -323,7 +301,8 @@ Resources:
             - HEAD
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # Use AWS-managed security headers policy to avoid per-stack policy quota exhaustion.
+          ResponseHeadersPolicyId: "67f7725c-6f97-4210-82d7-5512b31e9d03"
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
