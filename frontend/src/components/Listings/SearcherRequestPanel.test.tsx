@@ -122,7 +122,34 @@ describe('SearcherRequestPanel', () => {
 
     mockGetDerivedFeed.mockResolvedValue({
       items: [],
-      signals: [],
+      signals: [
+        {
+          geoBoundaryKey: '9v6k',
+          cropId: 'crop-1',
+          windowDays: 7,
+          listingCount: 2,
+          requestCount: 8,
+          supplyQuantity: '20',
+          demandQuantity: '80',
+          scarcityScore: 0.92,
+          abundanceScore: 0.18,
+          computedAt: '2026-02-20T10:00:00.000Z',
+          expiresAt: '2026-02-20T16:00:00.000Z',
+        },
+        {
+          geoBoundaryKey: '9v6k',
+          cropId: null,
+          windowDays: 7,
+          listingCount: 12,
+          requestCount: 3,
+          supplyQuantity: '160',
+          demandQuantity: '20',
+          scarcityScore: 0.10,
+          abundanceScore: 0.94,
+          computedAt: '2026-02-20T10:00:00.000Z',
+          expiresAt: '2026-02-20T16:00:00.000Z',
+        },
+      ],
       freshness: {
         asOf: '2026-02-20T10:00:00.000Z',
         isStale: false,
@@ -429,6 +456,11 @@ describe('SearcherRequestPanel', () => {
     expect(aiSummaryCard).toBeInTheDocument();
     expect(within(aiSummaryCard).getByText(/ai-assisted/i)).toBeInTheDocument();
     expect(within(aiSummaryCard).getByText(/ai summary for local produce trends/i)).toBeInTheDocument();
+
+    const marketSnapshot = await screen.findByTestId('market-snapshot-card');
+    expect(marketSnapshot).toBeInTheDocument();
+    expect(within(marketSnapshot).getByText(/likely scarce/i)).toBeInTheDocument();
+    expect(within(marketSnapshot).getByText(/likely abundant/i)).toBeInTheDocument();
   });
 
   it('supports opt-out for AI insights while preserving core listing flow', async () => {

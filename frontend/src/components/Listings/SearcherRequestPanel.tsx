@@ -412,6 +412,22 @@ export function SearcherRequestPanel({
     [filteredListings, selectedListingId]
   );
 
+  const marketSnapshot = useMemo(() => {
+    const signals = derivedFeedQuery.data?.signals ?? [];
+    if (signals.length === 0) {
+      return null;
+    }
+
+    const scarce = [...signals]
+      .sort((left, right) => right.scarcityScore - left.scarcityScore)
+      .slice(0, 3);
+    const abundant = [...signals]
+      .sort((left, right) => right.abundanceScore - left.abundanceScore)
+      .slice(0, 3);
+
+    return { scarce, abundant };
+  }, [derivedFeedQuery.data?.signals]);
+
   const sortedListings = useMemo(() => {
     if (!isFiniteCoordinate(defaultLat) || !isFiniteCoordinate(defaultLng)) {
       return filteredListings;
@@ -771,6 +787,41 @@ export function SearcherRequestPanel({
             <p className="mt-2 text-xs text-neutral-600">
               Model: {derivedFeedQuery.data.aiSummary.modelId} · Generated {formatDateTime(derivedFeedQuery.data.aiSummary.generatedAt)}
             </p>
+          </div>
+        )}
+
+        {!aiInsightsOptOut && marketSnapshot && (
+          <div className="rounded-base border border-neutral-200 bg-white px-3 py-3" data-testid="market-snapshot-card">
+            <h5 className="text-sm font-semibold text-neutral-900">Market snapshot (last 7 days)</h5>
+            <p className="mt-1 text-xs text-neutral-600">
+              Use this as a quick signal: what seems scarce vs abundant near you.
+            </p>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-warning">Likely scarce</p>
+                <ul className="space-y-1 text-sm text-neutral-800">
+                  {marketSnapshot.scarce.map((signal) => (
+                    <li key={`scarce-${signal.geoBoundaryKey}-${signal.cropId ?? 'all'}`} className="flex items-center justify-between gap-3">
+                      <span>{signal.cropId ? (cropNameById.get(signal.cropId) ?? 'Local crop') : 'Mixed crops'}</span>
+                      <span className="text-xs text-neutral-600">scarcity {(signal.scarcityScore * 100).toFixed(0)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-success">Likely abundant</p>
+                <ul className="space-y-1 text-sm text-neutral-800">
+                  {marketSnapshot.abundant.map((signal) => (
+                    <li key={`abundant-${signal.geoBoundaryKey}-${signal.cropId ?? 'all'}`} className="flex items-center justify-between gap-3">
+                      <span>{signal.cropId ? (cropNameById.get(signal.cropId) ?? 'Local crop') : 'Mixed crops'}</span>
+                      <span className="text-xs text-neutral-600">abundance {(signal.abundanceScore * 100).toFixed(0)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         )}
       </Card>
