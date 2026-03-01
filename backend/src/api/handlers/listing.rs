@@ -8,6 +8,7 @@ use aws_sdk_eventbridge::types::PutEventsRequestEntry;
 use chrono::{DateTime, Utc};
 use lambda_http::{Body, Request, Response};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio_postgres::{Client, Row};
 use tracing::{error, info};
 use uuid::Uuid;
@@ -265,6 +266,7 @@ pub async fn get_listing(
     error_response(404, "Listing not found")
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn create_listing(
     request: &Request,
     correlation_id: &str,
@@ -275,6 +277,10 @@ pub async fn create_listing(
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let payload: UpsertListingRequest = parse_json_body(request)?;
+    let idempotency_key = extract_idempotency_key(request);
+    let listing_id = idempotency_key.as_deref().map_or_else(Uuid::new_v4, |key| {
+        derive_deterministic_listing_id(user_id, key)
+    });
 
     let client = db::connect().await?;
     validate_catalog_links(
@@ -299,23 +305,24 @@ pub async fn create_listing(
         },
     )?;
 
-    let row = client
-        .query_one(
+    let inserted_row = client
+        .query_opt(
             "
             insert into surplus_listings
-                (user_id, crop_id, variety_id, title, unit,
+                (id, user_id, crop_id, variety_id, title, unit,
                  quantity_total, quantity_remaining,
                  available_start, available_end, status,
                  pickup_location_text, pickup_address, effective_pickup_address,
                  pickup_disclosure_policy, pickup_notes,
                  contact_pref, geo_key, lat, lng)
             values
-                ($1, $2, $3, $4, $5,
-                 $6, $6,
-                 $7, $8, $9::listing_status,
-                 $10, $11, $12,
-                 $13::pickup_disclosure_policy, $14,
-                 $15::contact_preference, $16, $17, $18)
+                ($1, $2, $3, $4, $5, $6,
+                 $7, $7,
+                 $8, $9, $10::listing_status,
+                 $11, $12, $13,
+                 $14::pickup_disclosure_policy, $15,
+                 $16::contact_preference, $17, $18, $19)
+            on conflict (id) do nothing
             returning id, user_id, crop_id, variety_id, title,
                       quantity_total::text as quantity_total,
                       quantity_remaining::text as quantity_remaining,
@@ -326,6 +333,7 @@ pub async fn create_listing(
                       geo_key, lat, lng, created_at
             ",
             &[
+                &listing_id,
                 &user_id,
                 &normalized.crop_id,
                 &normalized.variety_id,
@@ -349,12 +357,46 @@ pub async fn create_listing(
         .await
         .map_err(|error| db_error(&error))?;
 
-    emit_listing_event_best_effort("listing.created", &row, correlation_id).await;
+    let (row, is_new_row) = if let Some(row) = inserted_row {
+        (row, true)
+    } else {
+        let existing_row = client
+            .query_opt(
+                "
+                select id, user_id, crop_id, variety_id, title,
+                       quantity_total::text as quantity_total,
+                       quantity_remaining::text as quantity_remaining,
+                       unit, available_start, available_end, status::text,
+                       pickup_location_text, pickup_address, effective_pickup_address,
+                       pickup_disclosure_policy::text as pickup_disclosure_policy,
+                       pickup_notes, contact_pref::text as contact_pref,
+                       geo_key, lat, lng, created_at
+                from surplus_listings
+                where id = $1
+                  and user_id = $2
+                  and deleted_at is null
+                ",
+                &[&listing_id, &user_id],
+            )
+            .await
+            .map_err(|error| db_error(&error))?;
+
+        let Some(existing_row) = existing_row else {
+            return error_response(409, "Idempotency key collision with an existing listing");
+        };
+
+        (existing_row, false)
+    };
+
+    if is_new_row {
+        emit_listing_event_best_effort("listing.created", &row, correlation_id).await;
+    }
 
     info!(
         correlation_id = correlation_id,
         user_id = %user_id,
         listing_id = %row.get::<_, Uuid>("id"),
+        idempotency_replay = !is_new_row,
         "Created surplus listing"
     );
 
@@ -833,6 +875,30 @@ pub fn error_response(status: u16, message: &str) -> Result<Response<Body>, lamb
     )
 }
 
+fn extract_idempotency_key(request: &Request) -> Option<String> {
+    request
+        .headers()
+        .get("Idempotency-Key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn derive_deterministic_listing_id(user_id: Uuid, idempotency_key: &str) -> Uuid {
+    let mut hasher = Sha256::new();
+    hasher.update(user_id.as_bytes());
+    hasher.update(b":");
+    hasher.update(idempotency_key.as_bytes());
+
+    let digest = hasher.finalize();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -938,5 +1004,21 @@ mod tests {
         assert_eq!(parsed.status, Some("active".to_string()));
         assert_eq!(parsed.limit, 10);
         assert_eq!(parsed.offset, 20);
+    }
+
+    #[test]
+    fn deterministic_listing_id_is_stable_for_same_key() {
+        let user_id = Uuid::parse_str("0e7ab2f8-9d1b-46b0-9c53-b6053bc90011").unwrap();
+        let id1 = derive_deterministic_listing_id(user_id, "same-key");
+        let id2 = derive_deterministic_listing_id(user_id, "same-key");
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn deterministic_listing_id_differs_for_different_keys() {
+        let user_id = Uuid::parse_str("0e7ab2f8-9d1b-46b0-9c53-b6053bc90011").unwrap();
+        let id1 = derive_deterministic_listing_id(user_id, "key-a");
+        let id2 = derive_deterministic_listing_id(user_id, "key-b");
+        assert_ne!(id1, id2);
     }
 }
