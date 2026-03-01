@@ -266,29 +266,7 @@ Resources:
               Bool:
                 "aws:SecureTransport": false
 
-  SecurityHeadersPolicy:
-    Type: AWS::CloudFront::ResponseHeadersPolicy
-    Properties:
-      ResponseHeadersPolicyConfig:
-        Name: !Sub "${AWS::StackName}-security-headers"
-        SecurityHeadersConfig:
-          StrictTransportSecurity:
-            AccessControlMaxAgeSec: 63072000
-            IncludeSubdomains: true
-            Override: true
-          ContentTypeOptions:
-            Override: true
-          FrameOptions:
-            FrameOption: DENY
-            Override: true
-          XSSProtection:
-            ModeBlock: true
-            Protection: true
-            Override: true
-          ReferrerPolicy:
-            ReferrerPolicy: strict-origin-when-cross-origin
-            Override: true
-
+  # Using AWS managed ResponseHeadersPolicy instead of stack-managed custom policy.
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -323,7 +301,8 @@ Resources:
             - HEAD
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # Use AWS-managed security headers policy to avoid per-stack policy quota exhaustion.
+          ResponseHeadersPolicyId: "67f7725c-6f97-4210-82d7-5512b31e9d03"
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -489,6 +468,124 @@ Resources:
                 - claim.created
                 - claim.updated
 
+  ApiFunctionErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-api-errors"
+      AlarmDescription: "API Lambda is returning errors"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  RollingWorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-rolling-worker-errors"
+      AlarmDescription: "Rolling aggregation worker is erroring"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RollingGeoAggregationWorkerFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 2
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  RollingWorkerDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-rolling-worker-duration-p95"
+      AlarmDescription: "Rolling worker p95 duration is elevated"
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RollingGeoAggregationWorkerFunction
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 2
+      Threshold: 10000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  DerivedHealthDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-derived-health"
+      DashboardBody: !Sub |
+        {
+          "start": "-PT6H",
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "API Health (Errors/Latency)",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "metrics": [
+                  ["AWS/Lambda", "Errors", "FunctionName", "${ApiFunction}"],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${ApiFunction}", {"stat": "p95"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${ApiFunction}"]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Rolling Worker Health",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${RollingGeoAggregationWorkerFunction}"],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${RollingGeoAggregationWorkerFunction}"],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${RollingGeoAggregationWorkerFunction}", {"stat": "p95"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${RollingGeoAggregationWorkerFunction}"]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "title": "Derived Freshness / Lag (App Metrics)",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "metrics": [
+                  ["CommunityGarden/Derived", "ProcessingLagSeconds"],
+                  ["CommunityGarden/Derived", "FreshnessAgeSeconds"],
+                  ["CommunityGarden/Derived", "ReplayScopesProcessed"],
+                  ["CommunityGarden/Derived", "ReplayFailures"]
+                ]
+              }
+            }
+          ]
+        }
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
@@ -540,3 +637,9 @@ Outputs:
     Value: !Ref FrontendDistribution
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  DerivedHealthDashboardName:
+    Description: CloudWatch dashboard name for derived pipeline health
+    Value: !Ref DerivedHealthDashboard
+    Export:
+      Name: !Sub "${AWS::StackName}-DerivedHealthDashboardName"
