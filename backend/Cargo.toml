@@ -65,6 +65,10 @@ path = "src/api/main.rs"
 name = "rolling-geo-aggregation-worker"
 path = "src/workers/rolling_geo_aggregation.rs"
 
+[[bin]]
+name = "derived-pipeline-replay"
+path = "src/workers/derived_pipeline_replay.rs"
+
 [workspace.dependencies]
 lambda_runtime = "0.13"
 lambda_http = "0.13"
