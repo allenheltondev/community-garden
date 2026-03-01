@@ -129,6 +129,9 @@ jobs:
           VITE_FRONTEND_URL: https://placeholder.cloudfront.net
           VITE_AWS_REGION: us-east-1
 
+      - name: Performance budget check
+        run: npm run perf:budget
+
   summary:
     name: All Checks Passed
     runs-on: ubuntu-latest

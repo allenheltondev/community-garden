@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "perf:budget": "node scripts/check-performance-budget.mjs"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.0",

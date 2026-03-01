@@ -58,7 +58,7 @@ describe('App', () => {
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
-  it('shows login page when not authenticated', () => {
+  it('shows login page when not authenticated', async () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
@@ -72,11 +72,11 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
   });
 
-  it('shows profile view when authenticated', () => {
+  it('shows profile view when authenticated', async () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -108,7 +108,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/profile view/i)).toBeInTheDocument();
+    expect(await screen.findByText(/profile view/i)).toBeInTheDocument();
   });
 
   it('navigates to signup page', async () => {
@@ -126,11 +126,11 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /sign up/i }));
 
-    expect(screen.getByText(/already have an account/i)).toBeInTheDocument();
+    expect(await screen.findByText(/already have an account/i)).toBeInTheDocument();
   });
 
   it('navigates to forgot password page', async () => {
@@ -148,11 +148,11 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /forgot your password/i }));
 
-    expect(screen.getByText(/we'll help you get back into your account/i)).toBeInTheDocument();
+    expect(await screen.findByText(/we'll help you get back into your account/i)).toBeInTheDocument();
   });
 
   it('navigates back to login from signup', async () => {
@@ -172,11 +172,11 @@ describe('App', () => {
 
     // Navigate to signup
     await user.click(screen.getByRole('button', { name: /sign up/i }));
-    expect(screen.getByText(/already have an account/i)).toBeInTheDocument();
+    expect(await screen.findByText(/already have an account/i)).toBeInTheDocument();
 
     // Navigate back to login
     await user.click(screen.getByRole('button', { name: /sign in/i }));
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
   });
 
   it('navigates back to login from forgot password', async () => {
@@ -200,10 +200,10 @@ describe('App', () => {
 
     // Navigate back to login
     await user.click(screen.getByRole('button', { name: /back to login/i }));
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
   });
 
-  it('prevents access to protected content when not authenticated', () => {
+  it('prevents access to protected content when not authenticated', async () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
@@ -218,11 +218,11 @@ describe('App', () => {
     render(<App />);
 
     // Should show login page, not profile
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
     expect(screen.queryByText(/profile view/i)).not.toBeInTheDocument();
   });
 
-  it('transitions from unauthenticated to authenticated', () => {
+  it('transitions from unauthenticated to authenticated', async () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
@@ -236,7 +236,7 @@ describe('App', () => {
 
     const { rerender } = render(<App />);
 
-    expect(screen.getByText(/good roots network/i)).toBeInTheDocument();
+    expect(await screen.findByText(/good roots network/i)).toBeInTheDocument();
 
     // Simulate successful authentication
     mockUseAuth.mockReturnValue({
@@ -271,8 +271,12 @@ describe('App', () => {
     rerender(<App />);
 
     expect(screen.queryByText(/good roots network/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/profile view/i)).toBeInTheDocument();
+    expect(await screen.findByText(/profile view/i)).toBeInTheDocument();
   });
 });
+
+
+
+
 
 
