@@ -309,6 +309,9 @@ create index if not exists idx_surplus_listings_geo on surplus_listings(geo_key)
 create index if not exists idx_surplus_listings_status on surplus_listings(status);
 create index if not exists idx_surplus_listings_user on surplus_listings(user_id);
 create index if not exists idx_surplus_listings_available on surplus_listings(available_start, available_end);
+create index if not exists idx_surplus_listings_active_geo_created_crop
+  on surplus_listings (geo_key text_pattern_ops, created_at desc, crop_id)
+  where deleted_at is null and status in ('active', 'pending', 'claimed');
 
 -- Listing images
 create table if not exists listing_images (
@@ -353,6 +356,9 @@ create table if not exists requests (
 create index if not exists idx_requests_geo on requests(geo_key);
 create index if not exists idx_requests_status on requests(status);
 create index if not exists idx_requests_user on requests(user_id);
+create index if not exists idx_requests_open_geo_created_crop
+  on requests (geo_key text_pattern_ops, created_at desc, crop_id)
+  where deleted_at is null and status = 'open';
 
 -- ============================
 -- CLAIMS
