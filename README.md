@@ -163,6 +163,17 @@ The CI/CD pipeline handles:
 
 See [CI/CD Quick Reference](./docs/ci-cd-quick-reference.md) for common operations.
 
+### API Idempotency Contract (Phase 5)
+
+Write endpoints support retry-safe behavior using the `Idempotency-Key` request header.
+
+- Reusing the same key for the same authenticated user replays the original successful write response.
+- Reusing the same key for a *different* payload that hashes to an existing record owned by another user returns a conflict.
+- Current coverage:
+  - `POST /requests`
+  - `POST /listings`
+- Clients should generate a stable UUID-like key per user action attempt and reuse it across retries/timeouts.
+
 ### Quick Start (Manual Deployment)
 
 1. **Clone the repository**
