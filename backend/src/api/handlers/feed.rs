@@ -2,6 +2,7 @@ use crate::ai::{SummaryArtifact, SummaryGenerator};
 use crate::auth::extract_auth_context;
 use crate::db;
 use crate::location;
+use crate::middleware::entitlements;
 use crate::models::feed::{
     DerivedFeedAiSummary, DerivedFeedFreshness, DerivedFeedResponse, DerivedFeedSignal,
     GrowerGuidance, GrowerGuidanceExplanation, GrowerGuidanceSignalRef,
@@ -31,6 +32,8 @@ pub async fn get_derived_feed(
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context(request)?;
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
     let query = parse_derived_feed_query(request.uri().query())?;
     let geo_prefix = derive_geo_prefix(&query.geo_key);
     let geo_pattern = format!("{geo_prefix}%");
@@ -153,12 +156,19 @@ pub async fn get_derived_feed(
 
     let grower_guidance = build_deterministic_grower_guidance(&signals, query.window_days, as_of);
 
-    let ai_summary = load_or_generate_ai_summary(&client, &geo_prefix, query.window_days, &signals)
+    let ai_summary = if entitlements::require_entitlement(&client, user_id, "ai.feed_insights.read")
         .await
-        .unwrap_or_else(|error| {
-            tracing::warn!(error = %error, "AI summary generation failed; degrading gracefully");
-            None
-        });
+        .is_ok()
+    {
+        load_or_generate_ai_summary(&client, &geo_prefix, query.window_days, &signals)
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(error = %error, "AI summary generation failed; degrading gracefully");
+                None
+            })
+    } else {
+        None
+    };
 
     let response = DerivedFeedResponse {
         items,
