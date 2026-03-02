@@ -3,6 +3,7 @@ use crate::db;
 use lambda_http::{Body, Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::Sha256;
 use std::collections::HashMap;
 use std::env;
 use uuid::Uuid;
@@ -95,10 +96,22 @@ pub async fn handle_webhook(
     request: &Request,
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    let event: Value = parse_json_body(request)?;
+    let raw_body = extract_raw_body(request)?;
+    verify_stripe_signature(request, &raw_body)?;
+
+    let event: Value = serde_json::from_str(&raw_body)
+        .map_err(|e| lambda_http::Error::from(format!("Invalid JSON body: {e}")))?;
+    let event_id = event
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| lambda_http::Error::from("Stripe event missing id"))?;
     let event_type = event
         .get("type")
         .and_then(Value::as_str)
+        .unwrap_or_default();
+    let event_created = event
+        .get("created")
+        .and_then(Value::as_i64)
         .unwrap_or_default();
 
     let object = event
@@ -108,52 +121,37 @@ pub async fn handle_webhook(
 
     let client = db::connect().await?;
 
-    match event_type {
-        "checkout.session.completed" => {
-            if let Some(user_id) = extract_user_id_from_object(object) {
-                let stripe_customer_id = object.get("customer").and_then(Value::as_str);
-                let stripe_subscription_id = object.get("subscription").and_then(Value::as_str);
+    let inserted = client
+        .execute(
+            "
+            insert into stripe_webhook_events (id, event_type, created_unix)
+            values ($1, $2, $3)
+            on conflict (id) do nothing
+            ",
+            &[&event_id, &event_type, &event_created],
+        )
+        .await
+        .map_err(|e| db_error(&e))?;
 
-                client
-                    .execute(
-                        "
-                        update users
-                           set tier = 'premium',
-                               subscription_status = 'active',
-                               stripe_customer_id = coalesce($2, stripe_customer_id),
-                               stripe_subscription_id = coalesce($3, stripe_subscription_id),
-                               updated_at = now()
-                         where id = $1 and deleted_at is null
-                        ",
-                        &[&user_id, &stripe_customer_id, &stripe_subscription_id],
-                    )
-                    .await
-                    .map_err(|e| db_error(&e))?;
-            }
+    if inserted == 0 {
+        tracing::info!(
+            correlation_id = correlation_id,
+            event_id,
+            event_type,
+            "Duplicate Stripe webhook event ignored"
+        );
+        return json_response(
+            200,
+            &serde_json::json!({"received": true, "duplicate": true}),
+        );
+    }
+
+    let result = match event_type {
+        "checkout.session.completed" => {
+            apply_checkout_session_completed(&client, object, event_created).await
         }
         "customer.subscription.deleted" | "customer.subscription.updated" => {
-            let stripe_subscription_id = object.get("id").and_then(Value::as_str);
-            let status = object
-                .get("status")
-                .and_then(Value::as_str)
-                .unwrap_or("canceled");
-
-            if let Some(subscription_id) = stripe_subscription_id {
-                let (tier, sub_status) = map_subscription_status(status);
-                client
-                    .execute(
-                        "
-                        update users
-                           set tier = $2,
-                               subscription_status = $3,
-                               updated_at = now()
-                         where stripe_subscription_id = $1
-                        ",
-                        &[&subscription_id, &tier, &sub_status],
-                    )
-                    .await
-                    .map_err(|e| db_error(&e))?;
-            }
+            apply_subscription_update(&client, object, event_created).await
         }
         _ => {
             tracing::info!(
@@ -161,10 +159,91 @@ pub async fn handle_webhook(
                 event_type,
                 "Ignoring unsupported Stripe webhook event"
             );
+            Ok(())
         }
+    };
+
+    if let Err(err) = result {
+        let payload_text = serde_json::to_string(&event).unwrap_or_default();
+        let _ = client
+            .execute(
+                "
+                insert into stripe_webhook_failures (event_id, event_type, reason, payload)
+                values ($1, $2, $3, $4::jsonb)
+                ",
+                &[&event_id, &event_type, &err, &payload_text],
+            )
+            .await;
+
+        return Err(lambda_http::Error::from(format!(
+            "Stripe webhook processing failed: {err}"
+        )));
     }
 
     json_response(200, &serde_json::json!({"received": true}))
+}
+
+async fn apply_checkout_session_completed(
+    client: &tokio_postgres::Client,
+    object: &Value,
+    event_created: i64,
+) -> Result<(), String> {
+    if let Some(user_id) = extract_user_id_from_object(object) {
+        let stripe_customer_id = object.get("customer").and_then(Value::as_str);
+        let stripe_subscription_id = object.get("subscription").and_then(Value::as_str);
+
+        client
+            .execute(
+                "
+                update users
+                   set tier = 'premium',
+                       subscription_status = 'active',
+                       stripe_customer_id = coalesce($2, stripe_customer_id),
+                       stripe_subscription_id = coalesce($3, stripe_subscription_id),
+                       stripe_last_event_created = greatest(coalesce(stripe_last_event_created, 0), $4),
+                       updated_at = now()
+                 where id = $1 and deleted_at is null
+                ",
+                &[&user_id, &stripe_customer_id, &stripe_subscription_id, &event_created],
+            )
+            .await
+            .map_err(|e| format!("Failed to apply checkout completion: {e}"))?;
+    }
+
+    Ok(())
+}
+
+async fn apply_subscription_update(
+    client: &tokio_postgres::Client,
+    object: &Value,
+    event_created: i64,
+) -> Result<(), String> {
+    let stripe_subscription_id = object.get("id").and_then(Value::as_str);
+    let status = object
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("canceled");
+
+    if let Some(subscription_id) = stripe_subscription_id {
+        let (tier, sub_status) = map_subscription_status(status);
+        client
+            .execute(
+                "
+                update users
+                   set tier = $2,
+                       subscription_status = $3,
+                       stripe_last_event_created = greatest(coalesce(stripe_last_event_created, 0), $4),
+                       updated_at = now()
+                 where stripe_subscription_id = $1
+                   and coalesce(stripe_last_event_created, 0) <= $4
+                ",
+                &[&subscription_id, &tier, &sub_status, &event_created],
+            )
+            .await
+            .map_err(|e| format!("Failed to apply subscription update: {e}"))?;
+    }
+
+    Ok(())
 }
 
 fn extract_user_id_from_object(object: &Value) -> Option<Uuid> {
@@ -180,7 +259,75 @@ fn map_subscription_status(status: &str) -> (&'static str, &'static str) {
     match status {
         "active" | "trialing" => ("premium", "active"),
         "past_due" => ("premium", "past_due"),
+        "incomplete" | "incomplete_expired" => ("free", "none"),
         _ => ("free", "canceled"),
+    }
+}
+
+fn extract_raw_body(request: &Request) -> Result<String, lambda_http::Error> {
+    match request.body() {
+        Body::Text(text) => Ok(text.clone()),
+        Body::Binary(bytes) => String::from_utf8(bytes.clone())
+            .map_err(|e| lambda_http::Error::from(format!("Invalid UTF-8 body: {e}"))),
+        Body::Empty => Err(lambda_http::Error::from(
+            "Request body is required".to_string(),
+        )),
+    }
+}
+
+fn verify_stripe_signature(request: &Request, body: &str) -> Result<(), lambda_http::Error> {
+    let secret = env::var("STRIPE_WEBHOOK_SECRET")
+        .map_err(|_| lambda_http::Error::from("STRIPE_WEBHOOK_SECRET is not configured"))?;
+    let signature_header = request
+        .headers()
+        .get("Stripe-Signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| lambda_http::Error::from("Missing Stripe-Signature header"))?;
+
+    verify_signature_with_secret(&secret, signature_header, body)
+}
+
+fn verify_signature_with_secret(
+    secret: &str,
+    signature_header: &str,
+    body: &str,
+) -> Result<(), lambda_http::Error> {
+    type HmacSha256 = hmac::Hmac<Sha256>;
+    use hmac::Mac;
+
+    let mut timestamp: Option<String> = None;
+    let mut candidate_signatures: Vec<String> = Vec::new();
+
+    for piece in signature_header.split(',') {
+        if let Some((k, v)) = piece.split_once('=') {
+            match k.trim() {
+                "t" => timestamp = Some(v.trim().to_string()),
+                "v1" => candidate_signatures.push(v.trim().to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    let ts =
+        timestamp.ok_or_else(|| lambda_http::Error::from("Stripe signature missing timestamp"))?;
+    if candidate_signatures.is_empty() {
+        return Err(lambda_http::Error::from(
+            "Stripe signature missing v1 digest".to_string(),
+        ));
+    }
+
+    let signed_payload = format!("{ts}.{body}");
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| lambda_http::Error::from("Invalid webhook secret"))?;
+    mac.update(signed_payload.as_bytes());
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    if candidate_signatures.iter().any(|sig| sig == &expected) {
+        Ok(())
+    } else {
+        Err(lambda_http::Error::from(
+            "Invalid Stripe signature".to_string(),
+        ))
     }
 }
 
@@ -270,5 +417,46 @@ mod tests {
 
         assert_eq!(extract_user_id_from_object(&missing), None);
         assert_eq!(extract_user_id_from_object(&invalid), None);
+    }
+
+    #[test]
+    fn map_subscription_status_incomplete_maps_to_free_none() {
+        let (tier, status) = map_subscription_status("incomplete");
+        assert_eq!(tier, "free");
+        assert_eq!(status, "none");
+    }
+
+    #[test]
+    fn map_subscription_status_unpaid_maps_to_free_canceled() {
+        let (tier, status) = map_subscription_status("unpaid");
+        assert_eq!(tier, "free");
+        assert_eq!(status, "canceled");
+    }
+
+    #[test]
+    fn verify_signature_accepts_valid_hmac() {
+        use hmac::Mac;
+        type HmacSha256 = hmac::Hmac<Sha256>;
+
+        let secret = "whsec_test";
+        let body = "{\"id\":\"evt_1\"}";
+        let timestamp = "1700000000";
+        let signed_payload = format!("{timestamp}.{body}");
+
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+        mac.update(signed_payload.as_bytes());
+        let digest = hex::encode(mac.finalize().into_bytes());
+        let header = format!("t={timestamp},v1={digest}");
+
+        assert!(verify_signature_with_secret(secret, &header, body).is_ok());
+    }
+
+    #[test]
+    fn verify_signature_rejects_invalid_hmac() {
+        let secret = "whsec_test";
+        let body = "{\"id\":\"evt_1\"}";
+        let err =
+            verify_signature_with_secret(secret, "t=1700000000,v1=deadbeef", body).unwrap_err();
+        assert!(err.to_string().contains("Invalid Stripe signature"));
     }
 }

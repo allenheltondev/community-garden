@@ -75,6 +75,7 @@ create table if not exists users (
   premium_expires_at timestamptz,
   stripe_customer_id text,
   stripe_subscription_id text,
+  stripe_last_event_created bigint,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
@@ -90,6 +91,25 @@ create unique index if not exists idx_users_stripe_customer_id
 create unique index if not exists idx_users_stripe_subscription_id
   on users(stripe_subscription_id)
   where stripe_subscription_id is not null;
+
+create table if not exists stripe_webhook_events (
+  id text primary key,
+  event_type text not null,
+  created_unix bigint not null,
+  processed_at timestamptz not null default now()
+);
+
+create table if not exists stripe_webhook_failures (
+  id bigserial primary key,
+  event_id text,
+  event_type text,
+  reason text not null,
+  payload jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_stripe_webhook_failures_created_at
+  on stripe_webhook_failures(created_at desc);
 
 -- Cached rating summary (derived, but stored)
 create table if not exists user_rating_summary (
