@@ -520,4 +520,8 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
 
+  PremiumStackDeploymentMode:
+    Description: Indicates whether premium nested stack deployment is enabled
+    Value: !If [DeployPremiumStack, "enabled", "disabled"]
+
 

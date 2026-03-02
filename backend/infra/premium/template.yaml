@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Premium feature isolated resources (nested stack)
+
+Parameters:
+  ParentStackName:
+    Type: String
+  EventBusArn:
+    Type: String
+
+Resources:
+  PremiumAgentTaskDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ParentStackName}-premium-agent-dlq"
+      MessageRetentionPeriod: 1209600
+
+  PremiumAgentTaskQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ParentStackName}-premium-agent-queue"
+      VisibilityTimeout: 120
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PremiumAgentTaskDlq.Arn
+        maxReceiveCount: 5
+
+  PremiumEventArchive:
+    Type: AWS::Events::Archive
+    Properties:
+      ArchiveName: !Sub "${ParentStackName}-premium-events"
+      EventSourceArn: !Ref EventBusArn
+      Description: Premium workflow event archive for replay/recovery
+      RetentionDays: 30
+
+Outputs:
+  PremiumAgentTaskQueueUrl:
+    Value: !Ref PremiumAgentTaskQueue
+  PremiumAgentTaskQueueArn:
+    Value: !GetAtt PremiumAgentTaskQueue.Arn
