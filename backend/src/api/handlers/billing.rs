@@ -215,3 +215,60 @@ fn json_response<T: Serialize>(
 fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn map_subscription_status_active_maps_to_premium_active() {
+        let (tier, status) = map_subscription_status("active");
+        assert_eq!(tier, "premium");
+        assert_eq!(status, "active");
+    }
+
+    #[test]
+    fn map_subscription_status_trialing_maps_to_premium_active() {
+        let (tier, status) = map_subscription_status("trialing");
+        assert_eq!(tier, "premium");
+        assert_eq!(status, "active");
+    }
+
+    #[test]
+    fn map_subscription_status_past_due_maps_to_premium_past_due() {
+        let (tier, status) = map_subscription_status("past_due");
+        assert_eq!(tier, "premium");
+        assert_eq!(status, "past_due");
+    }
+
+    #[test]
+    fn map_subscription_status_canceled_maps_to_free_canceled() {
+        let (tier, status) = map_subscription_status("canceled");
+        assert_eq!(tier, "free");
+        assert_eq!(status, "canceled");
+    }
+
+    #[test]
+    fn extract_user_id_from_object_uses_metadata_user_id() {
+        let user_id = Uuid::new_v4();
+        let payload = json!({
+            "metadata": {
+                "user_id": user_id.to_string()
+            }
+        });
+
+        let parsed = extract_user_id_from_object(&payload);
+        assert_eq!(parsed, Some(user_id));
+    }
+
+    #[test]
+    fn extract_user_id_from_object_returns_none_for_missing_or_invalid_values() {
+        let missing = json!({});
+        let invalid = json!({"metadata": {"user_id": "not-a-uuid"}});
+
+        assert_eq!(extract_user_id_from_object(&missing), None);
+        assert_eq!(extract_user_id_from_object(&invalid), None);
+    }
+}
