@@ -1,3 +1,4 @@
+use crate::ai_model_config;
 use crate::auth::extract_auth_context;
 use crate::db;
 use crate::middleware::{ai_guardrails, entitlements};
@@ -82,10 +83,9 @@ pub async fn generate_weekly_plan(
 
     let recommendations = build_recommendations(&rows);
 
-    let model_id = std::env::var("BEDROCK_MODEL_PRIMARY")
-        .or_else(|_| std::env::var("BEDROCK_MODEL_ID"))
-        .unwrap_or_else(|_| "amazon.nova-lite-v1:0".to_string());
-    let model_version = std::env::var("BEDROCK_MODEL_VERSION").unwrap_or_else(|_| "v1".to_string());
+    let model_cfg = ai_model_config::load_model_config();
+    let model_id = model_cfg.model_id.clone();
+    let model_version = format!("{}-{}", model_cfg.response_mode, model_cfg.schema_version);
 
     let guardrails = ai_guardrails::enforce_and_record(
         &client,
