@@ -1,5 +1,6 @@
 use crate::db;
 use crate::location;
+use crate::middleware::entitlements;
 use crate::models::crop::ErrorResponse;
 use crate::models::profile::{
     GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, SubscriptionMetadata,
@@ -163,6 +164,16 @@ pub async fn upsert_current_user(
     }
 
     json_response(200, &to_me_response(&client, user_row).await?)
+}
+
+pub async fn get_current_entitlements(
+    request: &Request,
+    correlation_id: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    let user_id = extract_user_id(request, correlation_id)?;
+    let client = db::connect().await?;
+    let snapshot = entitlements::get_entitlements_snapshot(&client, user_id).await?;
+    json_response(200, &snapshot)
 }
 
 pub async fn get_public_user(user_id: &str) -> Result<Response<Body>, lambda_http::Error> {

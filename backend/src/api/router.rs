@@ -54,6 +54,9 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
     let response = match (event.method().as_str(), event.uri().path()) {
         ("GET", "/me") => handle(user::get_current_user(event, &correlation_id).await)?,
         ("PUT", "/me") => handle(user::upsert_current_user(event, &correlation_id).await)?,
+        ("GET", "/me/entitlements") => {
+            handle(user::get_current_entitlements(event, &correlation_id).await)?
+        }
 
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
