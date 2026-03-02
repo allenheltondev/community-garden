@@ -41,6 +41,14 @@ pub struct UserRatingSummary {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SubscriptionMetadata {
+    pub tier: String,
+    pub subscription_status: String,
+    pub premium_expires_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MeProfileResponse {
     pub id: String,
     pub email: Option<String>,
@@ -49,6 +57,7 @@ pub struct MeProfileResponse {
     pub user_type: Option<UserType>,
     pub onboarding_completed: bool,
     pub created_at: String,
+    pub subscription: SubscriptionMetadata,
     pub grower_profile: Option<GrowerProfile>,
     pub gatherer_profile: Option<GathererProfile>,
     pub rating_summary: Option<UserRatingSummary>,
