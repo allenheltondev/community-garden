@@ -745,6 +745,21 @@ export interface CreateReminderRequest {
   timezone?: string;
 }
 
+export interface WeeklyPlanRecommendation {
+  recommendation: string;
+  confidence: number;
+  rationale: string[];
+}
+
+export interface WeeklyPlanResponse {
+  modelId: string;
+  modelVersion: string;
+  structuredJson: boolean;
+  geoKey: string;
+  windowDays: number;
+  recommendations: WeeklyPlanRecommendation[];
+}
+
 export async function getDerivedFeed({
   geoKey,
   windowDays = 7,
@@ -792,6 +807,13 @@ export async function updateReminderStatus(
   return apiFetch<ReminderItem>(`/reminders/${encodeURIComponent(reminderId)}`, {
     method: 'PUT',
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function getWeeklyGrowPlan(geoKey: string, windowDays = 7): Promise<WeeklyPlanResponse> {
+  return apiFetch<WeeklyPlanResponse>('/ai/copilot/weekly-plan', {
+    method: 'POST',
+    body: JSON.stringify({ geoKey, windowDays }),
   });
 }
 
