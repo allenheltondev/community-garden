@@ -1,6 +1,6 @@
 use crate::handlers::{
-    ai_copilot, billing, catalog, claim, claim_read, crop, feed, listing, listing_discovery,
-    reminder, request, user,
+    agent_task, ai_copilot, billing, catalog, claim, claim_read, crop, feed, listing,
+    listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -68,6 +68,13 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 
         ("POST", "/ai/copilot/weekly-plan") => {
             handle(ai_copilot::generate_weekly_plan(event, &correlation_id).await)?
+        }
+
+        ("GET", "/agent-tasks") => {
+            handle(agent_task::list_agent_tasks(event, &correlation_id).await)?
+        }
+        ("POST", "/agent-tasks") => {
+            handle(agent_task::create_agent_task(event, &correlation_id).await)?
         }
 
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
@@ -145,6 +152,14 @@ async fn route_dynamic_routes(
     if let Some(reminder_id) = event.uri().path().strip_prefix("/reminders/") {
         let result = match event.method().as_str() {
             "PUT" => reminder::update_reminder_status(event, correlation_id, reminder_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
+    if let Some(task_id) = event.uri().path().strip_prefix("/agent-tasks/") {
+        let result = match event.method().as_str() {
+            "PUT" => agent_task::update_agent_task_status(event, correlation_id, task_id).await,
             _ => method_not_allowed(),
         };
         return handle(result);
