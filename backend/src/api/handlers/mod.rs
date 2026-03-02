@@ -1,3 +1,4 @@
+pub mod billing;
 pub mod catalog;
 pub mod claim;
 pub mod claim_read;

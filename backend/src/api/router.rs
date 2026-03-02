@@ -1,5 +1,5 @@
 use crate::handlers::{
-    catalog, claim, claim_read, crop, feed, listing, listing_discovery, request, user,
+    billing, catalog, claim, claim_read, crop, feed, listing, listing_discovery, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -19,7 +19,7 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     if let Ok(value) = "GET,POST,PUT,DELETE,OPTIONS".parse() {
         headers.insert("Access-Control-Allow-Methods", value);
     }
-    if let Ok(value) = "Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token".parse() {
+    if let Ok(value) = "Content-Type,Authorization,Idempotency-Key,Stripe-Signature,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token".parse() {
         headers.insert("Access-Control-Allow-Headers", value);
     }
     if let Ok(value) = "3600".parse() {
@@ -56,6 +56,13 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("PUT", "/me") => handle(user::upsert_current_user(event, &correlation_id).await)?,
         ("GET", "/me/entitlements") => {
             handle(user::get_current_entitlements(event, &correlation_id).await)?
+        }
+
+        ("POST", "/billing/checkout-session") => {
+            handle(billing::create_checkout_session(event, &correlation_id).await)?
+        }
+        ("POST", "/billing/webhook") => {
+            handle(billing::handle_webhook(event, &correlation_id).await)?
         }
 
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
