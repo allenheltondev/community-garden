@@ -1,4 +1,5 @@
 use crate::ai::{SummaryArtifact, SummaryGenerator};
+use crate::ai_model_config;
 use crate::auth::extract_auth_context;
 use crate::db;
 use crate::location;
@@ -160,9 +161,7 @@ pub async fn get_derived_feed(
         .await
         .is_ok()
     {
-        let model_id = std::env::var("BEDROCK_MODEL_PRIMARY")
-            .or_else(|_| std::env::var("BEDROCK_MODEL_ID"))
-            .unwrap_or_else(|_| "amazon.nova-lite-v1:0".to_string());
+        let model_id = ai_model_config::load_model_config().model_id;
 
         let guardrails =
             ai_guardrails::enforce_and_record(&client, user_id, "ai.feed_insights.read", &model_id)

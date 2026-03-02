@@ -1,3 +1,4 @@
+use crate::ai_model_config;
 use crate::models::feed::DerivedFeedSignal;
 use chrono::{Duration, Utc};
 
@@ -103,11 +104,12 @@ fn bedrock_generate(
         signals.len()
     );
 
+    let model_cfg = ai_model_config::load_model_config();
+
     Ok(SummaryArtifact {
         summary_text,
-        model_id: std::env::var("BEDROCK_MODEL_ID")
-            .unwrap_or_else(|_| "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string()),
-        model_version: "bedrock-configured".to_string(),
+        model_id: model_cfg.model_id,
+        model_version: format!("{}-{}", model_cfg.response_mode, model_cfg.schema_version),
         generated_at,
         expires_at: generated_at + Duration::hours(6),
     })
