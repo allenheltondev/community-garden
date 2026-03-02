@@ -2,7 +2,8 @@ use crate::db;
 use crate::location;
 use crate::models::crop::ErrorResponse;
 use crate::models::profile::{
-    GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, UserRatingSummary, UserType,
+    GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, SubscriptionMetadata,
+    UserRatingSummary, UserType,
 };
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::Serialize;
@@ -21,7 +22,7 @@ pub async fn get_current_user(
 
     let user_row = client
         .query_opt(
-            "select id, email::text as email, display_name, is_verified, user_type, onboarding_completed, created_at from users where id = $1 and deleted_at is null",
+            "select id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at from users where id = $1 and deleted_at is null",
             &[&user_id],
         )
         .await
@@ -65,8 +66,9 @@ pub async fn upsert_current_user(
                 onboarding_completed = case
                     when excluded.onboarding_completed = true then true
                     else users.onboarding_completed
-                end
-            returning id, email::text as email, display_name, is_verified, user_type, onboarding_completed, created_at
+                end,
+                updated_at = now()
+            returning id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at
             ",
             &[
                 &user_id,
@@ -333,6 +335,13 @@ async fn to_me_response(
         created_at: user_row
             .get::<_, chrono::DateTime<chrono::Utc>>("created_at")
             .to_rfc3339(),
+        subscription: SubscriptionMetadata {
+            tier: user_row.get("tier"),
+            subscription_status: user_row.get("subscription_status"),
+            premium_expires_at: user_row
+                .get::<_, Option<chrono::DateTime<chrono::Utc>>>("premium_expires_at")
+                .map(|v| v.to_rfc3339()),
+        },
         grower_profile: load_grower_profile(client, user_id).await?,
         gatherer_profile: load_gatherer_profile(client, user_id).await?,
         rating_summary: load_rating_summary(client, user_id).await?,
