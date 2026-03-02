@@ -73,6 +73,8 @@ create table if not exists users (
   tier text not null default 'free' check (tier in ('free', 'premium')),
   subscription_status text not null default 'none' check (subscription_status in ('none', 'trialing', 'active', 'past_due', 'canceled')),
   premium_expires_at timestamptz,
+  stripe_customer_id text,
+  stripe_subscription_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
@@ -82,6 +84,12 @@ create index if not exists idx_users_deleted_at on users(deleted_at);
 create index if not exists idx_users_user_type on users(user_type) where user_type is not null;
 create index if not exists idx_users_tier on users(tier);
 create index if not exists idx_users_subscription_status on users(subscription_status);
+create unique index if not exists idx_users_stripe_customer_id
+  on users(stripe_customer_id)
+  where stripe_customer_id is not null;
+create unique index if not exists idx_users_stripe_subscription_id
+  on users(stripe_subscription_id)
+  where stripe_subscription_id is not null;
 
 -- Cached rating summary (derived, but stored)
 create table if not exists user_rating_summary (
