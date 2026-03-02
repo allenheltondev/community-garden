@@ -9,6 +9,7 @@ import {
   discoverListings,
   getDerivedFeed,
   getEntitlements,
+  getWeeklyGrowPlan,
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
@@ -20,6 +21,7 @@ vi.mock('../../services/api', () => ({
   discoverListings: vi.fn(),
   getDerivedFeed: vi.fn(),
   getEntitlements: vi.fn(),
+  getWeeklyGrowPlan: vi.fn(),
   listCatalogCrops: vi.fn(),
   updateRequest: vi.fn(),
 }));
@@ -34,6 +36,7 @@ const mockCreateRequest = vi.mocked(createRequest);
 const mockDiscoverListings = vi.mocked(discoverListings);
 const mockGetDerivedFeed = vi.mocked(getDerivedFeed);
 const mockGetEntitlements = vi.mocked(getEntitlements);
+const mockGetWeeklyGrowPlan = vi.mocked(getWeeklyGrowPlan);
 const mockListCatalogCrops = vi.mocked(listCatalogCrops);
 const mockUpdateRequest = vi.mocked(updateRequest);
 const mockCreateClaim = vi.mocked(createClaim);
@@ -190,6 +193,21 @@ describe('SearcherRequestPanel', () => {
     mockCreateCheckoutSession.mockResolvedValue({
       checkoutUrl: 'https://checkout.stripe.test/session_123',
       checkoutSessionId: 'cs_test_123',
+    });
+
+    mockGetWeeklyGrowPlan.mockResolvedValue({
+      modelId: 'amazon.nova-lite-v1:0',
+      modelVersion: 'v1',
+      structuredJson: true,
+      geoKey: '9v6kn',
+      windowDays: 7,
+      recommendations: [
+        {
+          recommendation: 'Plant one scarcity-priority crop this week.',
+          confidence: 0.82,
+          rationale: ['Top scarcity signal: 0.82'],
+        },
+      ],
     });
 
     mockCreateRequest.mockResolvedValue({

@@ -6,6 +6,7 @@ import {
   discoverListings,
   getDerivedFeed,
   getEntitlements,
+  getWeeklyGrowPlan,
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
@@ -381,6 +382,14 @@ export function SearcherRequestPanel({
     enabled:
       Boolean(gathererGeoKey) && !isOffline && !aiInsightsOptOut && hasPremiumAiInsights,
     staleTime: 30 * 1000,
+  });
+
+  const weeklyPlanQuery = useQuery({
+    queryKey: ['weeklyGrowPlan', gathererGeoKey],
+    queryFn: () => getWeeklyGrowPlan(gathererGeoKey ?? '', 7),
+    enabled:
+      Boolean(gathererGeoKey) && !isOffline && !aiInsightsOptOut && hasPremiumAiInsights,
+    staleTime: 60 * 1000,
   });
 
   const createRequestMutation = useMutation({
@@ -839,6 +848,24 @@ export function SearcherRequestPanel({
             </p>
           </div>
         )}
+
+        {hasPremiumAiInsights && !aiInsightsOptOut && weeklyPlanQuery.data?.recommendations?.length ? (
+          <div className="rounded-base border border-primary-300 bg-white px-3 py-3" data-testid="weekly-plan-cards">
+            <div className="mb-2 inline-flex items-center rounded-full border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+              Premium AI plan
+            </div>
+            <ul className="space-y-2">
+              {weeklyPlanQuery.data.recommendations.slice(0, 2).map((rec, index) => (
+                <li key={`weekly-plan-${index}`} className="rounded-md border border-neutral-200 px-3 py-2">
+                  <p className="text-sm text-neutral-900">{rec.recommendation}</p>
+                  <p className="mt-1 text-xs text-neutral-600">
+                    Confidence {(rec.confidence * 100).toFixed(0)}% · {rec.rationale[0] ?? 'Local signal based'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {hasPremiumAiInsights && !aiInsightsOptOut && marketSnapshot && (
           <div className="rounded-base border border-neutral-200 bg-white px-3 py-3" data-testid="market-snapshot-card">
