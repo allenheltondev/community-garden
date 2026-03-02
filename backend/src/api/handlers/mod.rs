@@ -1,3 +1,4 @@
+pub mod agent_task;
 pub mod ai_copilot;
 pub mod billing;
 pub mod catalog;
