@@ -17,6 +17,14 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  VITE_USER_POOL_ID: placeholder
+  VITE_USER_POOL_CLIENT_ID: placeholder
+  VITE_USER_POOL_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
+  VITE_API_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
+  VITE_FRONTEND_URL: https://placeholder.cloudfront.net
+  VITE_AWS_REGION: us-east-1
+
 jobs:
   backend-format:
     name: Backend Format Check
@@ -172,7 +180,7 @@ jobs:
         run: ./db/migrate.sh
 
       - name: Run unit tests
-        run: cargo test --lib --bins --all-features
+        run: cargo test --bins --all-features
 
   backend-integration-tests:
     name: Backend Integration Tests
@@ -286,14 +294,6 @@ jobs:
     defaults:
       run:
         working-directory: frontend
-    env:
-      VITE_USER_POOL_ID: placeholder
-      VITE_USER_POOL_CLIENT_ID: placeholder
-      VITE_USER_POOL_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
-      VITE_API_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
-      VITE_FRONTEND_URL: https://placeholder.cloudfront.net
-      VITE_AWS_REGION: us-east-1
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -318,14 +318,6 @@ jobs:
     defaults:
       run:
         working-directory: frontend
-    env:
-      VITE_USER_POOL_ID: placeholder
-      VITE_USER_POOL_CLIENT_ID: placeholder
-      VITE_USER_POOL_DOMAIN: placeholder.auth.us-east-1.amazoncognito.com
-      VITE_API_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
-      VITE_FRONTEND_URL: https://placeholder.cloudfront.net
-      VITE_AWS_REGION: us-east-1
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -350,7 +342,6 @@ jobs:
     defaults:
       run:
         working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -364,6 +355,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build frontend for bundle analysis
+        run: npm run build
 
       - name: Performance budget check
         run: npm run perf:budget
