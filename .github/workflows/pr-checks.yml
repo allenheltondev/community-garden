@@ -230,6 +230,7 @@ jobs:
           sed -e "s|{{STACK_NAME}}|${{ env.STACK_NAME }}|g" \
               -e "s|{{REGION}}|${{ env.AWS_REGION }}|g" \
               -e "s|{{DATABASE_URL}}|${DATABASE_URL}|g" \
+              -e "s|{{ENVIRONMENT_NAME}}|staging|g" \
               samconfig.template.toml > samconfig.toml
           echo "✓ Generated samconfig.toml for CI"
 
@@ -283,6 +284,12 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
 
+          CI_AUTH_SEED_USERS_FUNCTION=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CiAuthSeedUsersFunctionName'].OutputValue" \
+            --output text)
+
           echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
           echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "user-pool-domain=$USER_POOL_DOMAIN" >> $GITHUB_OUTPUT
@@ -290,6 +297,34 @@ jobs:
           echo "frontend-url=$FRONTEND_URL" >> $GITHUB_OUTPUT
           echo "frontend-bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront-distribution-id=$CLOUDFRONT_DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+          echo "ci-auth-seed-users-function=$CI_AUTH_SEED_USERS_FUNCTION" >> $GITHUB_OUTPUT
+
+
+      - name: Generate CI auth tokens for Postman
+        if: steps.get-outputs.outputs.ci-auth-seed-users-function != '' && steps.get-outputs.outputs.ci-auth-seed-users-function != 'None'
+        run: |
+          aws lambda invoke \
+            --function-name "${{ steps.get-outputs.outputs.ci-auth-seed-users-function }}" \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            ci-auth-seed-response.json
+
+          GROWER_ACCESS_TOKEN=$(jq -r '.body | fromjson | .grower.access_token' ci-auth-seed-response.json)
+          GROWER_ID_TOKEN=$(jq -r '.body | fromjson | .grower.id_token' ci-auth-seed-response.json)
+          GATHERER_ACCESS_TOKEN=$(jq -r '.body | fromjson | .gatherer.access_token' ci-auth-seed-response.json)
+          GATHERER_ID_TOKEN=$(jq -r '.body | fromjson | .gatherer.id_token' ci-auth-seed-response.json)
+
+          echo "::add-mask::$GROWER_ACCESS_TOKEN"
+          echo "::add-mask::$GROWER_ID_TOKEN"
+          echo "::add-mask::$GATHERER_ACCESS_TOKEN"
+          echo "::add-mask::$GATHERER_ID_TOKEN"
+
+          echo "POSTMAN_GROWER_ACCESS_TOKEN=$GROWER_ACCESS_TOKEN" >> $GITHUB_ENV
+          echo "POSTMAN_GROWER_ID_TOKEN=$GROWER_ID_TOKEN" >> $GITHUB_ENV
+          echo "POSTMAN_GATHERER_ACCESS_TOKEN=$GATHERER_ACCESS_TOKEN" >> $GITHUB_ENV
+          echo "POSTMAN_GATHERER_ID_TOKEN=$GATHERER_ID_TOKEN" >> $GITHUB_ENV
+
+          echo "Generated ephemeral grower/gatherer Cognito JWTs for downstream Postman runs."
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
