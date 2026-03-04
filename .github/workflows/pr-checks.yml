@@ -706,16 +706,16 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             ci-auth-seed-response.json > /dev/null
 
-          GROWER_ID_TOKEN=$(jq -r '.body | fromjson | .grower.id_token' ci-auth-seed-response.json)
+          GROWER_ACCESS_TOKEN=$(jq -r '.body | fromjson | .grower.access_token' ci-auth-seed-response.json)
 
-          if [ -z "$GROWER_ID_TOKEN" ] || [ "$GROWER_ID_TOKEN" = "null" ]; then
-            echo "Failed to extract grower.id_token from CI auth seed response."
+          if [ -z "$GROWER_ACCESS_TOKEN" ] || [ "$GROWER_ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to extract grower.access_token from CI auth seed response."
             cat ci-auth-seed-response.json
             exit 1
           fi
 
-          echo "::add-mask::$GROWER_ID_TOKEN"
-          echo "auth-token=$GROWER_ID_TOKEN" >> $GITHUB_OUTPUT
+          echo "::add-mask::$GROWER_ACCESS_TOKEN"
+          echo "auth-token=$GROWER_ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Install Postman CLI
         run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
@@ -764,16 +764,16 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             ci-auth-seed-response.json > /dev/null
 
-          GROWER_ID_TOKEN=$(jq -r '.body | fromjson | .grower.id_token' ci-auth-seed-response.json)
+          GROWER_ACCESS_TOKEN=$(jq -r '.body | fromjson | .grower.access_token' ci-auth-seed-response.json)
 
-          if [ -z "$GROWER_ID_TOKEN" ] || [ "$GROWER_ID_TOKEN" = "null" ]; then
-            echo "Failed to extract grower.id_token from CI auth seed response."
+          if [ -z "$GROWER_ACCESS_TOKEN" ] || [ "$GROWER_ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to extract grower.access_token from CI auth seed response."
             cat ci-auth-seed-response.json
             exit 1
           fi
 
-          echo "::add-mask::$GROWER_ID_TOKEN"
-          echo "auth-token=$GROWER_ID_TOKEN" >> $GITHUB_OUTPUT
+          echo "::add-mask::$GROWER_ACCESS_TOKEN"
+          echo "auth-token=$GROWER_ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Install Postman CLI
         run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh

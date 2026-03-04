@@ -30,13 +30,27 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     response
 }
 
+
+fn normalize_route_path(path: &str) -> &str {
+    match path {
+        "/api" => "/",
+        _ => path
+            .strip_prefix("/api")
+            .filter(|normalized| normalized.starts_with('/'))
+            .unwrap_or(path),
+    }
+}
+
 pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Error> {
     let correlation_id = extract_or_generate_correlation_id(event);
+
+    let request_path = normalize_route_path(event.uri().path());
 
     info!(
         correlation_id = correlation_id.as_str(),
         method = event.method().as_str(),
-        path = event.uri().path(),
+        raw_path = event.uri().path(),
+        path = request_path,
         "Request received"
     );
 
@@ -52,7 +66,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ));
     }
 
-    let response = match (event.method().as_str(), event.uri().path()) {
+    let response = match (event.method().as_str(), request_path) {
         ("GET", "/me") => handle(user::get_current_user(event, &correlation_id).await)?,
         ("PUT", "/me") => handle(user::upsert_current_user(event, &correlation_id).await)?,
         ("GET", "/me/entitlements") => {
@@ -102,7 +116,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 
         ("GET", "/catalog/crops") => handle(catalog::list_catalog_crops().await)?,
 
-        _ => route_dynamic_routes(event, &correlation_id).await?,
+        _ => route_dynamic_routes(event, &correlation_id, request_path).await?,
     };
 
     let response_with_cors = add_cors_headers(response);
@@ -121,8 +135,9 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 async fn route_dynamic_routes(
     event: &Request,
     correlation_id: &str,
+    request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    if let Some(crop_library_id) = event.uri().path().strip_prefix("/crops/") {
+    if let Some(crop_library_id) = request_path.strip_prefix("/crops/") {
         let result = match event.method().as_str() {
             "GET" => crop::get_my_crop(event, correlation_id, crop_library_id).await,
             "PUT" => crop::update_my_crop(event, correlation_id, crop_library_id).await,
@@ -132,7 +147,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(listing_id) = event.uri().path().strip_prefix("/my/listings/") {
+    if let Some(listing_id) = request_path.strip_prefix("/my/listings/") {
         let result = match event.method().as_str() {
             "GET" => listing::get_listing(event, correlation_id, listing_id).await,
             _ => method_not_allowed(),
@@ -140,7 +155,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(listing_id) = event.uri().path().strip_prefix("/listings/") {
+    if let Some(listing_id) = request_path.strip_prefix("/listings/") {
         let result = match event.method().as_str() {
             "PUT" => listing::update_listing(event, correlation_id, listing_id).await,
             _ => method_not_allowed(),
@@ -148,7 +163,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(request_id) = event.uri().path().strip_prefix("/requests/") {
+    if let Some(request_id) = request_path.strip_prefix("/requests/") {
         let result = match event.method().as_str() {
             "PUT" => request::update_request(event, correlation_id, request_id).await,
             _ => method_not_allowed(),
@@ -156,7 +171,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(reminder_id) = event.uri().path().strip_prefix("/reminders/") {
+    if let Some(reminder_id) = request_path.strip_prefix("/reminders/") {
         let result = match event.method().as_str() {
             "PUT" => reminder::update_reminder_status(event, correlation_id, reminder_id).await,
             _ => method_not_allowed(),
@@ -164,7 +179,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(task_id) = event.uri().path().strip_prefix("/agent-tasks/") {
+    if let Some(task_id) = request_path.strip_prefix("/agent-tasks/") {
         let result = match event.method().as_str() {
             "PUT" => agent_task::update_agent_task_status(event, correlation_id, task_id).await,
             _ => method_not_allowed(),
@@ -172,7 +187,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(claim_id) = event.uri().path().strip_prefix("/claims/") {
+    if let Some(claim_id) = request_path.strip_prefix("/claims/") {
         let result = match event.method().as_str() {
             "PUT" => claim::transition_claim(event, correlation_id, claim_id).await,
             _ => method_not_allowed(),
@@ -180,7 +195,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if let Some(user_id) = event.uri().path().strip_prefix("/users/") {
+    if let Some(user_id) = request_path.strip_prefix("/users/") {
         return if event.method().as_str() == "GET" {
             handle(user::get_public_user(user_id).await)
         } else {
@@ -188,7 +203,7 @@ async fn route_dynamic_routes(
         };
     }
 
-    if let Some(crop_id) = event.uri().path().strip_prefix("/catalog/crops/") {
+    if let Some(crop_id) = request_path.strip_prefix("/catalog/crops/") {
         if let Some(crop_id) = crop_id.strip_suffix("/varieties") {
             return if event.method().as_str() == "GET" {
                 handle(catalog::list_catalog_varieties(crop_id).await)
@@ -300,7 +315,20 @@ fn map_api_error_to_response(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::map_api_error_to_response;
+    use super::{map_api_error_to_response, normalize_route_path};
+
+    #[test]
+    fn normalize_route_path_strips_api_stage_prefix() {
+        assert_eq!(normalize_route_path("/api/crops"), "/crops");
+        assert_eq!(normalize_route_path("/api/catalog/crops"), "/catalog/crops");
+    }
+
+    #[test]
+    fn normalize_route_path_leaves_non_stage_paths_unchanged() {
+        assert_eq!(normalize_route_path("/crops"), "/crops");
+        assert_eq!(normalize_route_path("/catalog/crops"), "/catalog/crops");
+        assert_eq!(normalize_route_path("/api"), "/");
+    }
 
     #[test]
     fn map_api_error_maps_share_radius_miles_validation_to_400() {
