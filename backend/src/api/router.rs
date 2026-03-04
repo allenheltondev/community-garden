@@ -30,7 +30,6 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     response
 }
 
-
 fn normalize_route_path(path: &str) -> &str {
     match path {
         "/api" => "/",
