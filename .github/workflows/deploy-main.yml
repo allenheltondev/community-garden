@@ -198,6 +198,7 @@ jobs:
           sed -e "s|{{STACK_NAME}}|${{ env.STACK_NAME }}|g" \
               -e "s|{{REGION}}|${{ env.AWS_REGION }}|g" \
               -e "s|{{DATABASE_URL}}|${DATABASE_URL}|g" \
+              -e "s|{{ENVIRONMENT_NAME}}|${{ env.ENVIRONMENT }}|g" \
               samconfig.template.toml > samconfig.toml
           echo "✓ Generated samconfig.toml for CI"
 

@@ -486,6 +486,7 @@ jobs:
           sed -e "s|{{STACK_NAME}}|${{ env.STACK_NAME }}|g" \
               -e "s|{{REGION}}|${{ env.AWS_REGION }}|g" \
               -e "s|{{DATABASE_URL}}|${DATABASE_URL}|g" \
+              -e "s|{{ENVIRONMENT_NAME}}|staging|g" \
               samconfig.template.toml > samconfig.toml
           echo "Generated samconfig.toml for CI"
 
@@ -539,6 +540,12 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
 
+          CI_AUTH_SEED_USERS_FUNCTION=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CiAuthSeedUsersFunctionName'].OutputValue" \
+            --output text)
+
           echo "user-pool-id=$USER_POOL_ID" >> $GITHUB_OUTPUT
           echo "user-pool-client-id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "user-pool-domain=$USER_POOL_DOMAIN" >> $GITHUB_OUTPUT
@@ -546,6 +553,7 @@ jobs:
           echo "frontend-url=$FRONTEND_URL" >> $GITHUB_OUTPUT
           echo "frontend-bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront-distribution-id=$CLOUDFRONT_DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+          echo "ci-auth-seed-users-function=$CI_AUTH_SEED_USERS_FUNCTION" >> $GITHUB_OUTPUT
 
     outputs:
       api-url: ${{ steps.get-outputs.outputs.api-url }}
@@ -555,6 +563,7 @@ jobs:
       user-pool-id: ${{ steps.get-outputs.outputs.user-pool-id }}
       user-pool-client-id: ${{ steps.get-outputs.outputs.user-pool-client-id }}
       user-pool-domain: ${{ steps.get-outputs.outputs.user-pool-domain }}
+      ci-auth-seed-users-function: ${{ steps.get-outputs.outputs.ci-auth-seed-users-function }}
 
   deploy-staging-frontend:
     name: Deploy Staging Frontend
@@ -688,18 +697,32 @@ jobs:
           role-session-name: GitHubActions-E2E-PR-${{ github.event.pull_request.number }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Authenticate test user via Cognito
-        id: cognito-auth
+      - name: Generate grower auth token for Postman
+        id: ci-auth
         run: |
-          AUTH_RESULT=$(aws cognito-idp initiate-auth \
-            --client-id "${{ needs.deploy-staging-backend.outputs.user-pool-client-id }}" \
-            --auth-flow USER_PASSWORD_AUTH \
-            --auth-parameters USERNAME="${{ secrets.E2E_TEST_USER_EMAIL }}",PASSWORD="${{ secrets.E2E_TEST_USER_PASSWORD }}" \
-            --region ${{ env.AWS_REGION }})
+          FUNCTION_NAME="${{ needs.deploy-staging-backend.outputs.ci-auth-seed-users-function }}"
 
-          ID_TOKEN=$(echo "$AUTH_RESULT" | jq -r '.AuthenticationResult.IdToken')
-          echo "::add-mask::$ID_TOKEN"
-          echo "auth-token=$ID_TOKEN" >> $GITHUB_OUTPUT
+          if [ -z "$FUNCTION_NAME" ] || [ "$FUNCTION_NAME" = "None" ]; then
+            echo "CiAuthSeedUsersFunctionName stack output is required for Postman E2E auth."
+            exit 1
+          fi
+
+          aws lambda invoke \
+            --function-name "$FUNCTION_NAME" \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            ci-auth-seed-response.json > /dev/null
+
+          GROWER_ID_TOKEN=$(jq -r '.body | fromjson | .grower.id_token' ci-auth-seed-response.json)
+
+          if [ -z "$GROWER_ID_TOKEN" ] || [ "$GROWER_ID_TOKEN" = "null" ]; then
+            echo "Failed to extract grower.id_token from CI auth seed response."
+            cat ci-auth-seed-response.json
+            exit 1
+          fi
+
+          echo "::add-mask::$GROWER_ID_TOKEN"
+          echo "auth-token=$GROWER_ID_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Install Postman CLI
         run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
@@ -711,7 +734,7 @@ jobs:
         run: |
           postman collection run "postman/collections/E2E - Search veggie and add to garden" \
             --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
-            --env-var "authToken=${{ steps.cognito-auth.outputs.auth-token }}"
+            --env-var "authToken=${{ steps.ci-auth.outputs.auth-token }}"
 
   staging-validation-summary:
     name: Staging Validation Summary
@@ -719,7 +742,6 @@ jobs:
     needs:
       - deploy-staging-backend
       - deploy-staging-frontend
-
       - staging-public-api-smoke
       - e2e-api-tests
     if: always() && github.event.action != 'closed'
@@ -729,7 +751,6 @@ jobs:
         run: |
           if [ "${{ needs.deploy-staging-backend.result }}" != "success" ] || \
              [ "${{ needs.deploy-staging-frontend.result }}" != "success" ] || \
-
              [ "${{ needs.staging-public-api-smoke.result }}" != "success" ] || \
              [ "${{ needs.e2e-api-tests.result }}" != "success" ]; then
             echo "Staging validation failed"
@@ -762,4 +783,3 @@ jobs:
           else
             echo "Stack ${{ env.STACK_NAME }} does not exist, nothing to clean up"
           fi
-

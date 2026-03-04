@@ -14,7 +14,8 @@ capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
 fail_on_empty_changeset = false
 parameter_overrides = [
-  "DatabaseUrl={{DATABASE_URL}}"
+  "DatabaseUrl={{DATABASE_URL}}",
+  "EnvironmentName={{ENVIRONMENT_NAME}}"
 ]
 
 [default.global.parameters]

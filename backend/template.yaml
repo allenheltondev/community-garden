@@ -20,9 +20,19 @@ Parameters:
     Type: String
     NoEcho: true
     Description: PostgreSQL connection string for Neon database
+  EnvironmentName:
+    Type: String
+    Default: staging
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+      - pr
+    Description: Deployment environment name used for environment-specific resources
 
 Conditions:
   DeployCustomDomain: !Not [!Equals [!Ref DomainHostedZoneId, ""]]
+  DeployCiAuthSeedFunction: !Not [!Equals [!Ref EnvironmentName, prod]]
 
 Globals:
   Api:
@@ -384,6 +394,29 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
+  CiAuthSeedUsersFunction:
+    Type: AWS::Serverless::Function
+    Condition: DeployCiAuthSeedFunction
+    Properties:
+      CodeUri: functions/ci_auth_seed
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminSetUserPassword
+                - cognito-idp:AdminInitiateAuth
+              Resource: !GetAtt UserPool.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          USER_POOL_CLIENT_ID: !Ref UserPoolClient
+
   ApiFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -519,6 +552,19 @@ Outputs:
     Value: !Ref FrontendDistribution
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  CiAuthSeedUsersFunctionName:
+    Description: Lambda name used to generate temporary Cognito JWTs for CI Postman runs
+    Value: !If
+      - DeployCiAuthSeedFunction
+      - !Ref CiAuthSeedUsersFunction
+      - ""
+    Export:
+      Name: !Sub "${AWS::StackName}-CiAuthSeedUsersFunctionName"
+
+  PremiumStackDeploymentMode:
+    Description: Indicates whether premium nested stack deployment is enabled
+    Value: "true"
 
   PremiumStackDeploymentMode:
     Description: Indicates whether premium nested stack deployment is enabled
