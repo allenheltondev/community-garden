@@ -1,0 +1,47 @@
+$kind: http-request
+name: '5 - Invalid Signature Rejected'
+description: Send webhook payload with malformed signature and expect rejection.
+method: POST
+url: '{{baseUrl}}/billing/webhook'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Stripe-Signature
+    value: t=1700000000,v1=deadbeef
+body:
+  type: json
+  content: |-
+    {
+      "id": "evt_ci_bad_sig_{{timestamp}}",
+      "type": "checkout.session.completed",
+      "created": 1767225603,
+      "data": {
+        "object": {
+          "id": "cs_ci_bad_sig",
+          "metadata": {
+            "user_id": "11111111-1111-4111-8111-111111111111"
+          }
+        }
+      }
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const ts = Date.now().toString();
+      pm.collectionVariables.set("timestamp", ts);
+      let payload = pm.request.body.raw;
+      payload = payload.replace(/{{timestamp}}/g, ts);
+      pm.request.body.update(payload);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });
+
+      pm.test("Invalid signature is rejected", function () {
+          const body = pm.response.text();
+          pm.expect(body).to.include("Invalid Stripe signature");
+      });

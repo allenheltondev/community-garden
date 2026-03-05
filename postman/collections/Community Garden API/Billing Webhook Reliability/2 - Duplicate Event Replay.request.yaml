@@ -1,0 +1,64 @@
+$kind: http-request
+name: '2 - Duplicate Event Replay'
+description: Replay the same signed event ID and verify duplicate no-op response.
+method: POST
+url: '{{baseUrl}}/billing/webhook'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Stripe-Signature
+    value: '{{stripeSignature}}'
+body:
+  type: json
+  content: |-
+    {
+      "id": "{{webhookEventId}}",
+      "type": "checkout.session.completed",
+      "created": 1767225600,
+      "data": {
+        "object": {
+          "id": "cs_ci_{{webhookEventId}}",
+          "customer": "cus_ci_webhook",
+          "subscription": "sub_ci_webhook",
+          "metadata": {
+            "user_id": "11111111-1111-4111-8111-111111111111"
+          }
+        }
+      }
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const eventId = pm.collectionVariables.get("webhookEventId");
+      if (!eventId) {
+          throw new Error("webhookEventId missing. Run request 1 first.");
+      }
+
+      const nowTs = Math.floor(Date.now() / 1000).toString();
+      let payload = pm.request.body.raw;
+      payload = payload.replace(/{{webhookEventId}}/g, eventId);
+      pm.request.body.update(payload);
+
+      const secret = pm.collectionVariables.get("stripeWebhookSecret") || pm.environment.get("stripeWebhookSecret");
+      if (!secret) {
+          throw new Error("stripeWebhookSecret is required for signed webhook tests");
+      }
+
+      const signedPayload = `${nowTs}.${payload}`;
+      const digest = CryptoJS.HmacSHA256(signedPayload, secret).toString(CryptoJS.enc.Hex);
+      const header = `t=${nowTs},v1=${digest}`;
+      pm.request.headers.upsert({ key: "Stripe-Signature", value: header });
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Duplicate event is reported", function () {
+          const response = pm.response.json();
+          pm.expect(response).to.have.property("received", true);
+          pm.expect(response).to.have.property("duplicate", true);
+      });

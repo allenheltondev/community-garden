@@ -166,6 +166,7 @@ pub async fn handle_webhook(
             tracing::info!(
                 correlation_id = correlation_id,
                 event_type,
+                supported = is_supported_event_type(event_type),
                 "Ignoring unsupported Stripe webhook event"
             );
             Ok(())
@@ -211,7 +212,9 @@ async fn apply_checkout_session_completed(
                        stripe_subscription_id = coalesce($3, stripe_subscription_id),
                        stripe_last_event_created = greatest(coalesce(stripe_last_event_created, 0), $4),
                        updated_at = now()
-                 where id = $1 and deleted_at is null
+                 where id = $1
+                   and deleted_at is null
+                   and coalesce(stripe_last_event_created, 0) <= $4
                 ",
                 &[&user_id, &stripe_customer_id, &stripe_subscription_id, &event_created],
             )
@@ -301,6 +304,15 @@ fn extract_user_id_from_object(object: &Value) -> Option<Uuid> {
 
 fn extract_current_period_end_unix(object: &Value) -> Option<i64> {
     object.get("current_period_end").and_then(Value::as_i64)
+}
+
+fn is_supported_event_type(event_type: &str) -> bool {
+    matches!(
+        event_type,
+        "checkout.session.completed"
+            | "customer.subscription.deleted"
+            | "customer.subscription.updated"
+    )
 }
 
 fn map_subscription_status(status: &str) -> (&'static str, &'static str) {
@@ -522,5 +534,29 @@ mod tests {
         let err =
             verify_signature_with_secret(secret, "t=1700000000,v1=deadbeef", body).unwrap_err();
         assert!(err.to_string().contains("Invalid Stripe signature"));
+    }
+
+    #[test]
+    fn verify_signature_rejects_missing_timestamp() {
+        let secret = "whsec_test";
+        let body = "{\"id\":\"evt_1\"}";
+        let err = verify_signature_with_secret(secret, "v1=abc123", body).unwrap_err();
+        assert!(err.to_string().contains("missing timestamp"));
+    }
+
+    #[test]
+    fn verify_signature_rejects_missing_v1_digest() {
+        let secret = "whsec_test";
+        let body = "{\"id\":\"evt_1\"}";
+        let err = verify_signature_with_secret(secret, "t=1700000000", body).unwrap_err();
+        assert!(err.to_string().contains("missing v1 digest"));
+    }
+
+    #[test]
+    fn supported_event_type_list_is_strict() {
+        assert!(is_supported_event_type("checkout.session.completed"));
+        assert!(is_supported_event_type("customer.subscription.updated"));
+        assert!(is_supported_event_type("customer.subscription.deleted"));
+        assert!(!is_supported_event_type("invoice.payment_failed"));
     }
 }

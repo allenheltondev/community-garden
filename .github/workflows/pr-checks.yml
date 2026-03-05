@@ -761,6 +761,17 @@ jobs:
             --env-var "authToken=${{ steps.ci-auth.outputs.free-auth-token }}" \
             --env-var "expectFeatureLocked=true"
 
+      - name: Run billing webhook reliability collection
+        run: |
+          if [ -z "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ]; then
+            echo "Skipping billing webhook reliability collection: STRIPE_WEBHOOK_SECRET is not configured."
+            exit 0
+          fi
+
+          postman collection run "postman/collections/Community Garden API/Billing Webhook Reliability" \
+            --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
+            --env-var "stripeWebhookSecret=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+
   e2e-api-tests:
     name: Staging E2E API Tests
     if: github.event.action != 'closed'
