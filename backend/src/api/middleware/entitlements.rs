@@ -107,6 +107,16 @@ pub async fn require_entitlement(
     }
 }
 
+#[cfg(test)]
+fn tier_has_entitlement(
+    config: &EntitlementsConfig,
+    tier: &str,
+    entitlement_key: &str,
+) -> Result<bool, lambda_http::Error> {
+    let entitlements = resolve_entitlements_for_tier(config, tier)?;
+    Ok(entitlements.iter().any(|key| key == entitlement_key))
+}
+
 fn load_entitlements_config() -> Result<&'static EntitlementsConfig, lambda_http::Error> {
     let config = ENTITLEMENTS_CONFIG.get_or_init(|| {
         serde_json::from_str::<EntitlementsConfig>(ENTITLEMENTS_CONFIG_JSON)
@@ -228,5 +238,41 @@ mod tests {
 
         assert!(config.policies.ai_is_premium_only);
         assert!(config.policies.free_reminders_are_deterministic_only);
+    }
+
+    #[test]
+    fn premium_entitlement_denied_for_free_tier() {
+        let Some(config) = config_or_skip() else {
+            return;
+        };
+
+        let has_entitlement = tier_has_entitlement(config, "free", "ai.copilot.weekly_grow_plan");
+        assert!(has_entitlement.is_ok());
+        assert!(!has_entitlement.unwrap_or(true));
+    }
+
+    #[test]
+    fn premium_entitlement_allowed_for_premium_tier() {
+        let Some(config) = config_or_skip() else {
+            return;
+        };
+
+        let has_entitlement =
+            tier_has_entitlement(config, "premium", "ai.copilot.weekly_grow_plan");
+        assert!(has_entitlement.is_ok());
+        assert!(has_entitlement.unwrap_or(false));
+    }
+
+    #[test]
+    fn feature_locked_error_response_contains_upgrade_hint_key() {
+        let response = FeatureLockedError {
+            entitlement_key: "ai.feed_insights.read".to_string(),
+        }
+        .to_response();
+
+        assert_eq!(response.error, "feature_locked");
+        assert_eq!(response.entitlement_key, "ai.feed_insights.read");
+        assert_eq!(response.required_tier, "premium");
+        assert_eq!(response.upgrade_hint_key, "upgrade.premium");
     }
 }
