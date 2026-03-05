@@ -24,13 +24,25 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      const statusCode = pm.response.code;
+      const expectFeatureLocked = pm.variables.get("expectFeatureLocked") === "true";
 
-      pm.test("Status code is 201 (premium) or 403 (feature locked)", function () {
-          pm.expect([201, 403]).to.include(statusCode);
-      });
+      if (expectFeatureLocked) {
+          pm.test("Status code is 403 when feature is locked", function () {
+              pm.response.to.have.status(403);
+          });
 
-      if (statusCode === 201) {
+          pm.test("Feature lock response matches entitlement error contract", function () {
+              const response = pm.response.json();
+              pm.expect(response).to.have.property("error", "feature_locked");
+              pm.expect(response).to.have.property("entitlementKey", "agent.tasks.automation");
+              pm.expect(response).to.have.property("requiredTier", "premium");
+              pm.expect(response).to.have.property("upgradeHintKey", "upgrade.premium");
+          });
+      } else {
+          pm.test("Status code is 201", function () {
+              pm.response.to.have.status(201);
+          });
+
           pm.test("Response matches agent task contract", function () {
               const task = pm.response.json();
               pm.expect(task).to.have.property("id");
@@ -38,16 +50,6 @@ scripts:
               pm.expect(task).to.have.property("scheduleCron", "0 9 * * 1");
               pm.expect(task).to.have.property("status", "active");
               pm.collectionVariables.set("taskId", task.id);
-          });
-      }
-
-      if (statusCode === 403) {
-          pm.test("Feature lock response matches entitlement error contract", function () {
-              const response = pm.response.json();
-              pm.expect(response).to.have.property("error", "feature_locked");
-              pm.expect(response).to.have.property("entitlementKey", "agent.tasks.automation");
-              pm.expect(response).to.have.property("requiredTier", "premium");
-              pm.expect(response).to.have.property("upgradeHintKey", "upgrade.premium");
           });
       }
 
