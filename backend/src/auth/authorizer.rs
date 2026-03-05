@@ -9,6 +9,7 @@ use std::str::FromStr;
 use tokio_postgres::config::{ChannelBinding, Config};
 use tokio_postgres_rustls::MakeRustlsConnect;
 use tracing::{error, warn};
+use uuid::Uuid;
 #[derive(Clone)]
 struct AppState {
     cognito: CognitoClient,
@@ -51,8 +52,12 @@ struct PolicyResponse {
     context: Option<HashMap<String, String>>,
 }
 
+fn install_rustls_crypto_provider() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+}
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    install_rustls_crypto_provider();
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .json()
@@ -138,8 +143,11 @@ async fn handle_jwt_auth(
         .or_else(|| claims.sub.clone())
         .ok_or("Missing sub claim")?;
 
+    let principal_uuid = Uuid::parse_str(&principal_id).map_err(|_| "Invalid sub claim format")?;
+    let principal_id = principal_uuid.to_string();
+
     let tier = get_user_tier(&state.cognito, &state.user_pool_id, &principal_id).await;
-    let user_type = get_user_type_from_db(&state.database_url, &principal_id).await;
+    let user_type = get_user_type_from_db(&state.database_url, &principal_uuid).await;
 
     let api_arn = get_api_arn_pattern(event.method_arn.as_deref().unwrap_or_default());
     let context = build_context([
@@ -209,7 +217,7 @@ async fn get_user_tier(
         }
     }
 }
-async fn get_user_type_from_db(database_url: &str, user_id: &str) -> Option<String> {
+async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<String> {
     let mut config = match Config::from_str(database_url) {
         Ok(config) => config,
         Err(err) => {
@@ -265,8 +273,8 @@ async fn get_user_type_from_db(database_url: &str, user_id: &str) -> Option<Stri
 
     match client
         .query_opt(
-            "select user_type from users where id = $1::uuid and deleted_at is null",
-            &[&user_id],
+            "select user_type from users where id = $1 and deleted_at is null",
+            &[user_id],
         )
         .await
     {
@@ -275,7 +283,7 @@ async fn get_user_type_from_db(database_url: &str, user_id: &str) -> Option<Stri
             .and_then(|raw| normalize_user_type(raw.as_str())),
         Ok(None) => None,
         Err(err) => {
-            error!(error = %err, user_id = user_id, "Failed to query userType from database");
+            error!(error = %err, user_id = %user_id, "Failed to query userType from database");
             None
         }
     }

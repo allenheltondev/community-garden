@@ -43,4 +43,7 @@ scripts:
       pm.test("Response acknowledges webhook receipt", function () {
           const response = pm.response.json();
           pm.expect(response).to.have.property("received", true);
+          if (Object.prototype.hasOwnProperty.call(response, "duplicate")) {
+              pm.expect(response.duplicate).to.be.a("boolean");
+          }
       });
