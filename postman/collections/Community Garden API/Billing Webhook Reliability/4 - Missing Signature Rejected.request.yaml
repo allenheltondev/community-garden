@@ -1,0 +1,46 @@
+$kind: http-request
+name: '4 - Missing Signature Rejected'
+description: Send webhook payload without Stripe-Signature and expect rejection.
+method: POST
+url: '{{baseUrl}}/billing/webhook'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": "evt_ci_missing_sig_{{timestamp}}",
+      "type": "checkout.session.completed",
+      "created": 1767225602,
+      "data": {
+        "object": {
+          "id": "cs_ci_missing_sig",
+          "metadata": {
+            "user_id": "11111111-1111-4111-8111-111111111111"
+          }
+        }
+      }
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const ts = Date.now().toString();
+      pm.collectionVariables.set("timestamp", ts);
+      let payload = pm.request.body.raw;
+      payload = payload.replace(/{{timestamp}}/g, ts);
+      pm.request.body.update(payload);
+      pm.request.headers.remove("Stripe-Signature");
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });
+
+      pm.test("Missing signature is rejected", function () {
+          const body = pm.response.text();
+          pm.expect(body).to.include("Missing Stripe-Signature");
+      });
