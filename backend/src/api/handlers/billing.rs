@@ -470,7 +470,10 @@ mod tests {
     #[test]
     fn extract_current_period_end_unix_reads_subscription_window() {
         let payload = json!({"current_period_end": 1_767_225_600});
-        assert_eq!(extract_current_period_end_unix(&payload), Some(1_767_225_600));
+        assert_eq!(
+            extract_current_period_end_unix(&payload),
+            Some(1_767_225_600)
+        );
     }
 
     #[test]
