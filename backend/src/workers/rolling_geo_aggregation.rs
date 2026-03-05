@@ -1,6 +1,8 @@
 use aws_lambda_events::event::eventbridge::EventBridgeEvent;
 use chrono::{DateTime, Duration, Utc};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -174,7 +176,12 @@ async fn connect_db() -> Result<Client, String> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| "DATABASE_URL environment variable is required".to_string())?;
 
-    let (client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+    let tls = TlsConnector::builder()
+        .build()
+        .map_err(|e| format!("Failed to initialize TLS connector: {e}"))?;
+    let tls_connector = MakeTlsConnector::new(tls);
+
+    let (client, connection) = tokio_postgres::connect(&database_url, tls_connector)
         .await
         .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
 

@@ -2,9 +2,10 @@ use aws_lambda_events::event::apigw::ApiGatewayCustomAuthorizerRequestTypeReques
 use aws_sdk_cognitoidentityprovider::Client as CognitoClient;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio_postgres::NoTls;
 use tracing::error;
 
 #[derive(Clone)]
@@ -208,7 +209,15 @@ async fn get_user_tier(
     }
 }
 async fn get_user_type_from_db(database_url: &str, user_id: &str) -> Option<String> {
-    let (client, connection) = match tokio_postgres::connect(database_url, NoTls).await {
+    let tls = match TlsConnector::builder().build() {
+        Ok(tls) => MakeTlsConnector::new(tls),
+        Err(err) => {
+            error!(error = %err, "Failed to initialize TLS connector for userType lookup");
+            return None;
+        }
+    };
+
+    let (client, connection) = match tokio_postgres::connect(database_url, tls).await {
         Ok(parts) => parts,
         Err(err) => {
             error!(error = %err, "Failed to connect to database for userType lookup");

@@ -43,6 +43,8 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-chrono-0_4"] }
+native-tls = "0.2"
+postgres-native-tls = "0.5"
 geohash = "0.13"
 sha2 = { workspace = true }
 hmac = "0.12"

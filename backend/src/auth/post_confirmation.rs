@@ -1,6 +1,8 @@
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use serde_json::Value;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::Client;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -114,7 +116,12 @@ async fn connect() -> Result<Client, Error> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| Error::from("DATABASE_URL is required".to_string()))?;
 
-    let (client, connection) = tokio_postgres::connect(&database_url, NoTls)
+    let tls = TlsConnector::builder()
+        .build()
+        .map_err(|e| Error::from(format!("Failed to initialize TLS connector: {e}")))?;
+    let tls_connector = MakeTlsConnector::new(tls);
+
+    let (client, connection) = tokio_postgres::connect(&database_url, tls_connector)
         .await
         .map_err(|e| Error::from(format!("Database connection error: {e}")))?;
 

@@ -1,4 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::env;
@@ -204,7 +206,12 @@ async fn connect_db() -> Result<Client, String> {
     let database_url = env::var("DATABASE_URL")
         .map_err(|_| "DATABASE_URL environment variable is required".to_string())?;
 
-    let (client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+    let tls = TlsConnector::builder()
+        .build()
+        .map_err(|e| format!("Failed to initialize TLS connector: {e}"))?;
+    let tls_connector = MakeTlsConnector::new(tls);
+
+    let (client, connection) = tokio_postgres::connect(&database_url, tls_connector)
         .await
         .map_err(|e| format!("Failed to connect to Postgres: {e}"))?;
 
