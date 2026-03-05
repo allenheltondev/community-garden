@@ -127,6 +127,54 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse'
 
+  /billing/checkout-session:
+    post:
+      summary: Create a Stripe checkout session for premium upgrade
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutSessionRequest'
+      responses:
+        '200':
+          description: Created checkout session and redirect URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCheckoutSessionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /billing/webhook:
+    post:
+      summary: Receive Stripe webhook events for subscription lifecycle updates
+      operationId: handleStripeWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAckResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
   /crops:
     get:
       summary: List current user's grower crop library entries
@@ -381,9 +429,55 @@ components:
         rating_count:
           type: integer
 
+    SubscriptionMetadata:
+      type: object
+      required: [tier, subscriptionStatus]
+      properties:
+        tier:
+          type: string
+          enum: [free, premium]
+        subscriptionStatus:
+          type: string
+          description: Subscription lifecycle state (none, active, past_due, canceled)
+        premiumExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateCheckoutSessionRequest:
+      type: object
+      required: [successUrl, cancelUrl]
+      properties:
+        successUrl:
+          type: string
+          format: uri
+        cancelUrl:
+          type: string
+          format: uri
+
+    CreateCheckoutSessionResponse:
+      type: object
+      required: [checkoutUrl, checkoutSessionId]
+      properties:
+        checkoutUrl:
+          type: string
+          format: uri
+        checkoutSessionId:
+          type: string
+
+    WebhookAckResponse:
+      type: object
+      required: [received]
+      properties:
+        received:
+          type: boolean
+        duplicate:
+          type: boolean
+          nullable: true
+
     MeProfileResponse:
       type: object
-      required: [id, isVerified, createdAt, onboardingCompleted]
+      required: [id, isVerified, createdAt, onboardingCompleted, subscription]
       properties:
         id:
           type: string
@@ -413,6 +507,9 @@ components:
           type: string
           format: date-time
           description: Account creation timestamp
+        subscription:
+          $ref: '#/components/schemas/SubscriptionMetadata'
+          description: Current account tier and billing status metadata
         growerProfile:
           allOf:
             - $ref: '#/components/schemas/GrowerProfile'

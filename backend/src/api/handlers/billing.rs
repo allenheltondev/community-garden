@@ -246,18 +246,24 @@ async fn apply_subscription_update(
 
     if let Some(subscription_id) = stripe_subscription_id {
         let (tier, sub_status) = map_subscription_status(status);
+        let current_period_end_unix = extract_current_period_end_unix(object);
         let updated = client
             .execute(
                 "
                 update users
                    set tier = $2,
                        subscription_status = $3,
+                       premium_expires_at = case
+                           when $2 = 'premium' and $5 is not null then to_timestamp($5)
+                           when $2 = 'premium' then premium_expires_at
+                           else null
+                       end,
                        stripe_last_event_created = greatest(coalesce(stripe_last_event_created, 0), $4),
                        updated_at = now()
                  where stripe_subscription_id = $1
                    and coalesce(stripe_last_event_created, 0) <= $4
                 ",
-                &[&subscription_id, &tier, &sub_status, &event_created],
+                &[&subscription_id, &tier, &sub_status, &event_created, &current_period_end_unix],
             )
             .await
             .map_err(|e| format!("Failed to apply subscription update: {e}"))?;
@@ -291,6 +297,10 @@ fn extract_user_id_from_object(object: &Value) -> Option<Uuid> {
         .and_then(Value::as_str);
 
     from_metadata.and_then(|s| Uuid::parse_str(s).ok())
+}
+
+fn extract_current_period_end_unix(object: &Value) -> Option<i64> {
+    object.get("current_period_end").and_then(Value::as_i64)
 }
 
 fn map_subscription_status(status: &str) -> (&'static str, &'static str) {
@@ -458,8 +468,21 @@ mod tests {
     }
 
     #[test]
+    fn extract_current_period_end_unix_reads_subscription_window() {
+        let payload = json!({"current_period_end": 1_767_225_600});
+        assert_eq!(extract_current_period_end_unix(&payload), Some(1_767_225_600));
+    }
+
+    #[test]
     fn map_subscription_status_incomplete_maps_to_free_none() {
         let (tier, status) = map_subscription_status("incomplete");
+        assert_eq!(tier, "free");
+        assert_eq!(status, "none");
+    }
+
+    #[test]
+    fn map_subscription_status_incomplete_expired_maps_to_free_none() {
+        let (tier, status) = map_subscription_status("incomplete_expired");
         assert_eq!(tier, "free");
         assert_eq!(status, "none");
     }
