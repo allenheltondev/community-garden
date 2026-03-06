@@ -8,6 +8,7 @@ use crate::models::profile::{
     GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, SeasonalTimelineEntry,
     SubscriptionMetadata, UserRatingSummary, UserType,
 };
+use crate::tips_framework::{assign_experience_level, ExperienceSignals};
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::Serialize;
 use tokio_postgres::Row;
@@ -339,6 +340,9 @@ async fn to_me_response(
         });
 
     let badge_cabinet = badge_cabinet::load_and_sync_badges(client, user_id).await?;
+    let experience_signals = load_experience_signals(client, user_id).await?;
+    let experience_level = assign_experience_level(&experience_signals);
+
     let seasonal_timeline = badge_cabinet
         .iter()
         .filter_map(|entry| {
@@ -374,6 +378,8 @@ async fn to_me_response(
         gardener_tier: gardener_tier::evaluate_and_record(client, user_id).await?,
         badge_cabinet,
         seasonal_timeline,
+        experience_level,
+        experience_signals,
         grower_profile: load_grower_profile(client, user_id).await?,
         gatherer_profile: load_gatherer_profile(client, user_id).await?,
         rating_summary: load_rating_summary(client, user_id).await?,
@@ -448,6 +454,47 @@ async fn load_rating_summary(
         avg_score: rating.get("avg_score"),
         rating_count: rating.get("rating_count"),
     }))
+}
+
+async fn load_experience_signals(
+    client: &tokio_postgres::Client,
+    user_id: Uuid,
+) -> Result<ExperienceSignals, lambda_http::Error> {
+    let row = client
+        .query_one(
+            "
+            with activity_events as (
+              select created_at as activity_at from grower_crop_library where user_id = $1
+              union all
+              select updated_at as activity_at from grower_crop_library where user_id = $1
+              union all
+              select created_at as activity_at from surplus_listings where user_id = $1 and deleted_at is null
+              union all
+              select claimed_at as activity_at from claims where claimer_id = $1
+              union all
+              select confirmed_at as activity_at from claims where claimer_id = $1 and confirmed_at is not null
+              union all
+              select completed_at as activity_at from claims where claimer_id = $1 and completed_at is not null
+            )
+            select
+              (select count(*)::int from grower_crop_library where user_id = $1 and status in ('growing', 'paused')) as completed_grows,
+              (select count(*)::int from claims where claimer_id = $1 and status = 'completed') as successful_harvests,
+              (
+                select count(distinct date_trunc('day', activity_at))::int
+                from activity_events
+                where activity_at >= now() - interval '90 days'
+              ) as active_days_last_90
+            ",
+            &[&user_id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+
+    Ok(ExperienceSignals {
+        completed_grows: row.get::<_, i32>("completed_grows").max(0) as u32,
+        successful_harvests: row.get::<_, i32>("successful_harvests").max(0) as u32,
+        active_days_last_90: row.get::<_, i32>("active_days_last_90").max(0) as u32,
+    })
 }
 
 fn parse_uuid(value: &str, field_name: &str) -> Result<Uuid, lambda_http::Error> {
