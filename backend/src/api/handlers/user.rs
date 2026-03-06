@@ -5,8 +5,8 @@ use crate::location;
 use crate::middleware::entitlements;
 use crate::models::crop::ErrorResponse;
 use crate::models::profile::{
-    GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, SubscriptionMetadata,
-    UserRatingSummary, UserType,
+    GrowerProfile, MeProfileResponse, PublicUserResponse, PutMeRequest, SeasonalTimelineEntry,
+    SubscriptionMetadata, UserRatingSummary, UserType,
 };
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::Serialize;
@@ -338,6 +338,22 @@ async fn to_me_response(
             _ => None,
         });
 
+    let badge_cabinet = badge_cabinet::load_and_sync_badges(client, user_id).await?;
+    let seasonal_timeline = badge_cabinet
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .badge_key
+                .strip_prefix("gardener_season_")
+                .and_then(|level| level.parse::<i32>().ok())
+                .map(|level| SeasonalTimelineEntry {
+                    badge_key: entry.badge_key.clone(),
+                    level,
+                    earned_at: entry.earned_at.clone(),
+                })
+        })
+        .collect();
+
     Ok(MeProfileResponse {
         id: user_id.to_string(),
         email: user_row.get("email"),
@@ -356,7 +372,8 @@ async fn to_me_response(
                 .map(|v| v.to_rfc3339()),
         },
         gardener_tier: gardener_tier::evaluate_and_record(client, user_id).await?,
-        badge_cabinet: badge_cabinet::load_and_sync_badges(client, user_id).await?,
+        badge_cabinet,
+        seasonal_timeline,
         grower_profile: load_grower_profile(client, user_id).await?,
         gatherer_profile: load_gatherer_profile(client, user_id).await?,
         rating_summary: load_rating_summary(client, user_id).await?,
