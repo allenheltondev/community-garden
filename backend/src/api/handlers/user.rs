@@ -1,4 +1,5 @@
 use crate::db;
+use crate::gardener_tier;
 use crate::location;
 use crate::middleware::entitlements;
 use crate::models::crop::ErrorResponse;
@@ -353,6 +354,7 @@ async fn to_me_response(
                 .get::<_, Option<chrono::DateTime<chrono::Utc>>>("premium_expires_at")
                 .map(|v| v.to_rfc3339()),
         },
+        gardener_tier: gardener_tier::evaluate_and_record(client, user_id).await?,
         grower_profile: load_grower_profile(client, user_id).await?,
         gatherer_profile: load_gatherer_profile(client, user_id).await?,
         rating_summary: load_rating_summary(client, user_id).await?,

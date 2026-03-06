@@ -1,3 +1,4 @@
+use crate::gardener_tier::GardenerTierProfile;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,6 +59,7 @@ pub struct MeProfileResponse {
     pub onboarding_completed: bool,
     pub created_at: String,
     pub subscription: SubscriptionMetadata,
+    pub gardener_tier: GardenerTierProfile,
     pub grower_profile: Option<GrowerProfile>,
     pub gatherer_profile: Option<GathererProfile>,
     pub rating_summary: Option<UserRatingSummary>,
