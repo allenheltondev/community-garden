@@ -136,7 +136,13 @@ scripts:
               "neighborhood_provider",
               "abundance_giver",
               "consistency_giver",
-              "reliable_grower"
+              "reliable_grower",
+              "herb_whisperer",
+              "pollinator_friend",
+              "water_wise",
+              "compost_champion",
+              "season_starter",
+              "season_finisher"
           ];
 
           jsonData.badgeCabinet.forEach((entry) => {
