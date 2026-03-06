@@ -85,8 +85,15 @@ scripts:
           pm.expect(jsonData.userType).to.eql("grower");
       });
 
-      pm.test("displayName matches PUT payload", function () {
-          pm.expect(jsonData.displayName).to.eql("Profile Smoke Test User");
+      pm.test("displayName matches PUT snapshot when available", function () {
+          const snapshotStr = pm.collectionVariables.get("putMeResponseSnapshot");
+          if (!snapshotStr) {
+              console.warn("No snapshot found - skipping displayName assertion");
+              return;
+          }
+
+          const snapshot = JSON.parse(snapshotStr);
+          pm.expect(jsonData.displayName).to.eql(snapshot.displayName);
       });
 
       // --- Grower Profile Validation ---

@@ -5,6 +5,7 @@ mod ai_model_config;
 mod auth;
 mod badge_evidence;
 mod db;
+mod gardener_tier;
 mod handlers;
 mod location;
 mod middleware;
