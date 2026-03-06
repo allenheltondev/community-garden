@@ -59,7 +59,8 @@ scripts:
 
       pm.test("createdAt is a string (ISO date format)", function () {
           pm.expect(jsonData.createdAt).to.be.a("string");
-          pm.expect(new Date(jsonData.createdAt).toISOString()).to.be.ok;
+          const parsed = Date.parse(jsonData.createdAt);
+          pm.expect(Number.isNaN(parsed), "createdAt should be parseable as an ISO timestamp").to.eql(false);
       });
 
       pm.test("onboardingCompleted is a boolean", function () {
@@ -130,7 +131,12 @@ scripts:
               "gardener_master",
               "fruit_tree_keeper",
               "orchard_starter",
-              "berry_builder"
+              "berry_builder",
+              "first_share",
+              "neighborhood_provider",
+              "abundance_giver",
+              "consistency_giver",
+              "reliable_grower"
           ];
 
           jsonData.badgeCabinet.forEach((entry) => {
