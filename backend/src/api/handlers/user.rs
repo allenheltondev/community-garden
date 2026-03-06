@@ -529,10 +529,9 @@ async fn load_experience_signals(
                   and award_snapshot->>'seasonYear' is not null
               ) as seasonal_consistency,
               (
-                select count(distinct lower(trim(crop_name)))::bigint
+                select count(distinct crop_id)::bigint
                 from grower_crop_library
                 where user_id = $1::text::uuid
-                  and nullif(trim(crop_name), '') is not null
               ) as variety_breadth,
               (
                 select count(*)::bigint
@@ -687,6 +686,15 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
 }
 
 fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
+    if let Some(db_error) = error.as_db_error() {
+        let detail = db_error.detail().unwrap_or("none");
+        return lambda_http::Error::from(format!(
+            "Database query error: {} (detail: {})",
+            db_error.message(),
+            detail
+        ));
+    }
+
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 
