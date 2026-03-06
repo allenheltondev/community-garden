@@ -118,6 +118,12 @@ scripts:
           }
       });
 
+      pm.test("seasonalTimeline is an array when present", function () {
+          if (jsonData.seasonalTimeline !== undefined) {
+              pm.expect(Array.isArray(jsonData.seasonalTimeline)).to.eql(true);
+          }
+      });
+
       pm.test("badgeCabinet entries use supported badge keys", function () {
           if (!Array.isArray(jsonData.badgeCabinet)) {
               return;

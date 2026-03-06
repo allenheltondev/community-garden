@@ -62,9 +62,18 @@ pub struct MeProfileResponse {
     pub subscription: SubscriptionMetadata,
     pub gardener_tier: GardenerTierProfile,
     pub badge_cabinet: Vec<BadgeCabinetEntry>,
+    pub seasonal_timeline: Vec<SeasonalTimelineEntry>,
     pub grower_profile: Option<GrowerProfile>,
     pub gatherer_profile: Option<GathererProfile>,
     pub rating_summary: Option<UserRatingSummary>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeasonalTimelineEntry {
+    pub badge_key: String,
+    pub level: i32,
+    pub earned_at: String,
 }
 
 #[derive(Debug, Serialize)]
