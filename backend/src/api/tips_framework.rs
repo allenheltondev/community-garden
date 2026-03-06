@@ -1,8 +1,13 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 pub const TIP_SCHEMA_VERSION_V1: &str = "tips.v1";
+
+fn default_tip_schema_version() -> String {
+    TIP_SCHEMA_VERSION_V1.to_string()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,6 +25,7 @@ pub enum TipCategory {
     Planting,
     Soil,
     Seasonal,
+    Harvest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +51,7 @@ pub struct TipTargeting {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GardeningTip {
+    #[serde(default = "default_tip_schema_version")]
     pub schema_version: String,
     pub title: String,
     pub body: String,
@@ -53,6 +60,15 @@ pub struct GardeningTip {
     pub season: String,
     pub crop_tags: Vec<String>,
     pub zone_tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CuratedTip {
+    pub id: String,
+    #[serde(flatten)]
+    pub tip: GardeningTip,
+    pub targeting: TipTargeting,
 }
 
 impl GardeningTip {
@@ -115,10 +131,9 @@ pub fn is_tip_eligible(
     }
 
     let season_matches = targeting.seasons.is_empty()
-        || targeting
-            .seasons
-            .iter()
-            .any(|season| season.eq_ignore_ascii_case(user_season));
+        || targeting.seasons.iter().any(|season| {
+            season.eq_ignore_ascii_case("any") || season.eq_ignore_ascii_case(user_season)
+        });
 
     if !season_matches {
         return false;
@@ -128,7 +143,7 @@ pub fn is_tip_eligible(
         || targeting
             .zone_tags
             .iter()
-            .any(|zone| zone.eq_ignore_ascii_case(user_zone));
+            .any(|zone| zone.eq_ignore_ascii_case("any") || zone.eq_ignore_ascii_case(user_zone));
 
     if !zone_matches {
         return false;
@@ -136,10 +151,90 @@ pub fn is_tip_eligible(
 
     targeting.crop_tags.is_empty()
         || targeting.crop_tags.iter().any(|tag| {
-            user_crop_tags
-                .iter()
-                .any(|user_tag| user_tag.eq_ignore_ascii_case(tag))
+            tag.eq_ignore_ascii_case("any")
+                || user_crop_tags
+                    .iter()
+                    .any(|user_tag| user_tag.eq_ignore_ascii_case(tag))
         })
+}
+
+#[must_use]
+pub fn recommend_curated_tips(
+    user_level: ExperienceLevel,
+    user_season: &str,
+    user_zone: &str,
+    user_crop_tags: &[String],
+    limit: usize,
+) -> Vec<GardeningTip> {
+    curated_tip_catalog()
+        .iter()
+        .filter(|curated| {
+            is_tip_eligible(
+                user_level,
+                user_season,
+                user_zone,
+                user_crop_tags,
+                &curated.targeting,
+            )
+        })
+        .map(|curated| curated.tip.clone())
+        .take(limit)
+        .collect()
+}
+
+#[allow(clippy::panic)]
+pub fn curated_tip_catalog() -> &'static [CuratedTip] {
+    static TIP_CATALOG: OnceLock<Vec<CuratedTip>> = OnceLock::new();
+
+    TIP_CATALOG
+        .get_or_init(|| {
+            let raw = include_str!("../../../data/tips/curated_tips.v1.json");
+            let parsed: Vec<CuratedTip> = match serde_json::from_str(raw) {
+                Ok(parsed) => parsed,
+                Err(error) => {
+                    panic!("curated tip catalog JSON should parse during startup: {error}");
+                }
+            };
+
+            if let Err(error) = validate_curated_tip_catalog(&parsed) {
+                panic!("curated tip catalog JSON must satisfy metadata constraints: {error}");
+            }
+
+            parsed
+        })
+        .as_slice()
+}
+
+pub const fn season_from_month(month: u32) -> &'static str {
+    match month {
+        3..=5 => "spring",
+        6..=8 => "summer",
+        9..=11 => "fall",
+        _ => "winter",
+    }
+}
+
+fn validate_curated_tip_catalog(catalog: &[CuratedTip]) -> Result<(), String> {
+    for tip in catalog {
+        if tip.tip.schema_version != TIP_SCHEMA_VERSION_V1 {
+            return Err(format!(
+                "tip {} has unsupported schema version {}",
+                tip.id, tip.tip.schema_version
+            ));
+        }
+
+        if tip.targeting.seasons.is_empty()
+            || tip.targeting.zone_tags.is_empty()
+            || tip.targeting.crop_tags.is_empty()
+        {
+            return Err(format!(
+                "tip {} must include targeting seasons, zone tags, and crop tags",
+                tip.id
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 impl PartialOrd for ExperienceLevel {
@@ -165,8 +260,9 @@ const fn rank_level(level: ExperienceLevel) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::{
-        assign_experience_level, is_tip_eligible, ExperienceLevel, ExperienceSignals, GardeningTip,
-        TipCategory, TipTargeting, TIP_SCHEMA_VERSION_V1,
+        assign_experience_level, curated_tip_catalog, is_tip_eligible, recommend_curated_tips,
+        season_from_month, ExperienceLevel, ExperienceSignals, GardeningTip, TipCategory,
+        TipTargeting, TIP_SCHEMA_VERSION_V1,
     };
 
     #[test]
@@ -265,5 +361,42 @@ mod tests {
         );
 
         assert_eq!(tip.schema_version, TIP_SCHEMA_VERSION_V1);
+    }
+
+    #[test]
+    fn curated_tip_catalog_loads_with_required_metadata() {
+        let catalog = curated_tip_catalog();
+        assert!(!catalog.is_empty());
+        assert!(catalog.iter().all(|tip| !tip.targeting.seasons.is_empty()));
+        assert!(catalog
+            .iter()
+            .all(|tip| !tip.targeting.zone_tags.is_empty()));
+        assert!(catalog
+            .iter()
+            .all(|tip| !tip.targeting.crop_tags.is_empty()));
+    }
+
+    #[test]
+    fn recommend_curated_tips_filters_by_level_season_and_zone() {
+        let tips = recommend_curated_tips(
+            ExperienceLevel::Beginner,
+            "spring",
+            "8a",
+            &["tomato".to_string()],
+            3,
+        );
+
+        assert!(!tips.is_empty());
+        assert!(tips
+            .iter()
+            .all(|tip| tip.level == ExperienceLevel::Beginner));
+    }
+
+    #[test]
+    fn season_mapping_matches_expected_month_ranges() {
+        assert_eq!(season_from_month(1), "winter");
+        assert_eq!(season_from_month(4), "spring");
+        assert_eq!(season_from_month(7), "summer");
+        assert_eq!(season_from_month(10), "fall");
     }
 }
