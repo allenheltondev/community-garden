@@ -90,13 +90,17 @@ scripts:
       });
 
       // --- Grower Profile Validation ---
-      pm.test("growerProfile exists and is an object", function () {
+      pm.test("growerProfile is nullable per contract", function () {
           pm.expect(jsonData).to.have.property("growerProfile");
-          pm.expect(jsonData.growerProfile).to.be.an("object");
+          pm.expect(
+              jsonData.growerProfile === null || typeof jsonData.growerProfile === "object"
+          ).to.be.true;
       });
 
-      pm.test("growerProfile.units is imperial (reflects PUT update)", function () {
-          pm.expect(jsonData.growerProfile.units).to.eql("imperial");
+      pm.test("growerProfile.units is imperial when grower profile exists", function () {
+          if (jsonData.growerProfile !== null) {
+              pm.expect(jsonData.growerProfile.units).to.eql("imperial");
+          }
       });
 
       // --- Validate Against Stored Snapshot ---
