@@ -77,7 +77,14 @@ scripts:
           const signals = jsonData.experienceSignals;
           pm.expect(signals).to.be.an("object");
 
-          ["completedGrows", "successfulHarvests", "activeDaysLast90"].forEach((key) => {
+          [
+              "completedGrows",
+              "successfulHarvests",
+              "activeDaysLast90",
+              "seasonalConsistency",
+              "varietyBreadth",
+              "badgeCredibility"
+          ].forEach((key) => {
               pm.expect(signals).to.have.property(key);
               pm.expect(signals[key]).to.be.a("number");
               pm.expect(signals[key]).to.be.at.least(0);
