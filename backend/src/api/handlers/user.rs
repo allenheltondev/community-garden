@@ -29,8 +29,8 @@ pub async fn get_current_user(
 
     let user_row = client
         .query_opt(
-            "select id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at from users where id = $1 and deleted_at is null",
-            &[&user_id],
+            "select id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at from users where id = $1::text::uuid and deleted_at is null",
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -65,7 +65,7 @@ pub async fn upsert_current_user(
         .query_one(
             "
             insert into users (id, email, display_name, user_type, onboarding_completed)
-            values ($1, $2, $3, $4::text, $5)
+            values ($1::text::uuid, $2, $3, $4, $5)
             on conflict (id) do update
             set email = coalesce(excluded.email, users.email),
                 display_name = coalesce(excluded.display_name, users.display_name),
@@ -78,7 +78,7 @@ pub async fn upsert_current_user(
             returning id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at
             ",
             &[
-                &user_id,
+                &user_id.to_string(),
                 &auth_email,
                 &payload.display_name,
                 &payload.user_type.as_ref().map(|t| match t {
@@ -102,7 +102,7 @@ pub async fn upsert_current_user(
                 insert into grower_profiles
                     (user_id, home_zone, address, geo_key, lat, lng, share_radius_km, units, locale)
                 values
-                    ($1, $2, $3, $4, $5, $6, $7, coalesce($8::units_system, 'imperial'::units_system), $9)
+                    ($1::text::uuid, $2, $3, $4, $5, $6, $7, coalesce($8::text::units_system, 'imperial'::units_system), $9)
                 on conflict (user_id) do update
                 set home_zone = excluded.home_zone,
                     address = excluded.address,
@@ -115,7 +115,7 @@ pub async fn upsert_current_user(
                     updated_at = now()
                 ",
                 &[
-                    &user_id,
+                    &user_id.to_string(),
                     &grower_profile.home_zone,
                     &address,
                     &geocoded.geo_key,
@@ -141,7 +141,7 @@ pub async fn upsert_current_user(
                 insert into gatherer_profiles
                     (user_id, address, geo_key, lat, lng, search_radius_km, organization_affiliation, units, locale)
                 values
-                    ($1, $2, $3, $4, $5, $6, $7, coalesce($8::units_system, 'imperial'::units_system), $9)
+                    ($1::text::uuid, $2, $3, $4, $5, $6, $7, coalesce($8::text::units_system, 'imperial'::units_system), $9)
                 on conflict (user_id) do update
                 set address = excluded.address,
                     geo_key = excluded.geo_key,
@@ -154,7 +154,7 @@ pub async fn upsert_current_user(
                     updated_at = now()
                 ",
                 &[
-                    &user_id,
+                    &user_id.to_string(),
                     &address,
                     &geocoded.geo_key,
                     &geocoded.lat,
@@ -188,7 +188,7 @@ pub async fn get_public_user(user_id: &str) -> Result<Response<Body>, lambda_htt
 
     let row = client
         .query_opt(
-            "select id, display_name, created_at from users where id = $1 and deleted_at is null",
+            "select id, display_name, created_at from users where id = $1::text::uuid and deleted_at is null",
             &[&user_uuid],
         )
         .await
@@ -343,9 +343,31 @@ async fn to_me_response(
         });
 
     let badge_cabinet = badge_cabinet::load_and_sync_badges(client, user_id).await?;
-    let experience_signals = load_experience_signals(client, user_id).await?;
+
+    let experience_signals = match load_experience_signals(client, user_id).await {
+        Ok(signals) => signals,
+        Err(error) => {
+            error!(
+                user_id = %user_id,
+                reason = %error,
+                "Failed to load experience signals; using safe defaults"
+            );
+            ExperienceSignals::default()
+        }
+    };
+
     let experience_level = assign_experience_level(&experience_signals);
-    persist_experience_level(client, user_id, experience_level, &experience_signals).await?;
+
+    if let Err(error) =
+        persist_experience_level(client, user_id, experience_level, &experience_signals).await
+    {
+        error!(
+            user_id = %user_id,
+            reason = %error,
+            "Failed to persist experience level; continuing without blocking /me response"
+        );
+    }
+
     let grower_profile = load_grower_profile(client, user_id).await?;
 
     let now = chrono::Utc::now();
@@ -407,8 +429,8 @@ async fn load_grower_profile(
 ) -> Result<Option<GrowerProfile>, lambda_http::Error> {
     let row = client
         .query_opt(
-            "select home_zone, address, geo_key, lat, lng, share_radius_km::text as share_radius_km, units::text as units, locale from grower_profiles where user_id = $1",
-            &[&user_id],
+            "select home_zone, address, geo_key, lat, lng, share_radius_km::text as share_radius_km, units::text as units, locale from grower_profiles where user_id = $1::text::uuid",
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -435,8 +457,8 @@ async fn load_gatherer_profile(
 ) -> Result<Option<crate::models::profile::GathererProfile>, lambda_http::Error> {
     let row = client
         .query_opt(
-            "select coalesce(address, '') as address, geo_key, lat, lng, search_radius_km::text as search_radius_km, organization_affiliation, units::text as units, locale from gatherer_profiles where user_id = $1",
-            &[&user_id],
+            "select coalesce(address, '') as address, geo_key, lat, lng, search_radius_km::text as search_radius_km, organization_affiliation, units::text as units, locale from gatherer_profiles where user_id = $1::text::uuid",
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -459,8 +481,8 @@ async fn load_rating_summary(
 ) -> Result<Option<UserRatingSummary>, lambda_http::Error> {
     let row = client
         .query_opt(
-            "select avg_score::text as avg_score, rating_count from user_rating_summary where user_id = $1",
-            &[&user_id],
+            "select avg_score::text as avg_score, rating_count from user_rating_summary where user_id = $1::text::uuid",
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -479,21 +501,21 @@ async fn load_experience_signals(
         .query_one(
             "
             with activity_events as (
-              select created_at as activity_at from grower_crop_library where user_id = $1
+              select created_at as activity_at from grower_crop_library where user_id = $1::text::uuid
               union all
-              select updated_at as activity_at from grower_crop_library where user_id = $1
+              select updated_at as activity_at from grower_crop_library where user_id = $1::text::uuid
               union all
-              select created_at as activity_at from surplus_listings where user_id = $1 and deleted_at is null
+              select created_at as activity_at from surplus_listings where user_id = $1::text::uuid and deleted_at is null
               union all
-              select claimed_at as activity_at from claims where claimer_id = $1
+              select claimed_at as activity_at from claims where claimer_id = $1::text::uuid
               union all
-              select confirmed_at as activity_at from claims where claimer_id = $1 and confirmed_at is not null
+              select confirmed_at as activity_at from claims where claimer_id = $1::text::uuid and confirmed_at is not null
               union all
-              select completed_at as activity_at from claims where claimer_id = $1 and completed_at is not null
+              select completed_at as activity_at from claims where claimer_id = $1::text::uuid and completed_at is not null
             )
             select
-              (select count(*)::bigint from claims where claimer_id = $1 and status = 'completed') as completed_grows,
-              (select count(*)::bigint from claims where claimer_id = $1 and status = 'completed') as successful_harvests,
+              (select count(*)::bigint from claims where claimer_id = $1::text::uuid and status = 'completed') as completed_grows,
+              (select count(*)::bigint from claims where claimer_id = $1::text::uuid and status = 'completed') as successful_harvests,
               (
                 select count(distinct date_trunc('day', activity_at))::bigint
                 from activity_events
@@ -502,23 +524,22 @@ async fn load_experience_signals(
               (
                 select count(distinct (award_snapshot->>'seasonYear'))::bigint
                 from badge_award_audit
-                where user_id = $1
+                where user_id = $1::text::uuid
                   and badge_key like 'gardener_season_%'
                   and award_snapshot->>'seasonYear' is not null
               ) as seasonal_consistency,
               (
-                select count(distinct lower(trim(crop_name)))::bigint
+                select count(distinct crop_id)::bigint
                 from grower_crop_library
-                where user_id = $1
-                  and nullif(trim(crop_name), '') is not null
+                where user_id = $1::text::uuid
               ) as variety_breadth,
               (
                 select count(*)::bigint
                 from badge_evidence_submissions
-                where user_id = $1 and status = 'auto_approved'
+                where user_id = $1::text::uuid and status = 'auto_approved'
               ) as badge_credibility
             ",
-            &[&user_id],
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -543,8 +564,8 @@ async fn persist_experience_level(
 ) -> Result<(), lambda_http::Error> {
     let current_row = client
         .query_opt(
-            "select experience_level::text as experience_level, signals from user_experience_levels where user_id = $1",
-            &[&user_id],
+            "select experience_level::text as experience_level, signals from user_experience_levels where user_id = $1::text::uuid",
+            &[&user_id.to_string()],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -570,14 +591,14 @@ async fn persist_experience_level(
         .execute(
             "
             insert into user_experience_levels (user_id, experience_level, signals, computed_at, updated_at)
-            values ($1, $2, $3::jsonb, now(), now())
+            values ($1::text::uuid, $2, $3::jsonb, now(), now())
             on conflict (user_id) do update
               set experience_level = excluded.experience_level,
                   signals = excluded.signals,
                   computed_at = excluded.computed_at,
                   updated_at = now()
             ",
-            &[&user_id, &level_text, &new_signals],
+            &[&user_id.to_string(), &level_text, &new_signals],
         )
         .await
         .map_err(|error| db_error(&error))?;
@@ -597,10 +618,10 @@ async fn persist_experience_level(
                   transition_reason,
                   changed_at
                 )
-                values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, now())
+                values ($1::text::uuid, $2, $3, $4::jsonb, $5::jsonb, $6, now())
                 ",
                 &[
-                    &user_id,
+                    &user_id.to_string(),
                     &previous_level,
                     &level_text,
                     &previous_signals,
@@ -665,6 +686,15 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
 }
 
 fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
+    if let Some(db_error) = error.as_db_error() {
+        let detail = db_error.detail().unwrap_or("none");
+        return lambda_http::Error::from(format!(
+            "Database query error: {} (detail: {})",
+            db_error.message(),
+            detail
+        ));
+    }
+
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 
