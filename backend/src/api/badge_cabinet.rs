@@ -13,7 +13,20 @@ const NEIGHBORHOOD_PROVIDER_BADGE_KEY: &str = "neighborhood_provider";
 const ABUNDANCE_GIVER_BADGE_KEY: &str = "abundance_giver";
 const CONSISTENCY_GIVER_BADGE_KEY: &str = "consistency_giver";
 const RELIABLE_GROWER_BADGE_KEY: &str = "reliable_grower";
+const HERB_WHISPERER_BADGE_KEY: &str = "herb_whisperer";
+const POLLINATOR_FRIEND_BADGE_KEY: &str = "pollinator_friend";
+const WATER_WISE_BADGE_KEY: &str = "water_wise";
+const COMPOST_CHAMPION_BADGE_KEY: &str = "compost_champion";
+const SEASON_STARTER_BADGE_KEY: &str = "season_starter";
+const SEASON_FINISHER_BADGE_KEY: &str = "season_finisher";
 const HARVEST_PROOF_WINDOW_DAYS: i64 = 14;
+
+const PRACTICE_MIN_CONFIDENCE: f64 = 0.8;
+const PRACTICE_HERB_EVIDENCE_MIN: i32 = 3;
+const PRACTICE_POLLINATOR_EVIDENCE_MIN: i32 = 3;
+const PRACTICE_WATER_WISE_EVIDENCE_MIN: i32 = 4;
+const PRACTICE_COMPOST_EVIDENCE_MIN: i32 = 4;
+const PRACTICE_SEASON_MIN_EVENTS: i32 = 2;
 
 const FRUIT_TREE_KEEPER_MIN_TREE_COUNT: i32 = 1;
 const ORCHARD_STARTER_MIN_TREE_COUNT: i32 = 3;
@@ -62,6 +75,7 @@ pub async fn load_and_sync_badges(
     maybe_award_gardener_season_ladder(client, user_id).await?;
     maybe_award_fruit_focused_badges(client, user_id).await?;
     maybe_award_sharing_credibility_badges(client, user_id).await?;
+    maybe_award_practice_badges(client, user_id).await?;
 
     let rows = client
         .query(
@@ -555,6 +569,157 @@ async fn maybe_award_sharing_credibility_badges(
             }
         }),
         "Reliable Grower awarded: high completion outcomes with low cancellation/no-show rate",
+    )
+    .await?;
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
+async fn maybe_award_practice_badges(
+    client: &Client,
+    user_id: Uuid,
+) -> Result<(), lambda_http::Error> {
+    let row = client
+        .query_one(
+            r"
+            with scoped_evidence as (
+              select
+                lower(coalesce(ai_crop_label, '')) as crop_label,
+                lower(coalesce(ai_stage_label, '')) as stage_label,
+                coalesce(ai_crop_confidence::double precision, 0) as crop_conf,
+                coalesce(ai_stage_confidence::double precision, 0) as stage_conf,
+                coalesce(exif_taken_at, captured_at, created_at) as observed_at
+              from badge_evidence_submissions
+              where user_id = $1
+                and status in ('auto_approved', 'needs_review')
+            )
+            select
+              count(*) filter (
+                where crop_label like any(array['%herb%', '%basil%', '%mint%', '%cilantro%', '%parsley%'])
+                  and greatest(crop_conf, stage_conf) >= $2
+              )::int as herb_count,
+              count(*) filter (
+                where crop_label like any(array['%flower%', '%pollinator%', '%lavender%', '%bee balm%', '%native%'])
+                  and greatest(crop_conf, stage_conf) >= $2
+              )::int as pollinator_count,
+              count(*) filter (
+                where stage_label like any(array['%irrig%', '%watering%', '%mulch%'])
+                  and greatest(crop_conf, stage_conf) >= $2
+              )::int as water_wise_count,
+              count(*) filter (
+                where crop_label like any(array['%compost%', '%compostable%', '%soil amendment%'])
+                  and greatest(crop_conf, stage_conf) >= $2
+              )::int as compost_count,
+              count(*) filter (
+                where extract(month from observed_at at time zone 'utc') between 3 and 5
+              )::int as spring_count,
+              count(*) filter (
+                where extract(month from observed_at at time zone 'utc') between 9 and 11
+              )::int as fall_count
+            from scoped_evidence
+            ",
+            &[&user_id, &PRACTICE_MIN_CONFIDENCE],
+        )
+        .await
+        .map_err(|e| lambda_http::Error::from(format!("Database query error: {e}")))?;
+
+    let herb_count: i32 = row.get("herb_count");
+    let pollinator_count: i32 = row.get("pollinator_count");
+    let water_wise_count: i32 = row.get("water_wise_count");
+    let compost_count: i32 = row.get("compost_count");
+    let spring_count: i32 = row.get("spring_count");
+    let fall_count: i32 = row.get("fall_count");
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        HERB_WHISPERER_BADGE_KEY,
+        herb_count >= PRACTICE_HERB_EVIDENCE_MIN,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "qualifiedEvidenceCount": herb_count,
+            "minEvidenceCount": PRACTICE_HERB_EVIDENCE_MIN,
+            "minConfidence": PRACTICE_MIN_CONFIDENCE,
+        }),
+        "Herb Whisperer awarded: repeated high-confidence herb cultivation evidence",
+    )
+    .await?;
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        POLLINATOR_FRIEND_BADGE_KEY,
+        pollinator_count >= PRACTICE_POLLINATOR_EVIDENCE_MIN,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "qualifiedEvidenceCount": pollinator_count,
+            "minEvidenceCount": PRACTICE_POLLINATOR_EVIDENCE_MIN,
+            "minConfidence": PRACTICE_MIN_CONFIDENCE,
+        }),
+        "Pollinator Friend awarded: pollinator-supporting evidence sustained across events",
+    )
+    .await?;
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        WATER_WISE_BADGE_KEY,
+        water_wise_count >= PRACTICE_WATER_WISE_EVIDENCE_MIN,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "qualifiedEvidenceCount": water_wise_count,
+            "minEvidenceCount": PRACTICE_WATER_WISE_EVIDENCE_MIN,
+            "minConfidence": PRACTICE_MIN_CONFIDENCE,
+        }),
+        "Water Wise awarded: recurring irrigation and conservation signals in proof evidence",
+    )
+    .await?;
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        COMPOST_CHAMPION_BADGE_KEY,
+        compost_count >= PRACTICE_COMPOST_EVIDENCE_MIN,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "qualifiedEvidenceCount": compost_count,
+            "minEvidenceCount": PRACTICE_COMPOST_EVIDENCE_MIN,
+            "minConfidence": PRACTICE_MIN_CONFIDENCE,
+        }),
+        "Compost Champion awarded: repeated compost cycle evidence with confidence thresholds",
+    )
+    .await?;
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        SEASON_STARTER_BADGE_KEY,
+        spring_count >= PRACTICE_SEASON_MIN_EVENTS,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "seasonWindow": "spring",
+            "qualifiedEvidenceCount": spring_count,
+            "minEvidenceCount": PRACTICE_SEASON_MIN_EVENTS,
+            "windowMonthsUtc": [3, 4, 5]
+        }),
+        "Season Starter awarded: spring season proof events met deterministic threshold",
+    )
+    .await?;
+
+    maybe_award_badge_if_needed(
+        client,
+        user_id,
+        SEASON_FINISHER_BADGE_KEY,
+        fall_count >= PRACTICE_SEASON_MIN_EVENTS,
+        serde_json::json!({
+            "badgeFamily": "garden_practice",
+            "seasonWindow": "fall",
+            "qualifiedEvidenceCount": fall_count,
+            "minEvidenceCount": PRACTICE_SEASON_MIN_EVENTS,
+            "windowMonthsUtc": [9, 10, 11]
+        }),
+        "Season Finisher awarded: fall season proof events met deterministic threshold",
     )
     .await?;
 
