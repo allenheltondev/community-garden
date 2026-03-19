@@ -1,0 +1,49 @@
+import path from 'node:path';
+
+export const ROOT = path.resolve(process.cwd());
+export const DATA_DIR = path.join(ROOT, 'data', 'catalog');
+
+export const PATHS = {
+  usdaPlants: path.join(ROOT, 'lib', 'usda-plants.txt'),
+  openfarmCrops: path.join(ROOT, 'lib', 'openfarm-crops.csv'),
+  permapeopleCacheDir: path.join(DATA_DIR, 'permapeople', 'cache'),
+  permapeopleManifest: path.join(DATA_DIR, 'permapeople', 'manifest.json'),
+  step1: path.join(DATA_DIR, 'step1_canonical_identity.jsonl'),
+  step2: path.join(DATA_DIR, 'step2_source_matches.jsonl'),
+  step3: path.join(DATA_DIR, 'step3_normalized_sources.jsonl'),
+  step4: path.join(DATA_DIR, 'step4_relevance_classified.jsonl'),
+  step5: path.join(DATA_DIR, 'step5_canonical_drafts.jsonl'),
+  step6: path.join(DATA_DIR, 'step6_augmented_catalog.jsonl'),
+};
+
+export const PROGRESS_PATHS = {
+  1: path.join(DATA_DIR, 'step1_progress.json'),
+  2: path.join(DATA_DIR, 'step2_progress.json'),
+  3: path.join(DATA_DIR, 'step3_progress.json'),
+  4: path.join(DATA_DIR, 'step4_progress.json'),
+  5: path.join(DATA_DIR, 'step5_progress.json'),
+  6: path.join(DATA_DIR, 'step6_progress.json'),
+};
+
+export const ENUMS = {
+  matchType: ['exact_scientific', 'normalized_scientific', 'synonym_match', 'common_name_fallback', 'ambiguous_common_name', 'unresolved'],
+  relevanceClass: ['food_crop_core', 'food_crop_niche', 'edible_ornamental', 'medicinal_only', 'industrial_crop', 'weed_or_invasive', 'non_food'],
+};
+
+export const MATCH_SCORES = {
+  exact_scientific: 1,
+  normalized_scientific: 0.95,
+  synonym_match: 0.85,
+  common_name_fallback: 0.7,
+  ambiguous_common_name: 0.4,
+  unresolved: 0,
+};
+
+export const PERMAPEOPLE = {
+  endpoint: 'https://permapeople.org/indexes/Plant_production/search',
+  hitsPerPage: 10,
+  requestDelayMs: 500,
+  retries: 3,
+  backoffMs: 2000,
+  rateLimitBackoffMs: 30000,
+};
