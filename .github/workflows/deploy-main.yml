@@ -225,6 +225,10 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install backend Node.js dependencies
+        working-directory: backend
+        run: npm install
+
       - name: Deploy backend
         run: |
           node deploy-and-configure.mjs \

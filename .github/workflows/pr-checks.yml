@@ -526,6 +526,10 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install backend Node.js dependencies
+        working-directory: backend
+        run: npm install
+
       - name: Deploy backend to staging
         run: node deploy-and-configure.mjs --region ${{ env.AWS_REGION }} --stack-name ${{ env.STACK_NAME }} --ci
         env:
