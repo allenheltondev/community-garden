@@ -58,11 +58,18 @@ export async function runPromote({ reset = false, dryRun = false, limit = null }
   for (const rec of slice) {
     const eligibleClass = rec.catalog_status === 'core' || rec.catalog_status === 'extended';
     const eligibleReview = rec.review_status === 'auto_approved';
+    const hasOpenFarmSupport = rec.has_openfarm_support === true;
+    const hasStrongFoodEvidence = rec.strong_food_evidence === true;
+    const edibleSignal = rec.edible === true || (Array.isArray(rec.edible_parts) && rec.edible_parts.length > 0);
+    const guardrailBlocked = Boolean(rec.guardrail_flags?.conifer || rec.guardrail_flags?.industrial);
+
     const candidate = mapToImportRecord(rec, import_batch_id, imported_at);
     const validation = validateRecord(['canonical_id', 'scientific_name', 'common_name', 'catalog_status', 'review_status'], candidate);
     const contentValid = Boolean(candidate.canonical_id && candidate.scientific_name && candidate.common_name);
 
-    if (eligibleClass && eligibleReview && validation.valid && contentValid) {
+    const promotionGatePassed = (hasOpenFarmSupport || hasStrongFoodEvidence) && edibleSignal && !guardrailBlocked;
+
+    if (eligibleClass && eligibleReview && promotionGatePassed && validation.valid && contentValid) {
       promoted.push(candidate);
       continue;
     }
