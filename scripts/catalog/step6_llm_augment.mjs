@@ -1,0 +1,98 @@
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import { PATHS } from './lib/config.mjs';
+import { readJsonl, appendJsonl, computeChecksum } from './lib/io.mjs';
+import { readProgress, writeProgress, verifyChecksum, resetProgress } from './lib/progress.mjs';
+import { batchAugment } from './lib/bedrock.mjs';
+
+function isEligible(rec) {
+  return rec.catalog_status === 'core' || rec.catalog_status === 'extended';
+}
+
+function applyAugmentation(record, augmentation) {
+  const out = { ...record, field_sources: { ...(record.field_sources || {}) } };
+
+  if (augmentation.description && !out.description) {
+    out.description = augmentation.description;
+    out.field_sources.description = 'llm';
+  }
+
+  if (augmentation.display_notes) {
+    out.display_notes = augmentation.display_notes;
+    out.field_sources.display_notes = 'llm';
+  }
+
+  if (augmentation.review_notes) {
+    out.review_notes = augmentation.review_notes;
+    out.field_sources.review_notes = 'llm';
+  }
+
+  if (augmentation.category && (!out.category || out.review_status !== 'auto_approved')) {
+    out.category = augmentation.category;
+    out.field_sources.category = 'llm';
+  }
+
+  return out;
+}
+
+export async function runStep6({ reset = false, dryRun = false, limit = null, invoke, modelId = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0' } = {}) {
+  if (!fs.existsSync(PATHS.step5)) throw new Error(`Missing required input from Step 5: ${PATHS.step5}`);
+  if (reset) await resetProgress(6);
+
+  const checksum = await computeChecksum(PATHS.step5);
+  await verifyChecksum(6, checksum);
+
+  const input = [];
+  for await (const r of readJsonl(PATHS.step5)) input.push(r);
+
+  const progress = await readProgress(6);
+  const startIndex = progress ? progress.lastProcessedIndex + 1 : 0;
+  const slice = input.slice(startIndex, limit ? startIndex + limit : undefined);
+
+  const eligible = slice.filter(isEligible);
+  const passthrough = slice.filter((rec) => !isEligible(rec));
+
+  const { successes, failures, apiCalls } = await batchAugment({
+    records: eligible,
+    invoke,
+    modelId,
+    dryRun,
+  });
+
+  const failureById = new Map(failures.map((f) => [f.record.canonical_id, f.error]));
+
+  const augmented = successes.map(({ record, augmentation }) => applyAugmentation(record, augmentation));
+  const failedRecords = eligible
+    .filter((r) => failureById.has(r.canonical_id))
+    .map((r) => ({ ...r, augmentation_error: failureById.get(r.canonical_id) }));
+
+  const out = [...augmented, ...failedRecords, ...passthrough];
+
+  const summary = {
+    processedThisRun: out.length,
+    augmentedCount: augmented.length,
+    failedCount: failedRecords.length,
+    apiCallCount: apiCalls,
+    fieldPopulationRates: {
+      description: augmented.length ? augmented.filter((r) => r.description).length / augmented.length : 0,
+      category: augmented.length ? augmented.filter((r) => r.category).length / augmented.length : 0,
+      display_notes: augmented.length ? augmented.filter((r) => r.display_notes).length / augmented.length : 0,
+      review_notes: augmented.length ? augmented.filter((r) => r.review_notes).length / augmented.length : 0,
+    },
+  };
+
+  if (!dryRun) {
+    await fsp.mkdir('data/catalog', { recursive: true });
+    await appendJsonl(PATHS.step6, out);
+    if (out.length > 0) await writeProgress(6, startIndex + out.length - 1, checksum);
+  }
+
+  return summary;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runStep6().then((s) => console.log(JSON.stringify(s, null, 2))).catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });
+}
