@@ -14,6 +14,11 @@ export const PATHS = {
   step4: path.join(DATA_DIR, 'step4_relevance_classified.jsonl'),
   step5: path.join(DATA_DIR, 'step5_canonical_drafts.jsonl'),
   step6: path.join(DATA_DIR, 'step6_augmented_catalog.jsonl'),
+  promoted: path.join(DATA_DIR, 'promoted_crops.jsonl'),
+  reviewNeedsReview: path.join(DATA_DIR, 'review_queue_needs_review.jsonl'),
+  reviewUnresolved: path.join(DATA_DIR, 'review_queue_unresolved.jsonl'),
+  reviewExcluded: path.join(DATA_DIR, 'review_queue_excluded.jsonl'),
+  reviewSummary: path.join(DATA_DIR, 'review_summary.json'),
 };
 
 export const PROGRESS_PATHS = {
@@ -23,6 +28,7 @@ export const PROGRESS_PATHS = {
   4: path.join(DATA_DIR, 'step4_progress.json'),
   5: path.join(DATA_DIR, 'step5_progress.json'),
   6: path.join(DATA_DIR, 'step6_progress.json'),
+  7: path.join(DATA_DIR, 'promote_progress.json'),
 };
 
 export const ENUMS = {
