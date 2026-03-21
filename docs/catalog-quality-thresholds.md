@@ -6,6 +6,16 @@ Run from `scripts/catalog`:
 bun run benchmark:400
 ```
 
+Optional overrides (for calibration runs):
+
+```bash
+BENCHMARK_MIN_PROMOTED_PCT=2 \
+BENCHMARK_MAX_NEEDS_REVIEW_PCT=45 \
+BENCHMARK_MAX_SUSPICIOUS_PCT=25 \
+BENCHMARK_MAX_FUZZY_MATCH_PCT=30 \
+bun run benchmark:400
+```
+
 This produces:
 - `data/catalog/metrics_400.json` (machine-readable)
 - `data/catalog/metrics_400.md` (human-readable)

@@ -1,8 +1,11 @@
 # Catalog 400-sample benchmark
 
-- Generated: 2026-03-21T15:16:38.657Z
+- Generated: 2026-03-21T15:45:20.400Z
 - Sample size: 400
 - Overall: **FAIL**
+
+## Failure summary
+- promoted_pct: 0%
 
 ## Distributions
 

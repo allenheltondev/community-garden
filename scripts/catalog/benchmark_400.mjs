@@ -9,7 +9,14 @@ const STEP5_PATH = path.join(DATA_DIR, "step5_canonical_drafts.jsonl");
 const OUT_JSON = path.join(DATA_DIR, "metrics_400.json");
 const OUT_MD = path.join(DATA_DIR, "metrics_400.md");
 const OUT_SUSPICIOUS = path.join(DATA_DIR, "metrics_400_suspicious.jsonl");
-const SAMPLE_SIZE = 400;
+const SAMPLE_SIZE = Number(process.env.BENCHMARK_SAMPLE_SIZE ?? 400);
+
+const THRESHOLDS = {
+  min_promoted_pct: Number(process.env.BENCHMARK_MIN_PROMOTED_PCT ?? 5),
+  max_needs_review_pct: Number(process.env.BENCHMARK_MAX_NEEDS_REVIEW_PCT ?? 35),
+  max_suspicious_pct: Number(process.env.BENCHMARK_MAX_SUSPICIOUS_PCT ?? 20),
+  max_fuzzy_match_pct: Number(process.env.BENCHMARK_MAX_FUZZY_MATCH_PCT ?? 25),
+};
 
 function parseJsonl(text) {
   return text
@@ -126,12 +133,7 @@ const metrics = {
     threshold_score: 4,
     output: path.relative(ROOT, OUT_SUSPICIOUS),
   },
-  thresholds: {
-    min_promoted_pct: 5,
-    max_needs_review_pct: 35,
-    max_suspicious_pct: 20,
-    max_fuzzy_match_pct: 25,
-  },
+  thresholds: THRESHOLDS,
 };
 
 const total = metrics.sample_size;
@@ -147,8 +149,11 @@ metrics.threshold_checks = {
   fuzzy_match_pct: { actual: fuzzyPct, pass: fuzzyPct <= metrics.thresholds.max_fuzzy_match_pct },
 };
 metrics.pass = Object.values(metrics.threshold_checks).every((x) => x.pass);
+const failingChecks = Object.entries(metrics.threshold_checks)
+  .filter(([, check]) => !check.pass)
+  .map(([name, check]) => ({ name, actual: check.actual }));
 
-const md = `# Catalog 400-sample benchmark\n\n- Generated: ${metrics.generated_at}\n- Sample size: ${metrics.sample_size}\n- Overall: **${metrics.pass ? "PASS" : "FAIL"}**\n\n## Distributions\n\n### Match type\n${Object.entries(metrics.distributions.match_type)
+const md = `# Catalog 400-sample benchmark\n\n- Generated: ${metrics.generated_at}\n- Sample size: ${metrics.sample_size}\n- Overall: **${metrics.pass ? "PASS" : "FAIL"}**\n\n## Failure summary\n${failingChecks.length === 0 ? "- none" : failingChecks.map((f) => `- ${f.name}: ${f.actual}%`).join("\\n")}\n\n## Distributions\n\n### Match type\n${Object.entries(metrics.distributions.match_type)
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
   .join("\n")}\n\n### Relevance class\n${Object.entries(metrics.distributions.relevance_class)
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
