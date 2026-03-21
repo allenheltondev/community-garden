@@ -144,6 +144,12 @@ const blockageCounts = {
   guardrail_blocked: sampledStep5.filter((r) => Boolean(r.guardrail_flags?.conifer || r.guardrail_flags?.industrial)).length,
 };
 
+const sourceCoverage = {
+  openfarm_record_present: sampledStep5.filter((r) => (r.source_records || []).some((s) => s.source_provider === "openfarm")).length,
+  openfarm_record_matched: sampledStep5.filter((r) => (r.source_records || []).some((s) => s.source_provider === "openfarm" && s.match_type !== "unresolved")).length,
+  unresolved_only: sampledStep2.filter((r) => r.match_type === "unresolved").length,
+};
+
 const metrics = {
   generated_at: new Date().toISOString(),
   sample_size: sampledStep5.length,
@@ -163,6 +169,7 @@ const metrics = {
     excluded: sampledStep5.filter((r) => r.catalog_status === "excluded").length,
   },
   promotion_blockers: blockageCounts,
+  source_coverage: sourceCoverage,
   suspicious: {
     count: suspicious.length,
     threshold_score: 4,
@@ -221,6 +228,8 @@ const md = `# Catalog 400-sample benchmark\n\n- Generated: ${metrics.generated_a
   .join("\n")}\n\n### Catalog status\n${Object.entries(metrics.distributions.catalog_status)
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
   .join("\n")}\n\n## Queue counts\n- promoted: ${metrics.queue_counts.promoted} (${promotedPct}%)\n- needs_review: ${metrics.queue_counts.needs_review} (${needsReviewPct}%)\n- excluded: ${metrics.queue_counts.excluded} (${pct(metrics.queue_counts.excluded, total)}%)\n\n## Promotion blockers (diagnostic)\n${Object.entries(metrics.promotion_blockers)
+  .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
+  .join("\\n")}\n\n## Source coverage (diagnostic)\n${Object.entries(metrics.source_coverage)
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
   .join("\\n")}\n\n## Suspicious sample queue\n- flagged: ${metrics.suspicious.count} (${suspiciousPct}%)\n- file: ${path.relative(ROOT, OUT_SUSPICIOUS)}\n\n## Threshold checks\n${Object.entries(metrics.threshold_checks)
   .map(([k, v]) => `- ${k}: ${v.actual}% -> ${v.pass ? "PASS" : "FAIL"}`)

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-21T17:15:25.721Z",
+  "generated_at": "2026-03-21T17:45:13.712Z",
   "sample_size": 400,
   "source_paths": {
     "step2": "..\\..\\data\\catalog\\step2_source_matches.jsonl",
@@ -30,6 +30,11 @@
     "no_openfarm_support": 399,
     "low_confidence_band": 399,
     "guardrail_blocked": 2
+  },
+  "source_coverage": {
+    "openfarm_record_present": 399,
+    "openfarm_record_matched": 1,
+    "unresolved_only": 369
   },
   "suspicious": {
     "count": 0,

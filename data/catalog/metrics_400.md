@@ -1,6 +1,6 @@
 # Catalog 400-sample benchmark
 
-- Generated: 2026-03-21T17:15:25.721Z
+- Generated: 2026-03-21T17:45:13.712Z
 - Sample size: 400
 - Overall: **FAIL**
 
@@ -30,6 +30,9 @@
 
 ## Promotion blockers (diagnostic)
 - non_core_status: 400 (100%)\n- not_auto_approved: 400 (100%)\n- no_openfarm_support: 399 (99.75%)\n- low_confidence_band: 399 (99.75%)\n- guardrail_blocked: 2 (0.5%)
+
+## Source coverage (diagnostic)
+- openfarm_record_present: 399 (99.75%)\n- openfarm_record_matched: 1 (0.25%)\n- unresolved_only: 369 (92.25%)
 
 ## Suspicious sample queue
 - flagged: 0 (0%)
