@@ -10,6 +10,7 @@ const OUT_JSON = path.join(DATA_DIR, "metrics_400.json");
 const OUT_MD = path.join(DATA_DIR, "metrics_400.md");
 const OUT_SUSPICIOUS = path.join(DATA_DIR, "metrics_400_suspicious.jsonl");
 const OUT_UNRESOLVED_CSV = path.join(DATA_DIR, "metrics_400_unresolved_openfarm.csv");
+const OUT_UNRESOLVED_GROUPS_JSON = path.join(DATA_DIR, "metrics_400_unresolved_openfarm_groups.json");
 const BASELINE_PATH = process.env.BENCHMARK_BASELINE_JSON
   ? path.resolve(ROOT, process.env.BENCHMARK_BASELINE_JSON)
   : null;
@@ -175,6 +176,25 @@ const unresolvedTokenFreq = Object.entries(
   .slice(0, 15)
   .map(([token, count]) => ({ token, count }));
 
+const unresolvedGroups = Object.entries(
+  unresolvedOpenfarmAll.reduce((acc, row) => {
+    const key = row.normalized_scientific || row.normalized_common || "unknown";
+    if (!acc[key]) acc[key] = { normalized_key: key, count: 0, examples: [] };
+    acc[key].count += 1;
+    if (acc[key].examples.length < 5) {
+      acc[key].examples.push({
+        source_record_id: row.source_record_id,
+        scientific_name: row.scientific_name,
+        common_name: row.common_name,
+      });
+    }
+    return acc;
+  }, {}),
+)
+  .map(([, v]) => v)
+  .sort((a, b) => b.count - a.count)
+  .slice(0, 200);
+
 const metrics = {
   generated_at: new Date().toISOString(),
   sample_size: sampledStep5.length,
@@ -198,6 +218,7 @@ const metrics = {
   unresolved_openfarm_examples: unresolvedOpenfarm,
   unresolved_openfarm_token_frequency: unresolvedTokenFreq,
   unresolved_openfarm_csv: path.relative(ROOT, OUT_UNRESOLVED_CSV),
+  unresolved_openfarm_groups_json: path.relative(ROOT, OUT_UNRESOLVED_GROUPS_JSON),
   suspicious: {
     count: suspicious.length,
     threshold_score: 4,
@@ -277,9 +298,11 @@ const unresolvedCsvRows = unresolvedOpenfarmAll.map((r) => [r.source_record_id, 
   .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
   .join(","));
 await writeFile(OUT_UNRESOLVED_CSV, [unresolvedCsvHeader, ...unresolvedCsvRows].join("\n") + "\n", "utf8");
+await writeFile(OUT_UNRESOLVED_GROUPS_JSON, `${JSON.stringify(unresolvedGroups, null, 2)}\n`, "utf8");
 
 console.log(`Wrote ${path.relative(ROOT, OUT_JSON)}`);
 console.log(`Wrote ${path.relative(ROOT, OUT_MD)}`);
 console.log(`Wrote ${path.relative(ROOT, OUT_SUSPICIOUS)}`);
 console.log(`Wrote ${path.relative(ROOT, OUT_UNRESOLVED_CSV)}`);
+console.log(`Wrote ${path.relative(ROOT, OUT_UNRESOLVED_GROUPS_JSON)}`);
 console.log(`Benchmark result: ${metrics.pass ? "PASS" : "FAIL"}`);

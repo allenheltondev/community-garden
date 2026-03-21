@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-21T19:15:14.200Z",
+  "generated_at": "2026-03-21T22:29:53.501Z",
   "sample_size": 400,
   "source_paths": {
     "step2": "..\\..\\data\\catalog\\step2_source_matches.jsonl",
@@ -276,6 +276,7 @@
     }
   ],
   "unresolved_openfarm_csv": "..\\..\\data\\catalog\\metrics_400_unresolved_openfarm.csv",
+  "unresolved_openfarm_groups_json": "..\\..\\data\\catalog\\metrics_400_unresolved_openfarm_groups.json",
   "suspicious": {
     "count": 0,
     "threshold_score": 4,
