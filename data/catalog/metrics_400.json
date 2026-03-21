@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-21T18:15:18.361Z",
+  "generated_at": "2026-03-21T18:45:17.919Z",
   "sample_size": 400,
   "source_paths": {
     "step2": "..\\..\\data\\catalog\\step2_source_matches.jsonl",
@@ -211,6 +211,68 @@
       "common_name": "",
       "normalized_scientific": "closterium aciculare",
       "normalized_common": null
+    }
+  ],
+  "unresolved_openfarm_token_frequency": [
+    {
+      "token": "acacia",
+      "count": 5
+    },
+    {
+      "token": "prunus",
+      "count": 4
+    },
+    {
+      "token": "erica",
+      "count": 3
+    },
+    {
+      "token": "care",
+      "count": 3
+    },
+    {
+      "token": "hordeum",
+      "count": 3
+    },
+    {
+      "token": "euastrum",
+      "count": 3
+    },
+    {
+      "token": "solanum",
+      "count": 3
+    },
+    {
+      "token": "quercus",
+      "count": 2
+    },
+    {
+      "token": "sambucus",
+      "count": 2
+    },
+    {
+      "token": "astragalus",
+      "count": 2
+    },
+    {
+      "token": "pinnularia",
+      "count": 2
+    },
+    {
+      "token": "ranunculus",
+      "count": 2
+    },
+    {
+      "token": "symphyotrichum",
+      "count": 2
+    },
+    {
+      "token": "salvia",
+      "count": 2
+    },
+    {
+      "token": "penstemon",
+      "count": 2
     }
   ],
   "suspicious": {
