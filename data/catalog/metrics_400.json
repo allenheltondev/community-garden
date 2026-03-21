@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-21T16:45:08.635Z",
+  "generated_at": "2026-03-21T17:15:25.721Z",
   "sample_size": 400,
   "source_paths": {
     "step2": "..\\..\\data\\catalog\\step2_source_matches.jsonl",
@@ -23,6 +23,13 @@
     "promoted": 0,
     "needs_review": 0,
     "excluded": 400
+  },
+  "promotion_blockers": {
+    "non_core_status": 400,
+    "not_auto_approved": 400,
+    "no_openfarm_support": 399,
+    "low_confidence_band": 399,
+    "guardrail_blocked": 2
   },
   "suspicious": {
     "count": 0,

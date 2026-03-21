@@ -136,6 +136,14 @@ for (const row of sampledStep5) {
   }
 }
 
+const blockageCounts = {
+  non_core_status: sampledStep5.filter((r) => !["core", "extended"].includes(r.catalog_status)).length,
+  not_auto_approved: sampledStep5.filter((r) => r.review_status !== "auto_approved").length,
+  no_openfarm_support: sampledStep5.filter((r) => r.has_openfarm_support !== true).length,
+  low_confidence_band: sampledStep5.filter((r) => !["high", "medium"].includes(r.match_confidence_band)).length,
+  guardrail_blocked: sampledStep5.filter((r) => Boolean(r.guardrail_flags?.conifer || r.guardrail_flags?.industrial)).length,
+};
+
 const metrics = {
   generated_at: new Date().toISOString(),
   sample_size: sampledStep5.length,
@@ -154,6 +162,7 @@ const metrics = {
     needs_review: sampledStep5.filter((r) => r.catalog_status === "needs_review").length,
     excluded: sampledStep5.filter((r) => r.catalog_status === "excluded").length,
   },
+  promotion_blockers: blockageCounts,
   suspicious: {
     count: suspicious.length,
     threshold_score: 4,
@@ -211,7 +220,9 @@ const md = `# Catalog 400-sample benchmark\n\n- Generated: ${metrics.generated_a
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
   .join("\n")}\n\n### Catalog status\n${Object.entries(metrics.distributions.catalog_status)
   .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
-  .join("\n")}\n\n## Queue counts\n- promoted: ${metrics.queue_counts.promoted} (${promotedPct}%)\n- needs_review: ${metrics.queue_counts.needs_review} (${needsReviewPct}%)\n- excluded: ${metrics.queue_counts.excluded} (${pct(metrics.queue_counts.excluded, total)}%)\n\n## Suspicious sample queue\n- flagged: ${metrics.suspicious.count} (${suspiciousPct}%)\n- file: ${path.relative(ROOT, OUT_SUSPICIOUS)}\n\n## Threshold checks\n${Object.entries(metrics.threshold_checks)
+  .join("\n")}\n\n## Queue counts\n- promoted: ${metrics.queue_counts.promoted} (${promotedPct}%)\n- needs_review: ${metrics.queue_counts.needs_review} (${needsReviewPct}%)\n- excluded: ${metrics.queue_counts.excluded} (${pct(metrics.queue_counts.excluded, total)}%)\n\n## Promotion blockers (diagnostic)\n${Object.entries(metrics.promotion_blockers)
+  .map(([k, v]) => `- ${k}: ${v} (${pct(v, total)}%)`)
+  .join("\\n")}\n\n## Suspicious sample queue\n- flagged: ${metrics.suspicious.count} (${suspiciousPct}%)\n- file: ${path.relative(ROOT, OUT_SUSPICIOUS)}\n\n## Threshold checks\n${Object.entries(metrics.threshold_checks)
   .map(([k, v]) => `- ${k}: ${v.actual}% -> ${v.pass ? "PASS" : "FAIL"}`)
   .join("\n")}\n`;
 

@@ -1,6 +1,6 @@
 # Catalog 400-sample benchmark
 
-- Generated: 2026-03-21T16:45:08.635Z
+- Generated: 2026-03-21T17:15:25.721Z
 - Sample size: 400
 - Overall: **FAIL**
 
@@ -27,6 +27,9 @@
 - promoted: 0 (0%)
 - needs_review: 0 (0%)
 - excluded: 400 (100%)
+
+## Promotion blockers (diagnostic)
+- non_core_status: 400 (100%)\n- not_auto_approved: 400 (100%)\n- no_openfarm_support: 399 (99.75%)\n- low_confidence_band: 399 (99.75%)\n- guardrail_blocked: 2 (0.5%)
 
 ## Suspicious sample queue
 - flagged: 0 (0%)
