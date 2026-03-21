@@ -12,8 +12,13 @@ function cleanToken(value) {
   return v
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[×x]\s+/g, ' ')
+    .replace(/[‘’'"`]/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
     .toLowerCase()
-    .replace(/\b(var\.?|subsp\.?|ssp\.?|f\.?|forma|cv\.?|cultivar)\b/g, ' ')
+    .replace(/\b(var\.?|subsp\.?|ssp\.?|f\.?|forma|cv\.?|cultivar|group|agg\.?|cf\.?|aff\.?)\b/g, ' ')
+    .replace(/\b[a-z]\./g, ' ')
+    .replace(/\b[a-z]{1,2}\b/g, ' ')
     .replace(/[^a-z0-9\s-]/g, ' ')
     .replace(/[-_]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -23,11 +28,18 @@ function cleanToken(value) {
 function normSci(name) {
   const cleaned = cleanToken(name);
   if (!cleaned) return null;
-  return cleaned.split(' ').slice(0, 2).join(' ');
+  const tokens = cleaned.split(' ').filter(Boolean);
+  if (tokens.length < 2) return tokens[0] || null;
+  return tokens.slice(0, 2).join(' ');
 }
 
 function normCommon(name) {
-  return cleanToken(name);
+  const cleaned = cleanToken(name);
+  if (!cleaned) return null;
+  return cleaned
+    .replace(/\b(tree|plant|common|wild|garden)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || null;
 }
 
 function editDistance(a, b) {
@@ -53,19 +65,29 @@ function editDistance(a, b) {
   return dp[a.length][b.length];
 }
 
-function similarity(a, b) {
-  const maxLen = Math.max(a.length, b.length, 1);
-  return 1 - (editDistance(a, b) / maxLen);
-}
-
-function fuzzyPick(query, candidates, threshold = 0.92) {
+function fuzzyPick(query, candidates, {
+  threshold = 0.92,
+  maxLengthDelta = 4,
+  minQueryLength = 5,
+  maxCandidatesToScore = 200,
+} = {}) {
   if (!query || candidates.length === 0) return null;
+  if (query.length < minQueryLength) return null;
 
   let best = null;
   let secondBest = null;
+  let scoredCandidates = 0;
 
-  for (const candidate of candidates) {
-    const score = similarity(query, candidate.normalized);
+  for (const candidate of candidates.slice(0, maxCandidatesToScore)) {
+    const lenDelta = Math.abs((candidate.normalized || '').length - query.length);
+    if (lenDelta > maxLengthDelta) continue;
+
+    const distance = editDistance(query, candidate.normalized);
+    const maxDistance = Math.max(1, Math.floor(query.length * (1 - threshold)));
+    if (distance > maxDistance) continue;
+
+    const score = 1 - (distance / Math.max(query.length, candidate.normalized.length, 1));
+    scoredCandidates += 1;
     if (!best || score > best.score) {
       secondBest = best;
       best = { ...candidate, score };
@@ -77,10 +99,20 @@ function fuzzyPick(query, candidates, threshold = 0.92) {
   if (!best || best.score < threshold) return null;
 
   if (secondBest && Math.abs(best.score - secondBest.score) < 0.03) {
-    return { ambiguous: true, candidates: [best.canonical_id, secondBest.canonical_id], score: best.score };
+    return {
+      ambiguous: true,
+      candidates: [best.canonical_id, secondBest.canonical_id],
+      score: best.score,
+      diagnostics: { query, threshold, scoredCandidates },
+    };
   }
 
-  return { ambiguous: false, canonical_id: best.canonical_id, score: best.score };
+  return {
+    ambiguous: false,
+    canonical_id: best.canonical_id,
+    score: best.score,
+    diagnostics: { query, threshold, scoredCandidates },
+  };
 }
 
 function stableSlug(value) {
@@ -130,28 +162,34 @@ export function matchRecord(record, indexes) {
   const scientificName = normalizeToNull(record.scientific_name);
   const commonName = normalizeToNull(record.common_name);
   const normalizedName = normSci(scientificName);
+  const normalizedCommon = normCommon(commonName);
+  const diagnostics = {
+    scientific_name_input: scientificName,
+    common_name_input: commonName,
+    normalized_scientific: normalizedName,
+    normalized_common: normalizedCommon,
+  };
 
   if (scientificName && indexes.exact.has(scientificName)) {
-    return { canonical_id: indexes.exact.get(scientificName), match_type: 'exact_scientific', match_score: MATCH_SCORES.exact_scientific };
+    return { canonical_id: indexes.exact.get(scientificName), match_type: 'exact_scientific', match_score: MATCH_SCORES.exact_scientific, diagnostics };
   }
   if (normalizedName && indexes.normalized.has(normalizedName)) {
-    return { canonical_id: indexes.normalized.get(normalizedName), match_type: 'normalized_scientific', match_score: MATCH_SCORES.normalized_scientific };
+    return { canonical_id: indexes.normalized.get(normalizedName), match_type: 'normalized_scientific', match_score: MATCH_SCORES.normalized_scientific, diagnostics };
   }
   if (normalizedName && indexes.synonym.has(normalizedName)) {
-    return { canonical_id: indexes.synonym.get(normalizedName), match_type: 'synonym_match', match_score: MATCH_SCORES.synonym_match };
+    return { canonical_id: indexes.synonym.get(normalizedName), match_type: 'synonym_match', match_score: MATCH_SCORES.synonym_match, diagnostics };
   }
-  if (commonName) {
-    const k = normCommon(commonName);
-    const candidates = indexes.common.get(k) || [];
+  if (normalizedCommon) {
+    const candidates = indexes.common.get(normalizedCommon) || [];
     if (candidates.length === 1) {
-      return { canonical_id: candidates[0], match_type: 'common_name_fallback', match_score: MATCH_SCORES.common_name_fallback };
+      return { canonical_id: candidates[0], match_type: 'common_name_fallback', match_score: MATCH_SCORES.common_name_fallback, diagnostics };
     }
     if (candidates.length > 1) {
-      return { canonical_id: null, match_type: 'ambiguous_common_name', match_score: MATCH_SCORES.ambiguous_common_name, ambiguous_candidates: candidates };
+      return { canonical_id: null, match_type: 'ambiguous_common_name', match_score: MATCH_SCORES.ambiguous_common_name, ambiguous_candidates: candidates, diagnostics };
     }
   }
 
-  const fuzzyScientific = fuzzyPick(normalizedName, indexes.fuzzyScientific || [], 0.92);
+  const fuzzyScientific = fuzzyPick(normalizedName, indexes.fuzzyScientific || [], { threshold: 0.92, maxLengthDelta: 4, minQueryLength: 8, maxCandidatesToScore: 250 });
   if (fuzzyScientific) {
     if (fuzzyScientific.ambiguous) {
       return {
@@ -159,6 +197,7 @@ export function matchRecord(record, indexes) {
         match_type: 'ambiguous_common_name',
         match_score: MATCH_SCORES.ambiguous_common_name,
         ambiguous_candidates: fuzzyScientific.candidates,
+        diagnostics: { ...diagnostics, fuzzy: { type: 'scientific', ...fuzzyScientific.diagnostics, score: fuzzyScientific.score } },
       };
     }
     return {
@@ -166,11 +205,11 @@ export function matchRecord(record, indexes) {
       match_type: 'fuzzy_fallback',
       match_score: MATCH_SCORES.fuzzy_fallback,
       needs_review: true,
+      diagnostics: { ...diagnostics, fuzzy: { type: 'scientific', ...fuzzyScientific.diagnostics, score: fuzzyScientific.score } },
     };
   }
 
-  const normalizedCommon = normCommon(commonName);
-  const fuzzyCommon = fuzzyPick(normalizedCommon, indexes.fuzzyCommon || [], 0.82);
+  const fuzzyCommon = fuzzyPick(normalizedCommon, indexes.fuzzyCommon || [], { threshold: 0.82, maxLengthDelta: 3, minQueryLength: 6, maxCandidatesToScore: 250 });
   if (fuzzyCommon) {
     if (fuzzyCommon.ambiguous) {
       return {
@@ -178,6 +217,7 @@ export function matchRecord(record, indexes) {
         match_type: 'ambiguous_common_name',
         match_score: MATCH_SCORES.ambiguous_common_name,
         ambiguous_candidates: fuzzyCommon.candidates,
+        diagnostics: { ...diagnostics, fuzzy: { type: 'common', ...fuzzyCommon.diagnostics, score: fuzzyCommon.score } },
       };
     }
     return {
@@ -185,10 +225,11 @@ export function matchRecord(record, indexes) {
       match_type: 'fuzzy_fallback',
       match_score: MATCH_SCORES.fuzzy_fallback,
       needs_review: true,
+      diagnostics: { ...diagnostics, fuzzy: { type: 'common', ...fuzzyCommon.diagnostics, score: fuzzyCommon.score } },
     };
   }
 
-  return { canonical_id: null, match_type: 'unresolved', match_score: MATCH_SCORES.unresolved };
+  return { canonical_id: null, match_type: 'unresolved', match_score: MATCH_SCORES.unresolved, diagnostics };
 }
 
 export async function runStep2({ reset = false, dryRun = false, limit = null } = {}) {
@@ -271,6 +312,7 @@ export async function runStep2({ reset = false, dryRun = false, limit = null } =
       matched_at: new Date().toISOString(),
       ...(m.ambiguous_candidates ? { ambiguous_candidates: m.ambiguous_candidates } : {}),
       ...(m.needs_review ? { needs_review: true } : {}),
+      ...(m.diagnostics ? { match_diagnostics: m.diagnostics } : {}),
     };
   });
 

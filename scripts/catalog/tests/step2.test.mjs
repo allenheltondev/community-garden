@@ -28,10 +28,12 @@ test('step2 cascade exact -> unresolved', () => {
   const fuzzySci = matchRecord({ scientific_name: 'Solanum lycoperscum' }, indexes);
   assert.equal(fuzzySci.match_type, 'fuzzy_fallback');
   assert.equal(fuzzySci.needs_review, true);
+  assert.equal(fuzzySci.diagnostics.fuzzy.type, 'scientific');
 
   const fuzzyCommon = matchRecord({ common_name: 'tomat0' }, indexes);
   assert.equal(fuzzyCommon.match_type, 'fuzzy_fallback');
   assert.equal(fuzzyCommon.needs_review, true);
+  assert.equal(fuzzyCommon.diagnostics.fuzzy.type, 'common');
 
   const un = matchRecord({ scientific_name: 'Unknown plant' }, indexes);
   assert.equal(un.match_type, 'unresolved');
@@ -41,4 +43,9 @@ test('step2 cascade exact -> unresolved', () => {
 test('step2 normalization tolerates cultivar punctuation', () => {
   const normalized = matchRecord({ scientific_name: 'Solanum lycopersicum cv. Roma' }, indexes);
   assert.equal(normalized.match_type, 'normalized_scientific');
+});
+
+test('step2 bounded fuzzy skips very short common names', () => {
+  const rec = matchRecord({ common_name: 'tom' }, indexes);
+  assert.equal(rec.match_type, 'unresolved');
 });
