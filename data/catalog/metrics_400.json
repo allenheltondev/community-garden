@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-21T16:15:49.466Z",
+  "generated_at": "2026-03-21T16:45:08.635Z",
   "sample_size": 400,
   "source_paths": {
     "step2": "..\\..\\data\\catalog\\step2_source_matches.jsonl",
@@ -8,26 +8,21 @@
   },
   "distributions": {
     "match_type": {
-      "unresolved": 330,
-      "common_name_fallback": 2,
-      "ambiguous_common_name": 26,
-      "normalized_scientific": 12,
-      "synonym_match": 30
+      "unresolved": 369,
+      "normalized_scientific": 31
     },
     "relevance_class": {
-      "non_food": 382,
-      "weed_or_invasive": 5,
-      "food_crop_core": 13
+      "non_food": 399,
+      "weed_or_invasive": 1
     },
     "catalog_status": {
-      "excluded": 387,
-      "core": 13
+      "excluded": 400
     }
   },
   "queue_counts": {
     "promoted": 0,
     "needs_review": 0,
-    "excluded": 387
+    "excluded": 400
   },
   "suspicious": {
     "count": 0,

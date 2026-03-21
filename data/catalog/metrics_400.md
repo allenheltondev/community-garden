@@ -1,6 +1,6 @@
 # Catalog 400-sample benchmark
 
-- Generated: 2026-03-21T16:15:49.466Z
+- Generated: 2026-03-21T16:45:08.635Z
 - Sample size: 400
 - Overall: **FAIL**
 
@@ -13,25 +13,20 @@
 ## Distributions
 
 ### Match type
-- unresolved: 330 (82.5%)
-- common_name_fallback: 2 (0.5%)
-- ambiguous_common_name: 26 (6.5%)
-- normalized_scientific: 12 (3%)
-- synonym_match: 30 (7.5%)
+- unresolved: 369 (92.25%)
+- normalized_scientific: 31 (7.75%)
 
 ### Relevance class
-- non_food: 382 (95.5%)
-- weed_or_invasive: 5 (1.25%)
-- food_crop_core: 13 (3.25%)
+- non_food: 399 (99.75%)
+- weed_or_invasive: 1 (0.25%)
 
 ### Catalog status
-- excluded: 387 (96.75%)
-- core: 13 (3.25%)
+- excluded: 400 (100%)
 
 ## Queue counts
 - promoted: 0 (0%)
 - needs_review: 0 (0%)
-- excluded: 387 (96.75%)
+- excluded: 400 (100%)
 
 ## Suspicious sample queue
 - flagged: 0 (0%)

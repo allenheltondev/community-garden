@@ -47,6 +47,24 @@ function safeNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function stableHash(input) {
+  let h = 2166136261;
+  const s = String(input ?? "");
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function sampleStable(items, size, keyFn) {
+  return [...items]
+    .map((item) => ({ item, hash: stableHash(keyFn(item)) }))
+    .sort((a, b) => a.hash - b.hash)
+    .slice(0, size)
+    .map((x) => x.item);
+}
+
 function scoreSuspicious(record, step4) {
   let score = 0;
   const reasons = [];
@@ -87,9 +105,9 @@ const step2 = parseJsonl(step2Raw).sort((a, b) => String(a.source_record_id).loc
 const step4 = parseJsonl(step4Raw).sort((a, b) => String(a.canonical_id).localeCompare(String(b.canonical_id)));
 const step5 = parseJsonl(step5Raw).sort((a, b) => String(a.canonical_id).localeCompare(String(b.canonical_id)));
 
-const sampledStep2 = step2.slice(0, SAMPLE_SIZE);
-const sampledStep4 = step4.slice(0, SAMPLE_SIZE);
-const sampledStep5 = step5.slice(0, SAMPLE_SIZE);
+const sampledStep2 = sampleStable(step2, SAMPLE_SIZE, (r) => r.source_record_id);
+const sampledStep4 = sampleStable(step4, SAMPLE_SIZE, (r) => r.canonical_id);
+const sampledStep5 = sampleStable(step5, SAMPLE_SIZE, (r) => r.canonical_id);
 
 const step4ByCanonical = new Map(sampledStep4.map((x) => [x.canonical_id, x]));
 const step2BySourceId = new Map(sampledStep2.map((x) => [x.source_record_id, x]));
