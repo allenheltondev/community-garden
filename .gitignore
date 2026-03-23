@@ -65,3 +65,13 @@ samconfig.toml
 *.tmp
 *.temp
 .cache/
+
+# Catalog pipeline
+scripts/catalog/node_modules/
+data/catalog/step*_*.jsonl
+data/catalog/step*_progress.json
+data/catalog/promote_progress.json
+data/catalog/promoted_crops.jsonl
+data/catalog/review_queue_*.jsonl
+data/catalog/review_summary.json
+data/catalog/permapeople/

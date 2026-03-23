@@ -1,0 +1,35 @@
+{
+  "sampleRecords": 400,
+  "sampleCanonicals": 57,
+  "promotedCanonicals": {
+    "before": 7,
+    "after": 0,
+    "delta": -7
+  },
+  "distributions": [
+    {
+      "cls": "food_crop_niche",
+      "before": 162,
+      "after": 0,
+      "delta": -162
+    },
+    {
+      "cls": "industrial_crop",
+      "before": 75,
+      "after": 0,
+      "delta": -75
+    },
+    {
+      "cls": "non_food",
+      "before": 130,
+      "after": 367,
+      "delta": 237
+    },
+    {
+      "cls": "weed_or_invasive",
+      "before": 33,
+      "after": 33,
+      "delta": 0
+    }
+  ]
+}
