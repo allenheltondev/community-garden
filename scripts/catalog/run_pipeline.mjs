@@ -19,13 +19,14 @@ const STEPS = {
 };
 
 function parseArgs(argv) {
-  const args = { step: null, reset: false, dryRun: false, limit: null };
+  const args = { step: null, reset: false, dryRun: false, limit: null, profile: null };
   for (let i = 2; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === '--reset') args.reset = true;
     else if (token === '--dry-run') args.dryRun = true;
     else if (token === '--step') args.step = Number(argv[++i]);
     else if (token === '--limit') args.limit = Number(argv[++i]);
+    else if (token === '--profile') args.profile = argv[++i];
   }
   return args;
 }
@@ -59,7 +60,9 @@ export async function runPipeline(options = {}) {
 
   const summaries = [];
   for (const n of [1, 2, 3, 4, 5, 6, 7]) {
-    summaries.push(await runOne(n, rest));
+    // limit only controls initial input (steps 1-2); downstream steps process all records
+    const stepOpts = n <= 2 ? rest : { ...rest, limit: null };
+    summaries.push(await runOne(n, stepOpts));
   }
   return summaries;
 }

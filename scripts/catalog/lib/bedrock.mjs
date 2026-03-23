@@ -1,10 +1,13 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { fromSSO } from '@aws-sdk/credential-providers';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createBedrockClient({ region = process.env.AWS_REGION || 'us-east-1', client } = {}) {
+export function createBedrockClient({ region = process.env.AWS_REGION || 'us-east-1', client, profile } = {}) {
   if (client) return client;
-  return new BedrockRuntimeClient({ region });
+  const opts = { region };
+  if (profile) opts.credentials = fromSSO({ profile });
+  return new BedrockRuntimeClient(opts);
 }
 
 export function parseModelJson(text) {
@@ -19,19 +22,29 @@ export function parseModelJson(text) {
 }
 
 export function validateAugmentationSchema(payload = {}) {
-  const out = {
-    description: typeof payload.description === 'string' && payload.description.trim() ? payload.description.trim() : null,
-    category: typeof payload.category === 'string' && payload.category.trim() ? payload.category.trim() : null,
+  const VALID_CATEGORIES = new Set(['fruit', 'fruit_tree', 'fruit_shrub', 'vegetable', 'leafy_green', 'root_tuber', 'herb', 'grain', 'nut_seed', 'edible_flower', 'legume']);
+  const VALID_LIFE_CYCLES = new Set(['annual', 'biennial', 'perennial']);
+
+  const desc = typeof payload.description === 'string' && payload.description.trim() ? payload.description.trim() : null;
+  const cat = typeof payload.category === 'string' && VALID_CATEGORIES.has(payload.category.trim().toLowerCase()) ? payload.category.trim().toLowerCase() : null;
+  const lc = typeof payload.life_cycle === 'string' && VALID_LIFE_CYCLES.has(payload.life_cycle.trim().toLowerCase()) ? payload.life_cycle.trim().toLowerCase() : null;
+  const hz = Array.isArray(payload.hardiness_zones) ? payload.hardiness_zones.filter((z) => typeof z === 'string' && /^\d{1,2}[ab]?$/.test(z.trim())).map((z) => z.trim()) : [];
+
+  return {
+    description: desc && desc.length <= 200 ? desc : (desc ? desc.slice(0, 200) : null),
+    category: cat,
+    life_cycle: lc,
+    hardiness_zones: hz,
     display_notes: typeof payload.display_notes === 'string' && payload.display_notes.trim() ? payload.display_notes.trim() : null,
     review_notes: typeof payload.review_notes === 'string' && payload.review_notes.trim() ? payload.review_notes.trim() : null,
   };
-  return out;
 }
 
 export async function invokeAugmentModel({
   client,
   modelId,
   record,
+  profile,
   maxRetries = 2,
   retryDelayMs = 500,
   dryRun = false,
@@ -40,24 +53,30 @@ export async function invokeAugmentModel({
     return { result: validateAugmentationSchema({}), apiCalls: 0 };
   }
 
-  const runtime = createBedrockClient({ client });
+  const runtime = createBedrockClient({ client, profile });
   const prompt = {
-    task: 'Provide presentation-only enrichment. Do not infer identity or overwrite source fields.',
+    task: 'Fill ONLY missing fields for this food crop catalog entry. Keep descriptions under 120 characters, factual, and grower-focused. Use null for any field you are not confident about. Do not guess hardiness zones.',
     record: {
       canonical_id: record.canonical_id,
       scientific_name: record.scientific_name,
       common_name: record.common_name,
       family: record.family,
       category: record.category,
-      review_status: record.review_status,
-      catalog_status: record.catalog_status,
-      source_records: record.source_records,
+      edible_parts: record.edible_parts,
+      life_cycle: record.life_cycle,
+      hardiness_zones: record.hardiness_zones,
     },
+    fill_only: Object.entries({
+      description: !record.description,
+      category: !record.category,
+      life_cycle: !record.life_cycle,
+      hardiness_zones: !record.hardiness_zones?.length,
+    }).filter(([, missing]) => missing).map(([k]) => k),
     response_schema: {
-      description: 'string|null',
-      category: 'string|null',
-      display_notes: 'string|null',
-      review_notes: 'string|null',
+      description: 'string|null — under 120 chars, factual, no marketing language',
+      category: 'string|null — one of: fruit, fruit_tree, fruit_shrub, vegetable, leafy_green, root_tuber, herb, grain, nut_seed, edible_flower, legume',
+      life_cycle: 'string|null — one of: annual, biennial, perennial',
+      hardiness_zones: 'string[]|[] — USDA zones as strings, e.g. ["3","4","5","6","7","8"]',
     },
   };
 
@@ -70,10 +89,15 @@ export async function invokeAugmentModel({
         modelId,
         contentType: 'application/json',
         accept: 'application/json',
-        body: JSON.stringify(prompt),
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: 512,
+          messages: [{ role: 'user', content: JSON.stringify(prompt) }],
+        }),
       }));
-      const body = Buffer.from(response.body).toString('utf8');
-      const parsed = parseModelJson(body);
+      const body = JSON.parse(Buffer.from(response.body).toString('utf8'));
+      const text = body.content?.[0]?.text || '';
+      const parsed = parseModelJson(text);
       return { result: validateAugmentationSchema(parsed), apiCalls };
     } catch (error) {
       lastError = error;

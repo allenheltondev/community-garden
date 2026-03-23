@@ -71,11 +71,12 @@ export function classifyCanonical(records) {
   const edibleEvidenceSources = new Set([...edibleProviders, ...foodUtilityProviders]);
   const strongFoodEvidence = edibleEvidenceSources.size >= 2 || (edibleProviders.size >= 1 && foodUtilityProviders.size >= 1);
 
-  const coniferGuardrail = CONIFER_TERMS.test(lowerName) && !strongFoodEvidence;
-  const industrialGuardrail = INDUSTRIAL_TERMS.test(lowerUtility) && !strongFoodEvidence;
+  const coniferGuardrail = CONIFER_TERMS.test(lowerName) && !strongFoodEvidence && !(hasOpenFarmSupport && edibleEvidenceSources.size > 0);
+  const industrialGuardrail = INDUSTRIAL_TERMS.test(lowerUtility) && !strongFoodEvidence && !(hasOpenFarmSupport && edibleEvidenceSources.size > 0);
 
   let relevance_class = 'non_food';
-  if (WEED_TERMS.test(lowerWarning) && !strongFoodEvidence) relevance_class = 'weed_or_invasive';
+  if (WEED_TERMS.test(lowerWarning) && !strongFoodEvidence && !hasOpenFarmSupport) relevance_class = 'weed_or_invasive';
+  else if (WEED_TERMS.test(lowerWarning) && !strongFoodEvidence && hasOpenFarmSupport && edibleEvidenceSources.size === 0) relevance_class = 'weed_or_invasive';
   else if (coniferGuardrail || industrialGuardrail) relevance_class = 'non_food';
   else if (hasOpenFarmSupport && (edibleEvidenceSources.size > 0 || FOOD_TERMS.test(lowerUtility))) relevance_class = 'food_crop_core';
   else if (!hasOpenFarmSupport && strongFoodEvidence) relevance_class = 'food_crop_niche';

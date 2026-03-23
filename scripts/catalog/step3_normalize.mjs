@@ -7,6 +7,7 @@ import { readProgress, writeProgress, verifyChecksum, resetProgress } from './li
 
 function normalizeProviderPayload(raw = {}) {
   return {
+    description: normalizeToNull(raw.description),
     scientific_name: normalizeToNull(raw.scientific_name),
     family: normalizeToNull(raw.Family ?? raw.family),
     common_names: normalizeToArray(raw.common_name || raw.name),

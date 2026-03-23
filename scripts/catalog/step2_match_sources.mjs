@@ -243,60 +243,85 @@ export async function runStep2({ reset = false, dryRun = false, limit = null } =
   const canonicalRows = [];
   for await (const r of readJsonl(PATHS.step1)) canonicalRows.push(r);
   const indexes = buildIndexes(canonicalRows);
+  const canonicalById = new Map(canonicalRows.map((c) => [c.canonical_id, c]));
 
   const openfarm = await readHeaderlessCsv(PATHS.openfarmCrops, ['scientific_name', 'common_name']);
-  const allRecords = [];
-
   const fetchLimit = Number.isFinite(limit) && limit > 0 ? limit : null;
-  const canonicalForFetch = fetchLimit ? canonicalRows.slice(0, fetchLimit) : canonicalRows;
-  const openfarmForFetch = fetchLimit ? openfarm.slice(0, fetchLimit) : openfarm;
+  const openfarmSlice = fetchLimit ? openfarm.slice(0, fetchLimit) : openfarm;
 
-  // OpenFarm-first ordering to ensure practical grower context exists in limited smoke runs.
-  openfarmForFetch.forEach((r, i) => {
-    allRecords.push({
+  // 1. Match OpenFarm records to USDA canonicals
+  const openfarmRecords = openfarmSlice.map((r, i) => {
+    const rec = {
       source_provider: 'openfarm',
       source_record_id: buildOpenFarmSourceId(r, i),
       scientific_name: r.scientific_name ?? null,
       common_name: r.common_name ?? null,
       raw_payload: r,
-    });
+    };
+    const m = matchRecord(rec, indexes);
+    return { ...rec, match: m };
   });
 
-  for (const c of canonicalForFetch) {
-    const sci = c.scientific_name_normalized || c.accepted_scientific_name;
-    const ppA = await searchPlant(sci);
-    let hits = Array.isArray(ppA?.hits) ? ppA.hits : [];
-    if (hits.length === 0 && c.common_names?.[0]) {
-      const ppB = await searchPlantByCommonName(c.common_names[0]);
-      hits = Array.isArray(ppB?.hits) ? ppB.hits : [];
-    }
+  // 2. Query Permapeople for each unique matched canonical (OpenFarm-driven)
+  const queriedCanonicals = new Set();
+  const permapeopleRecords = [];
 
-    for (const hit of hits) {
-      allRecords.push({
-        source_provider: 'permapeople',
-        source_record_id: String(hit.id ?? `${sci}:${Math.random().toString(16).slice(2, 8)}`),
-        scientific_name: hit.scientific_name ?? null,
-        common_name: hit.name ?? null,
-        raw_payload: hit,
-      });
+  for (const ofRec of openfarmRecords) {
+    const cid = ofRec.match.canonical_id;
+    if (cid && !queriedCanonicals.has(cid)) {
+      queriedCanonicals.add(cid);
+      const canonical = canonicalById.get(cid);
+      const sci = canonical?.scientific_name_normalized || canonical?.accepted_scientific_name;
+      if (sci) {
+        const ppA = await searchPlant(sci);
+        let hits = Array.isArray(ppA?.hits) ? ppA.hits : [];
+        if (hits.length === 0 && canonical?.common_names?.[0]) {
+          const ppB = await searchPlantByCommonName(canonical.common_names[0]);
+          hits = Array.isArray(ppB?.hits) ? ppB.hits : [];
+        }
+        for (const hit of hits) {
+          permapeopleRecords.push({
+            source_provider: 'permapeople',
+            source_record_id: String(hit.id ?? `${sci}:${Math.random().toString(16).slice(2, 8)}`),
+            scientific_name: hit.scientific_name ?? null,
+            common_name: hit.name ?? null,
+            raw_payload: hit,
+          });
+        }
+      }
+    }
+    // For unmatched records, try Permapeople by common name directly
+    if (!cid && ofRec.common_name) {
+      const key = `of_common:${normCommon(ofRec.common_name)}`;
+      if (!queriedCanonicals.has(key)) {
+        queriedCanonicals.add(key);
+        const ppC = await searchPlantByCommonName(ofRec.common_name);
+        const hits = Array.isArray(ppC?.hits) ? ppC.hits : [];
+        for (const hit of hits) {
+          permapeopleRecords.push({
+            source_provider: 'permapeople',
+            source_record_id: String(hit.id ?? `common:${ofRec.common_name}:${Math.random().toString(16).slice(2, 8)}`),
+            scientific_name: hit.scientific_name ?? null,
+            common_name: hit.name ?? null,
+            raw_payload: hit,
+          });
+        }
+      }
     }
   }
 
-  let selected = allRecords;
-  if (fetchLimit) {
-    const openfarmRecords = allRecords.filter((r) => r.source_provider === 'openfarm');
-    const otherRecords = allRecords.filter((r) => r.source_provider !== 'openfarm');
-    const openfarmQuota = Math.min(openfarmRecords.length, Math.ceil(fetchLimit / 2));
-    const otherQuota = Math.min(otherRecords.length, fetchLimit - openfarmQuota);
-    selected = [
-      ...openfarmRecords.slice(0, openfarmQuota),
-      ...otherRecords.slice(0, otherQuota),
-    ];
-  }
+  // 3. Build output: OpenFarm + Permapeople records, all matched against USDA
+  const allRecords = [...openfarmRecords.map((r) => ({
+    source_provider: r.source_provider,
+    source_record_id: r.source_record_id,
+    scientific_name: r.scientific_name,
+    common_name: r.common_name,
+    raw_payload: r.raw_payload,
+  })), ...permapeopleRecords];
 
   const progress = await readProgress(2);
   const startIndex = progress ? progress.lastProcessedIndex + 1 : 0;
-  const slice = selected.slice(startIndex, fetchLimit ? startIndex + fetchLimit : undefined);
+  const slice = allRecords.slice(startIndex);
 
   const out = slice.map((r) => {
     const m = matchRecord(r, indexes);

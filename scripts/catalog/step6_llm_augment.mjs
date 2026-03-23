@@ -17,6 +17,21 @@ function applyAugmentation(record, augmentation) {
     out.field_sources.description = 'llm';
   }
 
+  if (augmentation.category && !out.category) {
+    out.category = augmentation.category;
+    out.field_sources.category = 'llm';
+  }
+
+  if (augmentation.life_cycle && !out.life_cycle) {
+    out.life_cycle = augmentation.life_cycle;
+    out.field_sources.life_cycle = 'llm';
+  }
+
+  if (augmentation.hardiness_zones?.length && (!out.hardiness_zones || !out.hardiness_zones.length)) {
+    out.hardiness_zones = augmentation.hardiness_zones;
+    out.field_sources.hardiness_zones = 'llm';
+  }
+
   if (augmentation.display_notes) {
     out.display_notes = augmentation.display_notes;
     out.field_sources.display_notes = 'llm';
@@ -27,15 +42,10 @@ function applyAugmentation(record, augmentation) {
     out.field_sources.review_notes = 'llm';
   }
 
-  if (augmentation.category && (!out.category || out.review_status !== 'auto_approved')) {
-    out.category = augmentation.category;
-    out.field_sources.category = 'llm';
-  }
-
   return out;
 }
 
-export async function runStep6({ reset = false, dryRun = false, limit = null, invoke, modelId = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0' } = {}) {
+export async function runStep6({ reset = false, dryRun = false, limit = null, invoke, profile, modelId = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-3-5-haiku-20241022-v1:0' } = {}) {
   if (!fs.existsSync(PATHS.step5)) throw new Error(`Missing required input from Step 5: ${PATHS.step5}`);
   if (reset) await resetProgress(6);
 
@@ -56,6 +66,7 @@ export async function runStep6({ reset = false, dryRun = false, limit = null, in
     records: eligible,
     invoke,
     modelId,
+    profile,
     dryRun,
   });
 

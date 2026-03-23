@@ -28,6 +28,23 @@ function computeOpenFarmSupport(records) {
   return records.some((r) => r.source_provider === 'openfarm' && r.match_type !== 'unresolved');
 }
 
+function deriveCategory(edibleParts, utility, layer) {
+  const parts = (edibleParts || []).map((p) => p.toLowerCase());
+  const util = (utility || []).map((u) => u.toLowerCase()).join(' ');
+  const l = (layer || '').toLowerCase();
+
+  if (/\bherb\b|spice/.test(util) || l === 'herbaceous') return 'herb';
+  if (parts.some((p) => /\bfruit\b/.test(p)) && l === 'canopy') return 'fruit_tree';
+  if (parts.some((p) => /\bfruit\b/.test(p)) && /shrub/.test(l)) return 'fruit_shrub';
+  if (parts.some((p) => /\bfruit\b/.test(p))) return 'fruit';
+  if (parts.some((p) => /\bnut\b/.test(p) || /\bseed\b/.test(p))) return 'nut_seed';
+  if (parts.some((p) => /\bleaf\b|\bleaves\b|\bshoot/.test(p))) return 'leafy_green';
+  if (parts.some((p) => /\broot\b|\btuber\b|\bbulb\b/.test(p))) return 'root_tuber';
+  if (parts.some((p) => /\bflower/.test(p))) return 'edible_flower';
+  if (/grain|cereal/.test(util)) return 'grain';
+  return null;
+}
+
 function computeStrongFoodEvidence(records) {
   const providers = new Set();
   for (const rec of records) {
@@ -74,6 +91,8 @@ export function deriveCanonicalRecord(records, classificationMeta = null) {
   const practicalSource = pickFromArrays([permapeople, openfarm], (r) => r.normalized);
   const practical = practicalSource.value || {};
 
+  const description = pickFromArrays([permapeople, openfarm], (r) => r.normalized?.description);
+
   const lifeCycle = practical.life_cycle || null;
   const hardiness = firstArray(practical.hardiness_zones, ...usda.map((r) => r.normalized?.hardiness_zones));
   const useHardiness = lifeCycle && !/annual/.test(String(lifeCycle).toLowerCase()) && hardiness.length > 0;
@@ -87,9 +106,12 @@ export function deriveCanonicalRecord(records, classificationMeta = null) {
   if (practical.edible !== undefined && practical.edible !== null) field_sources.edible = practicalSource.rec?.source_provider;
   if (practical.edible_parts?.length) field_sources.edible_parts = practicalSource.rec?.source_provider;
   if (useHardiness) field_sources.hardiness_zones = practicalSource.rec?.source_provider || 'usda';
+  if (description.value) field_sources.description = description.rec?.source_provider;
 
   const hasOpenFarmSupport = meta.has_openfarm_support ?? computeOpenFarmSupport(records);
   const strongFoodEvidence = meta.strong_food_evidence ?? computeStrongFoodEvidence(records);
+  const category = deriveCategory(practical.edible_parts, practical.utility, practical.layer);
+  if (category) field_sources.category = 'derived';
 
   return {
     canonical_id: meta.canonical_id || lead.canonical_id,
@@ -102,6 +124,8 @@ export function deriveCanonicalRecord(records, classificationMeta = null) {
     scientific_name: scientific.value,
     family: family.value,
     common_name: common.value,
+    description: description.value,
+    category,
     edible: practical.edible ?? null,
     edible_parts: practical.edible_parts || [],
     water_requirement: practical.water_requirement || null,
