@@ -159,21 +159,43 @@ export interface UpdateUserProfileRequest {
   };
 }
 
-export async function updateMe(data: UpdateUserProfileRequest): Promise<UserProfile> {
+export async function updateMe(data: UpdateUserProfileRequest): Promise<void> {
+  const correlationId = uuidv4();
+  const baseURL = getApiEndpoint();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Correlation-Id': correlationId,
+  };
+
   try {
-    return await apiFetch<UserProfile>('/me', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw new ApiError(
-        `Failed to update user profile: ${error.message}`,
-        error.statusCode,
-        error.correlationId
-      );
+    const session = await fetchAuthSession();
+    const token = session.tokens?.accessToken?.toString();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
-    throw new ApiError('An unexpected error occurred while updating user profile');
+  } catch (error) {
+    console.error('Failed to get auth session:', error);
+  }
+
+  const response = await fetch(`${baseURL}/me`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const errorData = await response.json();
+      message = errorData.message || errorData.error || message;
+    } catch {
+      // noop
+    }
+    throw new ApiError(
+      `Failed to update user profile: ${message}`,
+      response.status,
+      correlationId
+    );
   }
 }
 

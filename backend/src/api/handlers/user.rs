@@ -12,6 +12,8 @@ use crate::models::profile::{
 use crate::tips_framework::{
     assign_experience_level, recommend_curated_tips, season_from_month, ExperienceSignals,
 };
+use aws_config::BehaviorVersion;
+use aws_sdk_eventbridge::types::PutEventsRequestEntry;
 use chrono::Datelike;
 use lambda_http::{Body, Request, RequestExt, Response};
 use serde::Serialize;
@@ -62,8 +64,8 @@ pub async fn upsert_current_user(
     let client = db::connect().await?;
     let should_complete_onboarding = should_mark_onboarding_complete(&payload);
 
-    let user_row = client
-        .query_one(
+    client
+        .execute(
             "
             insert into users (id, email, display_name, user_type, onboarding_completed)
             values ($1, $2, $3, $4, $5)
@@ -76,7 +78,6 @@ pub async fn upsert_current_user(
                     else users.onboarding_completed
                 end,
                 updated_at = now()
-            returning id, email::text as email, display_name, is_verified, user_type, onboarding_completed, tier, subscription_status, premium_expires_at, created_at
             ",
             &[
                 &user_id,
@@ -172,7 +173,12 @@ pub async fn upsert_current_user(
             .map_err(|error| db_error(&error))?;
     }
 
-    json_response(200, &to_me_response(&client, user_row).await?)
+    emit_profile_updated_event_best_effort(&user_id_text, correlation_id).await;
+
+    Response::builder()
+        .status(204)
+        .body(Body::Empty)
+        .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
 pub async fn get_current_entitlements(
@@ -216,6 +222,55 @@ pub async fn get_public_user(user_id: &str) -> Result<Response<Body>, lambda_htt
             error: "User not found".to_string(),
         },
     )
+}
+
+async fn emit_profile_updated_event(
+    user_id: &str,
+    correlation_id: &str,
+) -> Result<(), lambda_http::Error> {
+    let event_bus_name = std::env::var("EVENT_BUS_NAME").unwrap_or_else(|_| "default".to_string());
+
+    let detail = serde_json::json!({
+        "userId": user_id,
+        "correlationId": correlation_id,
+        "occurredAt": chrono::Utc::now().to_rfc3339(),
+    });
+
+    let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+    let eb_client = aws_sdk_eventbridge::Client::new(&config);
+
+    let entry = PutEventsRequestEntry::builder()
+        .event_bus_name(event_bus_name)
+        .source("community-garden.api")
+        .detail_type("user.profile.updated")
+        .detail(detail.to_string())
+        .build();
+
+    let response = eb_client
+        .put_events()
+        .entries(entry)
+        .send()
+        .await
+        .map_err(|e| lambda_http::Error::from(format!("Failed to emit profile event: {e}")))?;
+
+    if response.failed_entry_count() > 0 {
+        return Err(lambda_http::Error::from(
+            "Failed to emit profile event: entry rejected",
+        ));
+    }
+
+    Ok(())
+}
+
+async fn emit_profile_updated_event_best_effort(user_id: &str, correlation_id: &str) {
+    if let Err(e) = emit_profile_updated_event(user_id, correlation_id).await {
+        error!(
+            user_id = user_id,
+            correlation_id = correlation_id,
+            error = %e,
+            "Failed to emit user.profile.updated event after successful write"
+        );
+    }
 }
 
 fn extract_user_id(request: &Request, correlation_id: &str) -> Result<Uuid, lambda_http::Error> {

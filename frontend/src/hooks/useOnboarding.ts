@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { updateMe, ApiError, type UpdateUserProfileRequest } from '../services/api';
-import type { UserProfile, UserType } from '../types/user';
+import type { UserType } from '../types/user';
 import { logger } from '../utils/logging';
 
 /**
@@ -36,33 +36,29 @@ export interface GathererProfileInput {
 /**
  * Custom hook for managing user onboarding flow
  */
-export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
+export function useOnboarding(onSuccess?: () => void) {
   const [state, setState] = useState<OnboardingState>({
     isSubmitting: false,
     error: null,
   });
 
   const submitUserType = useCallback(
-    async (userType: UserType): Promise<UserProfile> => {
+    async (userType: UserType): Promise<void> => {
       try {
         setState({ isSubmitting: true, error: null });
 
         logger.info('Submitting user type selection', { userType });
 
-        const updatedUser = await updateMe({ userType });
+        await updateMe({ userType });
 
         setState({ isSubmitting: false, error: null });
 
-        logger.info('User type submitted successfully', {
-          userId: updatedUser.userId,
-          userType: updatedUser.userType,
-        });
+        logger.info('User type submitted successfully', { userType });
 
         if (onSuccess) {
-          onSuccess(updatedUser);
+          onSuccess();
         }
 
-        return updatedUser;
       } catch (error) {
         const err = error as ApiError;
         logger.error('Failed to submit user type', err, {
@@ -79,7 +75,7 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
   );
 
   const submitGrowerProfile = useCallback(
-    async (profileData: GrowerProfileInput): Promise<UserProfile> => {
+    async (profileData: GrowerProfileInput): Promise<void> => {
       try {
         setState({ isSubmitting: true, error: null });
 
@@ -94,20 +90,16 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
           growerProfile: profileData,
         };
 
-        const updatedUser = await updateMe(payload);
+        await updateMe(payload);
 
         setState({ isSubmitting: false, error: null });
 
-        logger.info('Grower profile submitted successfully', {
-          userId: updatedUser.userId,
-          onboardingCompleted: updatedUser.onboardingCompleted,
-        });
+        logger.info('Grower profile submitted successfully');
 
         if (onSuccess) {
-          onSuccess(updatedUser);
+          onSuccess();
         }
 
-        return updatedUser;
       } catch (error) {
         const err = error as ApiError;
         logger.error('Failed to submit grower profile', err, {
@@ -123,7 +115,7 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
   );
 
   const submitGathererProfile = useCallback(
-    async (profileData: GathererProfileInput): Promise<UserProfile> => {
+    async (profileData: GathererProfileInput): Promise<void> => {
       try {
         setState({ isSubmitting: true, error: null });
 
@@ -138,20 +130,16 @@ export function useOnboarding(onSuccess?: (user: UserProfile) => void) {
           gathererProfile: profileData,
         };
 
-        const updatedUser = await updateMe(payload);
+        await updateMe(payload);
 
         setState({ isSubmitting: false, error: null });
 
-        logger.info('Gatherer profile submitted successfully', {
-          userId: updatedUser.userId,
-          onboardingCompleted: updatedUser.onboardingCompleted,
-        });
+        logger.info('Gatherer profile submitted successfully');
 
         if (onSuccess) {
-          onSuccess(updatedUser);
+          onSuccess();
         }
 
-        return updatedUser;
       } catch (error) {
         const err = error as ApiError;
         logger.error('Failed to submit gatherer profile', err, {

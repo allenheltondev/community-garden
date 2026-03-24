@@ -2,8 +2,6 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useOnboarding } from './useOnboarding';
 import * as api from '../services/api';
-import type { UserProfile } from '../types/user';
-
 vi.mock('../services/api');
 
 vi.mock('../utils/logging', () => ({
@@ -14,16 +12,6 @@ vi.mock('../utils/logging', () => ({
 }));
 
 describe('useOnboarding', () => {
-  const mockUserProfile: UserProfile = {
-    userId: 'test-user-id',
-    email: 'test@example.com',
-    firstName: 'Test',
-    lastName: 'User',
-    tier: 'neighbor',
-    userType: null,
-    onboardingCompleted: false,
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -38,19 +26,7 @@ describe('useOnboarding', () => {
         locale: 'en-US',
       };
 
-      const updatedUser: UserProfile = {
-        ...mockUserProfile,
-        userType: 'grower',
-        onboardingCompleted: true,
-        growerProfile: {
-          ...profileInput,
-          geoKey: '9q8yy9',
-          lat: 37.77,
-          lng: -122.42,
-        },
-      };
-
-      vi.mocked(api.updateMe).mockResolvedValue(updatedUser);
+      vi.mocked(api.updateMe).mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useOnboarding());
 
@@ -75,19 +51,7 @@ describe('useOnboarding', () => {
         locale: 'en-US',
       };
 
-      const updatedUser: UserProfile = {
-        ...mockUserProfile,
-        userType: 'gatherer',
-        onboardingCompleted: true,
-        gathererProfile: {
-          ...profileInput,
-          geoKey: '9q8yy9',
-          lat: 37.77,
-          lng: -122.42,
-        },
-      };
-
-      vi.mocked(api.updateMe).mockResolvedValue(updatedUser);
+      vi.mocked(api.updateMe).mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useOnboarding());
 

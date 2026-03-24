@@ -7,7 +7,7 @@ description: |-
   - GET returns the updated profile data
   - All required fields are present with correct types
   - Onboarding status reflects completed state
-  - User ID matches the captured myUserId
+  - User ID is captured for downstream requests
 method: GET
 url: '{{baseUrl}}/me'
 order: 3000
@@ -109,41 +109,26 @@ scripts:
           });
       });
 
-      // --- Validate State After PUT ---
-      pm.test("User ID matches captured myUserId", function () {
-          const expectedUserId = pm.collectionVariables.get("myUserId");
-          if (expectedUserId) {
-              pm.expect(jsonData.id).to.eql(expectedUserId);
-              console.log("Verified user ID matches:", expectedUserId);
-          } else {
-              console.warn("myUserId not set - skipping ID comparison");
-          }
+      // --- Capture myUserId for downstream requests ---
+      pm.test("Capture myUserId from response", function () {
+          pm.expect(jsonData).to.have.property("id");
+          pm.expect(jsonData.id).to.be.a("string");
+          pm.collectionVariables.set("myUserId", jsonData.id);
+          pm.collectionVariables.set("userId", jsonData.id);
+          console.log("Captured myUserId:", jsonData.id);
       });
 
+      // --- Validate State After PUT ---
       pm.test("onboardingCompleted is true (reflects PUT update)", function () {
           pm.expect(jsonData.onboardingCompleted).to.eql(true);
       });
 
-      pm.test("userType matches PUT snapshot when available", function () {
-          const snapshotStr = pm.collectionVariables.get("putMeResponseSnapshot");
-          if (!snapshotStr) {
-              console.warn("No snapshot found - skipping userType assertion");
-              return;
-          }
-
-          const snapshot = JSON.parse(snapshotStr);
-          pm.expect(jsonData.userType).to.eql(snapshot.userType);
+      pm.test("userType is grower (reflects PUT update)", function () {
+          pm.expect(jsonData.userType).to.eql("grower");
       });
 
-      pm.test("displayName matches PUT snapshot when available", function () {
-          const snapshotStr = pm.collectionVariables.get("putMeResponseSnapshot");
-          if (!snapshotStr) {
-              console.warn("No snapshot found - skipping displayName assertion");
-              return;
-          }
-
-          const snapshot = JSON.parse(snapshotStr);
-          pm.expect(jsonData.displayName).to.eql(snapshot.displayName);
+      pm.test("displayName is Profile Smoke Test User (reflects PUT update)", function () {
+          pm.expect(jsonData.displayName).to.eql("Profile Smoke Test User");
       });
 
       // --- Grower Profile Validation ---
@@ -221,29 +206,6 @@ scripts:
               ).to.eql(false);
           });
       });
-
-      // --- Validate Against Stored Snapshot ---
-      pm.test("GET response matches PUT response snapshot", function () {
-          const snapshotStr = pm.collectionVariables.get("putMeResponseSnapshot");
-          
-          if (!snapshotStr) {
-              console.warn("No snapshot found - skipping snapshot comparison");
-              return;
-          }
-          
-          const snapshot = JSON.parse(snapshotStr);
-          
-          pm.expect(jsonData.id).to.eql(snapshot.id, "id should match PUT response");
-          pm.expect(jsonData.displayName).to.eql(snapshot.displayName, "displayName should match PUT response");
-          pm.expect(jsonData.userType).to.eql(snapshot.userType, "userType should match PUT response");
-          pm.expect(jsonData.onboardingCompleted).to.eql(snapshot.onboardingCompleted, "onboardingCompleted should match PUT response");
-          
-          console.log("GET response validated against PUT snapshot");
-      });
-
-      // --- Cleanup temporary variables (optional) ---
-      // Uncomment if you want to clean up after the smoke test run
-      // pm.collectionVariables.unset("putMeResponseSnapshot");
 
       // --- Subscription Metadata Validation (Issue #67) ---
       pm.test("Subscription metadata is present", function () {
