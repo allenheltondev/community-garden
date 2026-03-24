@@ -508,6 +508,36 @@ Resources:
                 - claim.created
                 - claim.updated
 
+
+  ProfileDerivedWorkerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - profile-derived-worker.mjs
+    Properties:
+      CodeUri: functions
+      Handler: profile-derived-worker.handler
+      Runtime: nodejs24.x
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+      Events:
+        ProfileUpdatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            Pattern:
+              source:
+                - community-garden.api
+              detail-type:
+                - user.profile.updated
+
   # CatalogSeedFunction:
   #   Type: AWS::Serverless::Function
   #   Metadata:
