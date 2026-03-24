@@ -372,43 +372,58 @@ async function syncPracticeBadges(client, userId) {
   await maybeAward(client, userId, "season_finisher", r.fall_count >= 2, { badgeFamily: "garden_practice", seasonWindow: "fall", count: r.fall_count }, "Season Finisher awarded");
 }
 
+// ── user id extraction ───────────────────────────────────────────────────────
+
+function extractUserIds(detail) {
+  // claim events carry claimerId + listingOwnerId (refresh both)
+  if (detail.claimerId || detail.listingOwnerId) {
+    return [detail.claimerId, detail.listingOwnerId].filter(Boolean);
+  }
+  // listing, request, and profile events carry userId
+  return detail.userId ? [detail.userId] : [];
+}
+
 // ── handler ──────────────────────────────────────────────────────────────────
+
+async function refreshForUser(client, userId, correlationId) {
+  await syncBadges(client, userId);
+
+  const signals = await computeExperienceSignals(client, userId);
+  const level = assignExperienceLevel(signals);
+  await persistExperienceLevel(client, userId, level, signals);
+
+  await evaluateGardenerTier(client, userId);
+
+  await client.query(
+    `insert into premium_analytics_events (user_id, event_name, event_source, metadata)
+     values ($1, 'profile.derived.refreshed', 'worker', $2::jsonb)`,
+    [userId, JSON.stringify({ correlationId, experienceLevel: level })]
+  );
+
+  return level;
+}
 
 export async function handler(event) {
   const detail = event.detail ?? {};
-  const userId = detail.userId;
   const correlationId = detail.correlationId ?? "unknown";
+  const detailType = event["detail-type"] ?? "unknown";
+  const userIds = extractUserIds(detail);
 
-  if (!userId) {
-    console.warn("Missing userId in event detail, skipping", JSON.stringify(event));
+  if (userIds.length === 0) {
+    console.warn("No userId(s) in event detail, skipping", JSON.stringify(event));
     return { statusCode: 200, body: "skipped: no userId" };
   }
 
-  console.log(JSON.stringify({ message: "Processing profile derived data", userId, correlationId }));
+  console.log(JSON.stringify({ message: "Processing profile derived data", detailType, userIds, correlationId }));
 
   const client = new pg.Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
   await client.connect();
 
   try {
-    // 1. Badge sync
-    await syncBadges(client, userId);
-
-    // 2. Experience signals + level
-    const signals = await computeExperienceSignals(client, userId);
-    const level = assignExperienceLevel(signals);
-    await persistExperienceLevel(client, userId, level, signals);
-
-    // 3. Gardener tier
-    await evaluateGardenerTier(client, userId);
-
-    // 4. Analytics event
-    await client.query(
-      `insert into premium_analytics_events (user_id, event_name, event_source, metadata)
-       values ($1, 'profile.derived.refreshed', 'worker', $2::jsonb)`,
-      [userId, JSON.stringify({ correlationId, experienceLevel: level })]
-    );
-
-    console.log(JSON.stringify({ message: "Profile derived data refreshed", userId, correlationId, experienceLevel: level }));
+    for (const userId of userIds) {
+      const level = await refreshForUser(client, userId, correlationId);
+      console.log(JSON.stringify({ message: "Profile derived data refreshed", userId, correlationId, experienceLevel: level }));
+    }
     return { statusCode: 200, body: "ok" };
   } finally {
     await client.end();

@@ -537,6 +537,10 @@ Resources:
                 - community-garden.api
               detail-type:
                 - user.profile.updated
+                - listing.created
+                - listing.updated
+                - claim.created
+                - claim.updated
 
   # CatalogSeedFunction:
   #   Type: AWS::Serverless::Function

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-// ── experience level assignment (pure logic, mirrored from worker) ───────────
+// ── pure logic mirrored from worker ──────────────────────────────────────────
 
 function assignExperienceLevel(s) {
   const score =
@@ -21,6 +21,13 @@ function bucketPoints(value, steps) {
   let max = 0;
   for (const [min, pts] of steps) if (value >= min && pts > max) max = pts;
   return max;
+}
+
+function extractUserIds(detail) {
+  if (detail.claimerId || detail.listingOwnerId) {
+    return [detail.claimerId, detail.listingOwnerId].filter(Boolean);
+  }
+  return detail.userId ? [detail.userId] : [];
 }
 
 describe("assignExperienceLevel", () => {
@@ -89,4 +96,23 @@ describe("gardener tier thresholds", () => {
   it("pro at 60", () => assert.equal(tierFromScore(60), "pro"));
   it("master at 80", () => assert.equal(tierFromScore(80), "master"));
   it("novice at 34", () => assert.equal(tierFromScore(34), "novice"));
+});
+
+describe("extractUserIds", () => {
+  it("extracts userId from profile/listing/request events", () => {
+    assert.deepEqual(extractUserIds({ userId: "u1" }), ["u1"]);
+  });
+
+  it("extracts both parties from claim events", () => {
+    const ids = extractUserIds({ claimerId: "c1", listingOwnerId: "o1" });
+    assert.deepEqual(ids, ["c1", "o1"]);
+  });
+
+  it("extracts claimerId only when listingOwnerId is missing", () => {
+    assert.deepEqual(extractUserIds({ claimerId: "c1" }), ["c1"]);
+  });
+
+  it("returns empty for events with no user identifiers", () => {
+    assert.deepEqual(extractUserIds({}), []);
+  });
 });
