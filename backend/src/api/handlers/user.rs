@@ -50,6 +50,7 @@ pub async fn get_current_user(
     )
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn upsert_current_user(
     request: &Request,
     correlation_id: &str,
