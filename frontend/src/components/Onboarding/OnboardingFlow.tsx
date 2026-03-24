@@ -37,11 +37,8 @@ export function OnboardingFlow() {
   const { user, refreshUser } = useUser();
   const isInitialMount = useRef(true);
   const { submitUserType, submitGrowerProfile, submitGathererProfile } = useOnboarding(
-    (updatedUser) => {
-      logger.info('Onboarding completed', {
-        userId: updatedUser.userId,
-        userType: updatedUser.userType,
-      });
+    () => {
+      logger.info('Onboarding step completed');
       // Refetch user data to update onboardingCompleted status
       refreshUser();
     }
