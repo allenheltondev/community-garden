@@ -20,6 +20,7 @@ const COMPOST_CHAMPION_BADGE_KEY: &str = "compost_champion";
 const SEASON_STARTER_BADGE_KEY: &str = "season_starter";
 const SEASON_FINISHER_BADGE_KEY: &str = "season_finisher";
 const HARVEST_PROOF_WINDOW_DAYS: i64 = 14;
+const HARVEST_PROOF_WINDOW_DAYS_TEXT: &str = "14";
 
 const PRACTICE_MIN_CONFIDENCE: f64 = 0.8;
 const PRACTICE_HERB_EVIDENCE_MIN: i32 = 3;
@@ -813,7 +814,7 @@ async fn maybe_award_first_harvest(
                    min(first_harvest_at) as first_harvest_at
             from proof_matches
             ",
-            &[&user_id, &HARVEST_PROOF_WINDOW_DAYS],
+            &[&user_id, &HARVEST_PROOF_WINDOW_DAYS_TEXT],
         )
         .await
         .map_err(|e| lambda_http::Error::from(format!("Database query error: {e}")))?;
