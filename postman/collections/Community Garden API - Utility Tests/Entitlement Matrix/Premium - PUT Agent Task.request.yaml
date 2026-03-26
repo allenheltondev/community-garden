@@ -9,7 +9,7 @@ url: '{{baseUrl}}/agent-tasks/00000000-0000-4000-a000-000000000000'
 order: 8000
 headers:
   - key: Authorization
-    value: 'Bearer {{authToken}}'
+    value: 'Bearer {{premiumAuthToken}}'
   - key: Content-Type
     value: application/json
 body:
@@ -19,10 +19,6 @@ body:
       "status": "active"
     }
 scripts:
-  - type: beforeRequest
-    language: text/javascript
-    code: |-
-      pm.collectionVariables.set("authToken", pm.collectionVariables.get("premiumAuthToken"));
   - type: afterResponse
     language: text/javascript
     code: |-

@@ -8,12 +8,8 @@ url: '{{baseUrl}}/analytics/premium/kpis'
 order: 5000
 headers:
   - key: Authorization
-    value: 'Bearer {{authToken}}'
+    value: 'Bearer {{freeAuthToken}}'
 scripts:
-  - type: beforeRequest
-    language: text/javascript
-    code: |-
-      pm.collectionVariables.set("authToken", pm.collectionVariables.get("freeAuthToken"));
   - type: afterResponse
     language: text/javascript
     code: |-

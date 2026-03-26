@@ -8,7 +8,7 @@ url: '{{baseUrl}}/agent-tasks'
 order: 2000
 headers:
   - key: Authorization
-    value: 'Bearer {{authToken}}'
+    value: 'Bearer {{freeAuthToken}}'
   - key: Content-Type
     value: application/json
 body:
@@ -20,10 +20,6 @@ body:
       "instruction": "Test instruction for entitlement check"
     }
 scripts:
-  - type: beforeRequest
-    language: text/javascript
-    code: |-
-      pm.collectionVariables.set("authToken", pm.collectionVariables.get("freeAuthToken"));
   - type: afterResponse
     language: text/javascript
     code: |-

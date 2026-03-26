@@ -8,7 +8,7 @@ url: '{{baseUrl}}/analytics/premium/events'
 order: 4000
 headers:
   - key: Authorization
-    value: 'Bearer {{authToken}}'
+    value: 'Bearer {{freeAuthToken}}'
   - key: Content-Type
     value: application/json
 body:
@@ -19,10 +19,6 @@ body:
       "metadata": {}
     }
 scripts:
-  - type: beforeRequest
-    language: text/javascript
-    code: |-
-      pm.collectionVariables.set("authToken", pm.collectionVariables.get("freeAuthToken"));
   - type: afterResponse
     language: text/javascript
     code: |-
