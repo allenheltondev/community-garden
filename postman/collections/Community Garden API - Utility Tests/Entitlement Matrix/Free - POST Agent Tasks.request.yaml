@@ -15,8 +15,9 @@ body:
   type: json
   content: |-
     {
-      "taskType": "weekly_plan",
-      "input": {"prompt": "test"}
+      "name": "Test Task",
+      "scheduleCron": "0 8 * * 1",
+      "instruction": "Test instruction for entitlement check"
     }
 scripts:
   - type: beforeRequest

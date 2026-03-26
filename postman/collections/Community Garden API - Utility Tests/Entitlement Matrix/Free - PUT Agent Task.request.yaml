@@ -15,7 +15,7 @@ body:
   type: json
   content: |-
     {
-      "status": "cancelled"
+      "status": "active"
     }
 scripts:
   - type: beforeRequest

@@ -15,7 +15,8 @@ body:
   type: json
   content: |-
     {
-      "prompt": "What should I plant this week?"
+      "geoKey": "9v6kn7",
+      "windowDays": 7
     }
 scripts:
   - type: beforeRequest

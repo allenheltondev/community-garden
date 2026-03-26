@@ -8,7 +8,7 @@ url: '{{baseUrl}}/claims'
 order: 2000
 headers:
   - key: Authorization
-    value: 'Bearer {{premiumAuthToken}}'
+    value: 'Bearer {{gathererAuthToken}}'
   - key: Content-Type
     value: application/json
 body:

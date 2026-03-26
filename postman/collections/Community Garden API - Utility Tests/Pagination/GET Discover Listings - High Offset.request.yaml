@@ -10,6 +10,8 @@ headers:
   - key: Authorization
     value: 'Bearer {{premiumAuthToken}}'
 queryParams:
+  - key: geoKey
+    value: '9v6kn7'
   - key: offset
     value: '999999'
   - key: limit

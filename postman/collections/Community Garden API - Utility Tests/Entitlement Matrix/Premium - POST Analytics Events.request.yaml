@@ -15,8 +15,8 @@ body:
   type: json
   content: |-
     {
-      "eventType": "test_event",
-      "payload": {}
+      "eventName": "paywall_view",
+      "metadata": {}
     }
 scripts:
   - type: beforeRequest

@@ -22,6 +22,9 @@ variables:
   - key: premiumAuthToken
     value: ''
     description: Premium-tier grower token for write and setup operations
+  - key: gathererAuthToken
+    value: ''
+    description: Gatherer-role token for gatherer-only endpoints (claims, requests)
   - key: catalogCropId
     value: ''
     description: Catalog crop ID captured from catalog list

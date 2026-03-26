@@ -104,7 +104,7 @@ async function authenticateUser(label, email, password) {
  * Upsert the user row in Postgres so the API's authorizer/handlers
  * find a valid profile with the expected tier.
  */
-async function upsertSubscriptionTier(client, userId, email, tier, subscriptionStatus) {
+async function upsertSubscriptionTier(client, userId, email, tier, subscriptionStatus, userType) {
   const premiumExpires = tier === "premium" ? "now() + interval '365 days'" : "null";
 
   // Remove any stale row with the same email but a different id (happens when
@@ -113,7 +113,7 @@ async function upsertSubscriptionTier(client, userId, email, tier, subscriptionS
 
   await client.query(
     `INSERT INTO users (id, email, display_name, is_verified, tier, subscription_status, premium_expires_at, user_type, onboarding_completed)
-     VALUES ($1, $2, $3, true, $4, $5, ${premiumExpires}, null, false)
+     VALUES ($1, $2, $3, true, $4, $5, ${premiumExpires}, $6, $7)
      ON CONFLICT (id) DO UPDATE
        SET email            = EXCLUDED.email,
            display_name     = EXCLUDED.display_name,
@@ -121,11 +121,11 @@ async function upsertSubscriptionTier(client, userId, email, tier, subscriptionS
            tier             = EXCLUDED.tier,
            subscription_status = EXCLUDED.subscription_status,
            premium_expires_at  = EXCLUDED.premium_expires_at,
-           user_type        = null,
-           onboarding_completed = false,
+           user_type        = EXCLUDED.user_type,
+           onboarding_completed = EXCLUDED.onboarding_completed,
            updated_at       = now(),
            deleted_at       = null`,
-    [userId, email, `CI ${tier.charAt(0).toUpperCase() + tier.slice(1)} User`, tier, subscriptionStatus]
+    [userId, email, `CI ${tier.charAt(0).toUpperCase() + tier.slice(1)} User`, tier, subscriptionStatus, userType, userType !== null]
   );
 }
 
@@ -139,9 +139,9 @@ export async function handler() {
   const client = new pg.Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
   await client.connect();
   try {
-    await upsertSubscriptionTier(client, decodeSubFromJwt(growerFree.id_token), growerFree.email, "free", "none");
-    await upsertSubscriptionTier(client, decodeSubFromJwt(growerPremium.id_token), growerPremium.email, "premium", "active");
-    await upsertSubscriptionTier(client, decodeSubFromJwt(gatherer.id_token), gatherer.email, "free", "none");
+    await upsertSubscriptionTier(client, decodeSubFromJwt(growerFree.id_token), growerFree.email, "free", "none", "grower");
+    await upsertSubscriptionTier(client, decodeSubFromJwt(growerPremium.id_token), growerPremium.email, "premium", "active", "grower");
+    await upsertSubscriptionTier(client, decodeSubFromJwt(gatherer.id_token), gatherer.email, "free", "none", "gatherer");
   } finally {
     await client.end();
   }
