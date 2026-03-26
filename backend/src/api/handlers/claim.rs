@@ -473,16 +473,16 @@ async fn adjust_listing_quantity_if_needed(
                     update surplus_listings
                     set quantity_remaining = case
                             when quantity_remaining is null then null
-                            else quantity_remaining - $1
+                            else quantity_remaining - $1::double precision
                         end,
                         status = case
-                            when quantity_remaining is not null and quantity_remaining - $1 <= 0
+                            when quantity_remaining is not null and quantity_remaining - $1::double precision <= 0
                                 then 'claimed'::listing_status
                             else status
                         end
                     where id = $2
                       and deleted_at is null
-                      and (quantity_remaining is null or quantity_remaining >= $1)
+                      and (quantity_remaining is null or quantity_remaining >= $1::double precision)
                     ",
                     &[&quantity_claimed, &listing_id],
                 )
@@ -501,7 +501,7 @@ async fn adjust_listing_quantity_if_needed(
                 update surplus_listings
                 set quantity_remaining = case
                         when quantity_remaining is null then null
-                        else quantity_remaining + $1
+                        else quantity_remaining + $1::double precision
                     end,
                     status = case
                         when status = 'claimed'::listing_status then 'active'::listing_status
