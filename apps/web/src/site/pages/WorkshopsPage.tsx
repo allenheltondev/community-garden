@@ -199,43 +199,58 @@ export function WorkshopsPage({ onNavigate, authSession }: WorkshopsPageProps) {
         ) : null}
 
         {upcoming.length > 0 ? (
-          <div className="stack-grid workshops-grid">
+          <div className="workshops-grid">
             {upcoming.map((workshop) => {
               const formattedDate = formatWorkshopDate(workshop.workshop_date);
               const formattedPrice = formatWorkshopPrice(workshop);
               const detailPath = `/workshops/${workshop.slug}`;
+              const metaParts = [formattedDate, workshop.location].filter(Boolean) as string[];
               return (
-                <Card key={workshop.id} title={workshop.title} className="workshop-card">
-                  {workshop.image_url ? (
-                    <img
-                      className="workshop-card__image"
-                      src={workshop.image_url}
-                      alt=""
-                    />
-                  ) : null}
-                  <p className={statusModifier(workshop.status)}>{STATUS_LABEL[workshop.status]}</p>
-                  {formattedDate ? (
-                    <p className="workshop-card__date">{formattedDate}</p>
-                  ) : null}
-                  {workshop.location ? (
-                    <p className="workshop-card__location">{workshop.location}</p>
-                  ) : null}
-                  {formattedPrice ? (
-                    <p className="workshop-card__price">{formattedPrice}</p>
-                  ) : null}
-                  {workshop.short_description ? (
-                    <p className="workshop-card__summary">{workshop.short_description}</p>
-                  ) : null}
-                  <CtaButton
-                    href={detailPath}
-                    onClick={(event) => {
-                      event?.preventDefault?.();
-                      onNavigate(detailPath);
-                    }}
-                  >
-                    {ctaLabel(workshop)}
-                  </CtaButton>
-                </Card>
+                <article key={workshop.id} className="workshop-card">
+                  <div className="workshop-card__media">
+                    {workshop.image_url ? (
+                      <img
+                        className="workshop-card__image"
+                        src={workshop.image_url}
+                        alt=""
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className="workshop-card__image workshop-card__image--placeholder"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className={statusModifier(workshop.status)}>
+                      {STATUS_LABEL[workshop.status]}
+                    </span>
+                  </div>
+                  <div className="workshop-card__body">
+                    <h2 className="workshop-card__title">{workshop.title}</h2>
+                    {metaParts.length > 0 || formattedPrice ? (
+                      <p className="workshop-card__meta">
+                        {metaParts.join(' · ')}
+                        {formattedPrice ? (
+                          <span className="workshop-card__price">{formattedPrice}</span>
+                        ) : null}
+                      </p>
+                    ) : null}
+                    {workshop.short_description ? (
+                      <p className="workshop-card__summary">{workshop.short_description}</p>
+                    ) : null}
+                    <div className="workshop-card__cta">
+                      <CtaButton
+                        href={detailPath}
+                        onClick={(event) => {
+                          event?.preventDefault?.();
+                          onNavigate(detailPath);
+                        }}
+                      >
+                        {ctaLabel(workshop)}
+                      </CtaButton>
+                    </div>
+                  </div>
+                </article>
               );
             })}
           </div>

@@ -124,6 +124,162 @@ html {
   line-height: 1.15 !important;
 }
 
+/*
+ * Workshops list cards.
+ *
+ * Custom card chrome (not the shared og-card) so the cover image can
+ * bleed edge-to-edge with a fixed 16:9 aspect ratio and a status pill
+ * overlay, instead of rendering at the image's intrinsic size inside
+ * card padding (which made unsized uploads look like banners).
+ */
+
+.workshops-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+  margin-top: 1.25rem;
+}
+
+.workshop-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 253, 248, 0.95);
+  border: 1px solid rgba(79, 56, 37, 0.1);
+  border-radius: var(--og-radius-lg);
+  box-shadow: var(--og-shadow-card);
+  overflow: hidden;
+  transition: transform var(--duration-fast, 0.18s) var(--easing-out, ease-out),
+              box-shadow var(--duration-fast, 0.18s) var(--easing-out, ease-out);
+}
+
+.workshop-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px -18px rgba(28, 22, 16, 0.35);
+}
+
+.workshop-card__media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, rgba(66, 107, 63, 0.18), rgba(217, 178, 116, 0.22));
+  overflow: hidden;
+}
+
+.workshop-card__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workshop-card__image--placeholder {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.5), transparent 55%),
+    linear-gradient(135deg, rgba(66, 107, 63, 0.25), rgba(217, 178, 116, 0.3));
+}
+
+/* Status pill — overlay on top of the image so the row of cards
+   reads as "image + label" at a glance without taking another row
+   in the body. */
+.workshop-card__status {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.95);
+  color: var(--site-ink, #2c2218);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 4px 12px -4px rgba(28, 22, 16, 0.25);
+}
+
+/* Status-specific accents — keep the badge readable but tint by
+   meaning (green for open, amber for waitlist, neutral for soon/past). */
+.workshop-card__status--open {
+  background: rgba(66, 107, 63, 0.95);
+  color: #fff;
+}
+
+.workshop-card__status--gauging-interest {
+  background: rgba(217, 178, 116, 0.95);
+  color: #2c2218;
+}
+
+.workshop-card__status--closed {
+  background: rgba(184, 102, 49, 0.95);
+  color: #fff;
+}
+
+.workshop-card__status--past {
+  background: rgba(79, 56, 37, 0.85);
+  color: #fff;
+}
+
+.workshop-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.6rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+/* Specificity bumped because .page-section h2 sets a much larger
+   clamp; we need to win without resorting to !important. */
+.workshop-card .workshop-card__title {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--site-ink, #2c2218);
+  letter-spacing: 0;
+}
+
+.workshop-card__meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.65rem;
+  font-size: 0.92rem;
+  color: var(--site-muted, rgba(79, 56, 37, 0.7));
+}
+
+.workshop-card__price {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(66, 107, 63, 0.12);
+  color: var(--og-color-moss, #426b3f);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.workshop-card__summary {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--site-muted, rgba(79, 56, 37, 0.78));
+  /* Cap to two lines so cards in a row keep similar heights even when
+     descriptions vary in length. The CTA pin to the bottom via
+     margin-top:auto in workshop-card__cta. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.workshop-card__cta {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+
 .page-hero__body,
 .page-section__body,
 .page-section__intro,
