@@ -737,10 +737,7 @@ async fn validate_listing_crop_references(
 
     if let Some(crop) = effective_crop_id {
         let crop_exists = client
-            .query_one(
-                "select exists(select 1 from crops where id = $1)",
-                &[&crop],
-            )
+            .query_one("select exists(select 1 from crops where id = $1)", &[&crop])
             .await
             .map_err(|error| db_error(&error))?
             .get::<_, bool>(0);
