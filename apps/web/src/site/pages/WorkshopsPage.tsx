@@ -227,7 +227,26 @@ export function WorkshopsPage({ onNavigate, authSession }: WorkshopsPageProps) {
                     </span>
                   </div>
                   <div className="workshop-card__body">
-                    <h2 className="workshop-card__title">{workshop.title}</h2>
+                    <h2 className="workshop-card__title">
+                      {/*
+                        Title link is the single tab stop for the card;
+                        its ::after overlay extends the click target to
+                        cover the entire card so users can click anywhere
+                        on the card to navigate. Inner clickables (CTA
+                        button, signed-up chip) are z-indexed above the
+                        overlay so they keep their own behavior.
+                      */}
+                      <a
+                        href={detailPath}
+                        className="workshop-card__title-link"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          onNavigate(detailPath);
+                        }}
+                      >
+                        {workshop.title}
+                      </a>
+                    </h2>
                     {metaParts.length > 0 || formattedPrice ? (
                       <p className="workshop-card__meta">
                         {metaParts.join(' · ')}

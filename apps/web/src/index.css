@@ -141,6 +141,7 @@ html {
 }
 
 .workshop-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: rgba(255, 253, 248, 0.95);
@@ -155,6 +156,53 @@ html {
 .workshop-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 32px -18px rgba(28, 22, 16, 0.35);
+}
+
+/*
+ * Card-as-link pattern. The title's anchor stretches its hit-target
+ * across the entire card via ::after, so a click anywhere on the
+ * card navigates. Single tab stop (the title link), screen-reader
+ * label is the title text. Inner clickables (CTA button, signed-up
+ * chip, image) sit above the overlay via z-index so they keep their
+ * own behavior.
+ */
+.workshop-card .workshop-card__title-link {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+/* No underline-on-hover here: the link's hit-target covers the
+   whole card, so an underline would fire on any card hover and
+   compete visually with the card-lift transform. The lift + shadow
+   are the hover affordance. */
+
+.workshop-card .workshop-card__title-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.workshop-card .workshop-card__title-link:focus-visible::after {
+  outline: 2px solid var(--og-color-moss, #426b3f);
+  outline-offset: -2px;
+  border-radius: inherit;
+}
+
+/* Inner clickables that need to stay independently clickable on top
+   of the overlay. */
+.workshop-card .workshop-card__cta,
+.workshop-card .workshop-card__signed-up {
+  position: relative;
+  z-index: 2;
+}
+
+/* Whole card gets the pointer affordance even where the overlay
+   sits — the link's ::after inherits cursor from the link element. */
+.workshop-card .workshop-card__title-link {
+  cursor: pointer;
 }
 
 .workshop-card__media {
