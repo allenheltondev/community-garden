@@ -58,6 +58,10 @@ When working on an issue:
 - Use semantic HTML and accessible interactions.
 - Keep bundle impact in mind; lazy-load non-critical UI.
 - Include component tests for behavior changes and critical path tests where needed.
+- Prefer shared presentation primitives from `packages/ui` over app-local page chrome.
+- Do not use page-level eyebrow labels above primary page headings. If the context matters, fold it into the title, body copy, nav state, or nearby metadata.
+- Keep primary page `h1` treatments professional and restrained. Avoid oversized marketing-style hero titles except on a true landing-page hero where the visual design explicitly supports it.
+- Do not use negative letter spacing for page headings. Use normal letter spacing and adjust size, weight, and line-height instead.
 
 ### Frontend decision rules
 - If backend API is missing for a UI requirement, create/track backend dependency first.

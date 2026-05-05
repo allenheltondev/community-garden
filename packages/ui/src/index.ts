@@ -8,6 +8,7 @@ export { FormField } from './components/FormField.tsx';
 export { Input } from './components/Input.tsx';
 export { KeyValueList } from './components/KeyValueList.tsx';
 export { Panel } from './components/Panel.tsx';
+export { PageHero } from './components/PageHero.tsx';
 export { SectionHeading } from './components/SectionHeading.tsx';
 export { Select } from './components/Select.tsx';
 export { SiteFooter } from './components/SiteFooter.tsx';
@@ -39,5 +40,6 @@ export type { SiteFooterLink, SiteFooterProps } from './components/SiteFooter.ts
 export type { SiteHeaderNavItem, SiteHeaderProps } from './components/SiteHeader.tsx';
 export type { KeyValueItem, KeyValueListProps } from './components/KeyValueList.tsx';
 export type { PanelProps } from './components/Panel.tsx';
+export type { PageHeroProps } from './components/PageHero.tsx';
 export type { SectionHeadingProps } from './components/SectionHeading.tsx';
 export type { ThemeConfig } from './theme.ts';

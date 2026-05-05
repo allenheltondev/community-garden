@@ -103,9 +103,8 @@ export function ProductPage() {
       <Link className="store-back-link" to="/">Back to store</Link>
 
       <SectionHeading
-        eyebrow={KIND_LABEL[product.kind]}
         title={product.name}
-        body={product.short_description ?? undefined}
+        body={[KIND_LABEL[product.kind], product.short_description].filter(Boolean).join('. ')}
       />
 
       <div className="store-product-detail__layout">

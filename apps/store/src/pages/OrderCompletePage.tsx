@@ -80,7 +80,6 @@ export function OrderCompletePage() {
     return (
       <section className="store-section">
         <SectionHeading
-          eyebrow="Thank you"
           title="Finishing up your order…"
           body="We are confirming the payment. This usually takes a few seconds."
         />
@@ -92,7 +91,6 @@ export function OrderCompletePage() {
     return (
       <section className="store-section">
         <SectionHeading
-          eyebrow="Thank you"
           title="Payment received"
           body="Your order will appear here as soon as payment processing finishes. You can also check 'My orders' once you sign in."
         />
@@ -116,7 +114,6 @@ export function OrderCompletePage() {
           </svg>
         </div>
         <SectionHeading
-          eyebrow="Thank you"
           title="Your order is confirmed"
           body={`A receipt has been sent to ${order.email}.`}
         />

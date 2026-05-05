@@ -96,18 +96,18 @@ html {
   margin: 0;
   font-family: var(--site-display);
   font-weight: 600;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .page-hero h1 {
-  font-size: clamp(3rem, 8vw, 6rem);
-  line-height: 0.92;
+  font-size: clamp(2.2rem, 5vw, 4.25rem);
+  line-height: 1;
   text-wrap: balance;
 }
 
-.home-hero__title {
-  font-size: clamp(2.1rem, 5vw, 3.8rem) !important;
-  line-height: 0.98 !important;
+.page-hero h1.home-hero__title {
+  font-size: clamp(2.1rem, 4.4vw, 3.4rem);
+  line-height: 1;
 }
 
 /*
@@ -1364,6 +1364,43 @@ html {
   gap: 1.25rem;
 }
 
+.good-roots-page {
+  display: grid;
+}
+
+.good-roots-hero + .home-mission-band {
+  margin-top: clamp(1rem, 3vw, 2rem);
+}
+
+.good-roots-hero ~ .page-section {
+  margin-top: clamp(1.75rem, 4vw, 3.25rem);
+}
+
+.good-roots-hero .page-hero__aside {
+  display: none;
+}
+
+.good-roots-hero__image {
+  display: block;
+  width: min(100%, 28rem);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid rgba(58, 42, 29, 0.14);
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 42px rgba(38, 23, 15, 0.16);
+}
+
+.good-roots-hero__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.good-roots-mission .home-mission-band__copy h2 {
+  letter-spacing: 0;
+}
+
 .good-roots-step {
   display: grid;
   gap: 0.6rem;
@@ -1581,8 +1618,8 @@ html {
   }
 
   .page-hero h1 {
-    font-size: clamp(2.2rem, 11vw, 3.2rem);
-    line-height: 0.95;
+    font-size: clamp(2rem, 9vw, 3rem);
+    line-height: 1.02;
   }
 
   .page-hero__body {
@@ -1600,6 +1637,11 @@ html {
   .site-panel__actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .good-roots-page .site-cta,
+  .good-roots-tier-form .og-button {
+    width: 100%;
   }
 
   .page-section {
@@ -1627,6 +1669,99 @@ html {
   .page-section h2,
   .home-mission-band__copy h2 {
     font-size: clamp(1.5rem, 7vw, 2rem);
+  }
+
+  .good-roots-hero + .good-roots-mission {
+    margin-top: 0.85rem;
+  }
+
+  .good-roots-hero ~ .page-section {
+    margin-top: 2.1rem;
+  }
+
+  .good-roots-mission {
+    padding: 0.25rem 0 0.35rem;
+  }
+
+  .good-roots-mission .home-mission-band__eyebrow {
+    display: none;
+  }
+
+  .good-roots-steps {
+    gap: 0.75rem;
+  }
+
+  .good-roots-step {
+    grid-template-columns: 2.35rem minmax(0, 1fr);
+    gap: 0.2rem 0.75rem;
+    padding: 0.95rem;
+    border-radius: 0.85rem;
+  }
+
+  .good-roots-step__number {
+    grid-row: 1 / span 2;
+    font-size: 1.15rem;
+    line-height: 1.1;
+  }
+
+  .good-roots-step h3 {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .good-roots-step p {
+    line-height: 1.5;
+  }
+
+  .good-roots-personas {
+    gap: 2rem;
+  }
+
+  .good-roots-persona {
+    gap: 0.95rem;
+  }
+
+  .good-roots-persona__copy {
+    order: 1;
+  }
+
+  .good-roots-persona__media,
+  .good-roots-persona--reverse .good-roots-persona__media {
+    order: 2;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.9rem;
+  }
+
+  .good-roots-map-section {
+    gap: 0.75rem;
+  }
+
+  .good-roots-map-placeholder {
+    aspect-ratio: 4 / 3;
+    border-radius: 0.9rem;
+  }
+
+  .good-roots-tier {
+    gap: 0.65rem;
+    padding: 1rem;
+    border-radius: 0.85rem;
+  }
+
+  .good-roots-tier__eyebrow {
+    font-size: 1.12rem;
+  }
+
+  .good-roots-orgs {
+    gap: 0.9rem;
+  }
+
+  .good-roots-closing {
+    padding: 1.25rem;
+    border-radius: 0.9rem;
+  }
+
+  .good-roots-closing__copy {
+    gap: 0.75rem;
   }
 
   .home-hero {
@@ -1979,6 +2114,17 @@ html {
   .page-hero__copy--overlay {
     padding: 1.45rem 1.6rem;
   }
+
+  .good-roots-hero {
+    align-items: center;
+  }
+
+  .good-roots-hero .page-hero__aside {
+    display: grid;
+    justify-items: end;
+    align-self: start;
+    padding-top: 0.35rem;
+  }
 }
 
 @media (min-width: 1040px) {
@@ -2012,9 +2158,9 @@ html {
 }
 
 .donate-hero__title {
-  max-width: 10ch;
-  font-size: clamp(2.2rem, 5vw, 4rem) !important;
-  line-height: 0.96 !important;
+  max-width: 16ch;
+  font-size: clamp(2.1rem, 4.2vw, 3.4rem);
+  line-height: 1;
 }
 
 .donate-hero__aside-card {

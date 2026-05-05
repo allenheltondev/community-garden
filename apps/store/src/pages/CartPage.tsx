@@ -106,7 +106,7 @@ export function CartPage({ session }: CartPageProps) {
               />
             </svg>
           </div>
-          <SectionHeading eyebrow="Cart" title="Your cart is empty" />
+          <SectionHeading title="Your cart is empty" />
           <p>
             <Link to="/">Browse the store</Link> to find something you love.
           </p>
@@ -122,7 +122,6 @@ export function CartPage({ session }: CartPageProps) {
     <section className="store-section">
       <Link className="store-back-link" to="/">Back to store</Link>
       <SectionHeading
-        eyebrow="Cart"
         title="Review your cart"
         body={`${itemCount} ${itemCount === 1 ? 'item' : 'items'} ready for checkout.`}
       />
