@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Card, FormFeedback } from '@olivias/ui';
+import { Button, FormFeedback } from '@olivias/ui';
 import type { AuthSession } from '../../auth/session';
-import { CtaButton, PageHero } from '../chrome';
 import { siteUrl, webApiBase } from '../routes';
 import { applyWorkshopSeo } from '../seo';
 import {
   formatWorkshopPrice,
+  signedUpKindLabel,
   type PublicWorkshop,
   type WorkshopStatus,
 } from './WorkshopsPage';
@@ -33,7 +33,11 @@ interface SignupResponse {
   };
 }
 
-function formatWorkshopDate(value: string | null): string | null {
+function statusModifier(status: WorkshopStatus): string {
+  return `workshop-detail-hero__status workshop-detail-hero__status--${status.replace('_', '-')}`;
+}
+
+function formatLongDate(value: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -43,7 +47,18 @@ function formatWorkshopDate(value: string | null): string | null {
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
+  });
+}
+
+function formatShortDate(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
   });
 }
 
@@ -97,6 +112,26 @@ function buildReturnUrl(slug: string): string {
   return `${origin}/workshops/${encodeURIComponent(slug)}`;
 }
 
+function CheckmarkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3.5 8.5l3 3 6-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export interface WorkshopDetailPageProps {
   onNavigate: (path: string) => void;
   authSession: AuthSession | null;
@@ -132,8 +167,6 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
       `${window.location.pathname}${next ? `?${next}` : ''}`,
     );
     if (paymentParam === 'success') {
-      // The webhook may take a moment to flip the row from pending → paid.
-      // Trigger a refetch loop to pick up the new state.
       setReloadCounter((n) => n + 1);
     }
   }, []);
@@ -152,7 +185,11 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
           throw new Error('Workshop not found.');
         }
         if (!response.ok) {
-          throw new Error(`Unable to load workshop (${response.status})`);
+          const body = await response.json().catch(() => null);
+          const detail = body?.error
+            ? `${body.error} (${response.status})`
+            : `Unable to load workshop (${response.status})`;
+          throw new Error(detail);
         }
         return response.json();
       })
@@ -196,12 +233,7 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
     };
   }, [paymentBanner, workshop]);
 
-  // Live countdown for the "Finish payment in N minutes" copy. Without
-  // this, minutesRemaining is computed once on mount and the displayed
-  // count is stale after the user has been on the page for a while.
-  // When the held seat actually expires, trigger a refetch so the UI
-  // flips from "Finish payment" → "Your held spot expired" without
-  // requiring a manual refresh.
+  // Live countdown for the "Finish payment in N minutes" copy.
   const pendingExpiresAtForTimer = workshop?.my_signup?.payment_status === 'pending'
     ? workshop?.my_signup?.expires_at ?? null
     : null;
@@ -215,12 +247,9 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
       const now = Date.now();
       if (now >= expiresAtMs) {
         window.clearInterval(interval);
-        // The pending row's expires_at has passed. Refetch so the server
-        // can null-out checkout_url and we render the "expired" branch.
         setReloadCounter((n) => n + 1);
         return;
       }
-      // Force a re-render so the displayed countdown ticks down.
       setCountdownTick((n) => n + 1);
     }, 30_000);
     return () => window.clearInterval(interval);
@@ -252,14 +281,11 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
       }
       const result = (await response.json()) as SignupResponse;
 
-      // Paid path: the server returns a Stripe Checkout URL. Hand off the
-      // page rather than rendering — Stripe owns the payment UI.
       if (result.checkout_required && result.checkout_url) {
         window.location.assign(result.checkout_url);
         return;
       }
 
-      // Free path: row was inserted; reflect locally.
       setWorkshop({
         ...workshop,
         my_signup: {
@@ -298,50 +324,42 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
 
   if (loadError) {
     return (
-      <>
-        <PageHero
-          eyebrow="Workshops"
-          title="Workshop"
-          body="Something went wrong loading this workshop."
-        />
-        <div className="page-section">
-          <Card title="Unable to load this workshop.">
-            <FormFeedback tone="error">{loadError}</FormFeedback>
-            <CtaButton
-              href="/workshops"
-              onClick={(event) => {
-                event?.preventDefault?.();
-                onNavigate('/workshops');
-              }}
-            >
-              Back to all workshops
-            </CtaButton>
-          </Card>
+      <div className="page-section workshop-detail">
+        <div className="workshop-detail__error">
+          <h1>Workshop unavailable</h1>
+          <FormFeedback tone="error">{loadError}</FormFeedback>
+          <a
+            className="og-button og-button--secondary og-button--md site-cta"
+            href="/workshops"
+            onClick={(event) => {
+              event.preventDefault();
+              onNavigate('/workshops');
+            }}
+          >
+            ← All workshops
+          </a>
         </div>
-      </>
+      </div>
     );
   }
 
   if (!workshop) {
     return (
-      <>
-        <PageHero eyebrow="Workshops" title="Workshop" body="Loading workshop details…" />
-      </>
+      <div className="page-section workshop-detail">
+        <p className="workshop-detail__loading">Loading workshop details…</p>
+      </div>
     );
   }
 
-  const formattedDate = formatWorkshopDate(workshop.workshop_date);
+  const formattedLongDate = formatLongDate(workshop.workshop_date);
+  const formattedShortDate = formatShortDate(workshop.workshop_date);
   const formattedPrice = formatWorkshopPrice(workshop);
   const status = workshop.status;
   const canSignUp = isSignupAllowed(status);
   const hasSignup = workshop.my_signup !== null;
   const isPendingPayment = workshop.my_signup?.payment_status === 'pending';
-  // Resume hint: server returns checkout_url=null on a pending row whose
-  // expires_at has passed. So `pending && !checkout_url` ≡ "the held seat
-  // expired". `pending && checkout_url` ≡ "you can still finish payment."
   const resumeUrl = isPendingPayment ? workshop.my_signup?.checkout_url ?? null : null;
   const isPendingExpired = isPendingPayment && !resumeUrl;
-  // Optional countdown for the pending+resumable case.
   const pendingExpiresAt = workshop.my_signup?.expires_at ?? null;
   const minutesRemaining = (() => {
     if (!isPendingPayment || !resumeUrl || !pendingExpiresAt) return null;
@@ -350,134 +368,201 @@ export function WorkshopDetailPage({ onNavigate, authSession, authReady }: Works
     return Math.max(1, Math.ceil(ms / 60_000));
   })();
 
-  return (
-    <>
-      <PageHero
-        eyebrow={STATUS_LABEL[status]}
-        title={workshop.title}
-        body={workshop.short_description ?? 'Hands-on workshop at Olivia\'s Garden Foundation.'}
-      />
+  const heroMetaParts = [formattedShortDate, workshop.location].filter(Boolean) as string[];
 
-      <div className="page-section workshop-detail">
+  return (
+    <article className="workshop-detail">
+      <header className="workshop-detail-hero">
+        <div className="workshop-detail-hero__media">
+          {workshop.image_url ? (
+            <img
+              className="workshop-detail-hero__image"
+              src={workshop.image_url}
+              alt=""
+            />
+          ) : (
+            <div
+              className="workshop-detail-hero__image workshop-detail-hero__image--placeholder"
+              aria-hidden="true"
+            />
+          )}
+          <div className="workshop-detail-hero__gradient" aria-hidden="true" />
+        </div>
+        <div className="workshop-detail-hero__content">
+          <a
+            className="workshop-detail-hero__back"
+            href="/workshops"
+            onClick={(event) => {
+              event.preventDefault();
+              onNavigate('/workshops');
+            }}
+          >
+            ← All workshops
+          </a>
+          <span className={statusModifier(status)}>{STATUS_LABEL[status]}</span>
+          <h1 className="workshop-detail-hero__title">{workshop.title}</h1>
+          {heroMetaParts.length > 0 || formattedPrice ? (
+            <p className="workshop-detail-hero__meta">
+              {heroMetaParts.join(' · ')}
+              {formattedPrice ? (
+                <span className="workshop-detail-hero__price">{formattedPrice}</span>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+      </header>
+
+      <div className="page-section workshop-detail__body">
         {paymentBanner === 'success' ? (
-          <FormFeedback tone="success">
+          <FormFeedback tone="success" className="workshop-detail__banner">
             Payment received. Hang tight while we confirm your registration…
           </FormFeedback>
         ) : null}
         {paymentBanner === 'cancelled' ? (
-          <FormFeedback tone="info">
+          <FormFeedback tone="info" className="workshop-detail__banner">
             Checkout was cancelled. You can try again below.
           </FormFeedback>
         ) : null}
 
-        {workshop.image_url ? (
-          <img className="workshop-detail__image" src={workshop.image_url} alt="" />
-        ) : null}
+        <div className="workshop-detail__layout">
+          <div className="workshop-detail__main">
+            {workshop.short_description ? (
+              <p className="workshop-detail__lede">{workshop.short_description}</p>
+            ) : null}
 
-        <Card title="Details" className="workshop-detail__meta">
-          {formattedDate ? <p><strong>When:</strong> {formattedDate}</p> : null}
-          {workshop.location ? <p><strong>Where:</strong> {workshop.location}</p> : null}
-          {formattedPrice ? <p><strong>Price:</strong> {formattedPrice}</p> : null}
-          {workshop.capacity !== null ? (
-            <p>
-              <strong>Capacity:</strong>{' '}
-              {workshop.seats_remaining !== null
-                ? `${workshop.seats_remaining} of ${workshop.capacity} spots remaining`
-                : `${workshop.capacity} spots`}
-            </p>
-          ) : null}
-          {status === 'gauging_interest' && workshop.interested_count > 0 ? (
-            <p>
-              <strong>Interest:</strong> {workshop.interested_count} {workshop.interested_count === 1 ? 'person has' : 'people have'} expressed interest
-            </p>
-          ) : null}
-        </Card>
+            {workshop.description ? (
+              <section className="workshop-detail__about">
+                <h2 className="workshop-detail__section-title">About this workshop</h2>
+                <div className="workshop-detail__description">
+                  {workshop.description.split(/\n{2,}/).map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
 
-        {workshop.description ? (
-          <Card title="About this workshop">
-            <div className="workshop-detail__description">
-              {workshop.description.split(/\n{2,}/).map((paragraph, index) => (
-                <p key={index}>{paragraph}</p>
-              ))}
+          <aside className="workshop-detail__rail">
+            <div className="workshop-detail-card">
+              <dl className="workshop-detail-card__details">
+                {formattedLongDate ? (
+                  <>
+                    <dt>When</dt>
+                    <dd>{formattedLongDate}</dd>
+                  </>
+                ) : null}
+                {workshop.location ? (
+                  <>
+                    <dt>Where</dt>
+                    <dd>{workshop.location}</dd>
+                  </>
+                ) : null}
+                {formattedPrice ? (
+                  <>
+                    <dt>Price</dt>
+                    <dd>{formattedPrice}</dd>
+                  </>
+                ) : null}
+                {workshop.capacity !== null ? (
+                  <>
+                    <dt>Capacity</dt>
+                    <dd>
+                      {workshop.seats_remaining !== null
+                        ? `${workshop.seats_remaining} of ${workshop.capacity} spots remaining`
+                        : `${workshop.capacity} spots`}
+                    </dd>
+                  </>
+                ) : null}
+                {status === 'gauging_interest' && workshop.interested_count > 0 ? (
+                  <>
+                    <dt>Interest</dt>
+                    <dd>
+                      {workshop.interested_count}{' '}
+                      {workshop.interested_count === 1 ? 'person' : 'people'} interested so far
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+
+              <div className="workshop-detail-card__action">
+                {!authReady ? (
+                  <p className="workshop-detail-card__hint">Checking your session…</p>
+                ) : status === 'coming_soon' ? (
+                  <p className="workshop-detail-card__hint">
+                    This workshop hasn&apos;t opened for signups yet. Check back soon.
+                  </p>
+                ) : status === 'past' ? (
+                  <p className="workshop-detail-card__hint">
+                    This workshop has already taken place.
+                  </p>
+                ) : hasSignup && isPendingPayment && resumeUrl ? (
+                  <>
+                    <FormFeedback tone="info">
+                      {minutesRemaining
+                        ? `Holding your spot for ~${minutesRemaining} more ${minutesRemaining === 1 ? 'minute' : 'minutes'}.`
+                        : "Holding your spot."}
+                    </FormFeedback>
+                    <a
+                      className="og-button og-button--primary og-button--md site-cta"
+                      href={resumeUrl}
+                    >
+                      Finish payment
+                    </a>
+                    <Button variant="secondary" onClick={handleCancel} disabled={busy}>
+                      {busy ? 'Working…' : 'Cancel reservation'}
+                    </Button>
+                    {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
+                  </>
+                ) : hasSignup && isPendingExpired ? (
+                  <>
+                    <FormFeedback tone="info">
+                      Your held spot expired. Register again to start a new checkout.
+                    </FormFeedback>
+                    <Button onClick={handleSignup} disabled={busy}>
+                      {busy ? 'Working…' : signupCtaLabel(workshop)}
+                    </Button>
+                    {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
+                  </>
+                ) : hasSignup ? (
+                  <>
+                    <p className="workshop-detail-card__signed-up">
+                      <CheckmarkIcon className="workshop-detail-card__signed-up-icon" />
+                      <span>{signedUpKindLabel(workshop.my_signup!.kind)}</span>
+                    </p>
+                    <p className="workshop-detail-card__hint">
+                      {signupConfirmation(workshop.my_signup!.kind, workshop.my_signup!.payment_status)}
+                    </p>
+                    <Button variant="secondary" onClick={handleCancel} disabled={busy}>
+                      {busy ? 'Working…' : 'Cancel my signup'}
+                    </Button>
+                    {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
+                  </>
+                ) : !authSession ? (
+                  <>
+                    <Button onClick={handleSignup} disabled={busy}>
+                      Sign in to {signupCtaLabel(workshop).toLowerCase()}
+                    </Button>
+                    <p className="workshop-detail-card__hint">
+                      You&apos;ll come right back to this workshop after signing in.
+                    </p>
+                  </>
+                ) : canSignUp ? (
+                  <>
+                    <Button onClick={handleSignup} disabled={busy}>
+                      {busy ? 'Working…' : signupCtaLabel(workshop)}
+                    </Button>
+                    {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
+                  </>
+                ) : (
+                  <p className="workshop-detail-card__hint">
+                    Signups are not currently open for this workshop.
+                  </p>
+                )}
+              </div>
             </div>
-          </Card>
-        ) : null}
-
-        <Card title="Signup" className="workshop-detail__signup">
-          {!authReady ? (
-            <p>Checking your session…</p>
-          ) : status === 'coming_soon' ? (
-            <p>This workshop hasn&apos;t opened for signups yet. Check back soon.</p>
-          ) : status === 'past' ? (
-            <p>This workshop has already taken place.</p>
-          ) : hasSignup && isPendingPayment && resumeUrl ? (
-            <>
-              <FormFeedback tone="info">
-                {minutesRemaining
-                  ? `We're holding your spot for about ${minutesRemaining} more ${minutesRemaining === 1 ? 'minute' : 'minutes'}. Finish payment to confirm.`
-                  : "We're holding your spot. Finish payment to confirm."}
-              </FormFeedback>
-              <a
-                className="og-button og-button--primary og-button--md site-cta"
-                href={resumeUrl}
-              >
-                Finish payment
-              </a>
-              <Button variant="secondary" onClick={handleCancel} disabled={busy}>
-                {busy ? 'Working…' : 'Cancel reservation'}
-              </Button>
-              {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
-            </>
-          ) : hasSignup && isPendingExpired ? (
-            <>
-              <FormFeedback tone="info">
-                Your held spot expired. Register again to start a new checkout.
-              </FormFeedback>
-              <Button onClick={handleSignup} disabled={busy}>
-                {busy ? 'Working…' : signupCtaLabel(workshop)}
-              </Button>
-              {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
-            </>
-          ) : hasSignup ? (
-            <>
-              <FormFeedback tone="success">
-                {signupConfirmation(workshop.my_signup!.kind, workshop.my_signup!.payment_status)}
-              </FormFeedback>
-              <Button variant="secondary" onClick={handleCancel} disabled={busy}>
-                {busy ? 'Working…' : 'Cancel my signup'}
-              </Button>
-              {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
-            </>
-          ) : !authSession ? (
-            <>
-              <p>Sign in to {signupCtaLabel(workshop).toLowerCase()} for this workshop.</p>
-              <Button onClick={handleSignup} disabled={busy}>
-                Sign in to {signupCtaLabel(workshop).toLowerCase()}
-              </Button>
-            </>
-          ) : canSignUp ? (
-            <>
-              <Button onClick={handleSignup} disabled={busy}>
-                {busy ? 'Working…' : signupCtaLabel(workshop)}
-              </Button>
-              {actionError ? <FormFeedback tone="error">{actionError}</FormFeedback> : null}
-            </>
-          ) : (
-            <p>Signups are not currently open for this workshop.</p>
-          )}
-        </Card>
-
-        <CtaButton
-          variant="secondary"
-          href="/workshops"
-          onClick={(event) => {
-            event?.preventDefault?.();
-            onNavigate('/workshops');
-          }}
-        >
-          Back to all workshops
-        </CtaButton>
+          </aside>
+        </div>
       </div>
-    </>
+    </article>
   );
 }

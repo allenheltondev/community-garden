@@ -82,19 +82,20 @@ function formatWorkshopDate(value: string | null): string | null {
   });
 }
 
+// Compact label when the user already has an active signup. Pending
+// payment is intentionally not handled here — that gets a "Finish
+// payment" CTA, not the chip.
+export function signedUpKindLabel(kind: WorkshopSignupKind): string {
+  switch (kind) {
+    case 'interested': return 'Interested';
+    case 'registered': return 'Registered';
+    case 'waitlisted': return 'On waitlist';
+  }
+}
+
 function ctaLabel(workshop: PublicWorkshop): string {
-  if (workshop.my_signup) {
-    if (workshop.my_signup.payment_status === 'pending') {
-      return 'Finish payment';
-    }
-    switch (workshop.my_signup.kind) {
-      case 'interested':
-        return "You're on the interest list";
-      case 'registered':
-        return "You're registered";
-      case 'waitlisted':
-        return "You're on the waitlist";
-    }
+  if (workshop.my_signup?.payment_status === 'pending') {
+    return 'Finish payment';
   }
   switch (workshop.status) {
     case 'coming_soon':
@@ -239,15 +240,49 @@ export function WorkshopsPage({ onNavigate, authSession }: WorkshopsPageProps) {
                       <p className="workshop-card__summary">{workshop.short_description}</p>
                     ) : null}
                     <div className="workshop-card__cta">
-                      <CtaButton
-                        href={detailPath}
-                        onClick={(event) => {
-                          event?.preventDefault?.();
-                          onNavigate(detailPath);
-                        }}
-                      >
-                        {ctaLabel(workshop)}
-                      </CtaButton>
+                      {workshop.my_signup
+                        && workshop.my_signup.payment_status !== 'pending' ? (
+                        // Already-signed-up state: render a quieter "✓ Interested"
+                        // (or Registered / On waitlist) chip rather than a
+                        // primary CTA. Still navigable to the detail page so
+                        // the user can manage / cancel.
+                        <a
+                          href={detailPath}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            onNavigate(detailPath);
+                          }}
+                          className="workshop-card__signed-up"
+                          aria-label={`${signedUpKindLabel(workshop.my_signup.kind)} — view ${workshop.title}`}
+                        >
+                          <svg
+                            className="workshop-card__signed-up-icon"
+                            viewBox="0 0 16 16"
+                            aria-hidden="true"
+                            focusable="false"
+                          >
+                            <path
+                              d="M3.5 8.5l3 3 6-6"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <span>{signedUpKindLabel(workshop.my_signup.kind)}</span>
+                        </a>
+                      ) : (
+                        <CtaButton
+                          href={detailPath}
+                          onClick={(event) => {
+                            event?.preventDefault?.();
+                            onNavigate(detailPath);
+                          }}
+                        >
+                          {ctaLabel(workshop)}
+                        </CtaButton>
+                      )}
                     </div>
                   </div>
                 </article>
