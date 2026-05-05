@@ -287,20 +287,19 @@ pub async fn create_listing(
 
     let client = db::connect().await?;
 
-    // Only validate catalog links if crop_id is provided
-    if let Some(crop_id_str) = &payload.crop_id {
-        validate_catalog_links(
-            &client,
-            parse_uuid(crop_id_str, "crop_id")?,
-            parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
-        )
-        .await?;
-    }
-
     // Validate that we have either crop_id or grower_crop_id
     if payload.crop_id.is_none() && payload.grower_crop_id.is_none() {
         return error_response(400, "Either crop_id or grower_crop_id must be provided");
     }
+
+    validate_listing_crop_references(
+        &client,
+        user_id,
+        parse_optional_uuid(payload.crop_id.as_deref(), "crop_id")?,
+        parse_optional_uuid(payload.grower_crop_id.as_deref(), "grower_crop_id")?,
+        parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
+    )
+    .await?;
 
     let effective_pickup_address =
         resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
@@ -432,20 +431,19 @@ pub async fn update_listing(
 
     let client = db::connect().await?;
 
-    // Only validate catalog links if crop_id is provided
-    if let Some(crop_id_str) = &payload.crop_id {
-        validate_catalog_links(
-            &client,
-            parse_uuid(crop_id_str, "crop_id")?,
-            parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
-        )
-        .await?;
-    }
-
     // Validate that we have either crop_id or grower_crop_id
     if payload.crop_id.is_none() && payload.grower_crop_id.is_none() {
         return error_response(400, "Either crop_id or grower_crop_id must be provided");
     }
+
+    validate_listing_crop_references(
+        &client,
+        user_id,
+        parse_optional_uuid(payload.crop_id.as_deref(), "crop_id")?,
+        parse_optional_uuid(payload.grower_crop_id.as_deref(), "grower_crop_id")?,
+        parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?,
+    )
+    .await?;
 
     let effective_pickup_address =
         resolve_effective_pickup_address(&client, user_id, payload.pickup_address.as_deref())
@@ -674,41 +672,106 @@ fn parse_list_my_listings_query(
     })
 }
 
-async fn validate_catalog_links(
+/// Validates the crop, grower-crop, and variety references on a listing write.
+///
+/// Returns a 400-level error string when:
+/// - `grower_crop_id` is provided but does not exist or is not owned by `user_id`
+/// - both `crop_id` and `grower_crop_id` are provided and disagree on the canonical crop
+/// - `variety_id` is provided but does not belong to the effective canonical crop
+/// - `variety_id` is provided alongside a user-defined crop with no canonical link
+///
+/// Caller is responsible for enforcing that at least one of `crop_id` /
+/// `grower_crop_id` is supplied; this function is a no-op when both are `None`.
+async fn validate_listing_crop_references(
     client: &Client,
-    crop_id: Uuid,
+    user_id: Uuid,
+    crop_id: Option<Uuid>,
+    grower_crop_id: Option<Uuid>,
     variety_id: Option<Uuid>,
 ) -> Result<(), lambda_http::Error> {
-    let crop_exists = client
-        .query_one(
-            "select exists(select 1 from crops where id = $1)",
-            &[&crop_id],
-        )
-        .await
-        .map_err(|error| db_error(&error))?
-        .get::<_, bool>(0);
+    // Look up the grower crop and assert ownership. Use the same error message
+    // for "doesn't exist" and "owned by someone else" so we don't leak
+    // existence of other users' library entries.
+    let grower_crop_canonical_id = if let Some(gc_id) = grower_crop_id {
+        let row = client
+            .query_opt(
+                "select user_id, canonical_id from grower_crop_library where id = $1",
+                &[&gc_id],
+            )
+            .await
+            .map_err(|error| db_error(&error))?;
 
-    if !crop_exists {
-        return Err(lambda_http::Error::from(
-            "crop_id does not reference an existing catalog crop".to_string(),
-        ));
+        let Some(row) = row else {
+            return Err(lambda_http::Error::from(
+                "grower_crop_id does not reference an existing grower crop".to_string(),
+            ));
+        };
+
+        let owner: Uuid = row.get("user_id");
+        if owner != user_id {
+            return Err(lambda_http::Error::from(
+                "grower_crop_id does not reference an existing grower crop".to_string(),
+            ));
+        }
+
+        row.get::<_, Option<Uuid>>("canonical_id")
+    } else {
+        None
+    };
+
+    // If both ids are supplied, they must agree on the canonical crop.
+    if let (Some(supplied_crop), Some(gc_id)) = (crop_id, grower_crop_id) {
+        match grower_crop_canonical_id {
+            Some(canonical) if canonical == supplied_crop => {}
+            _ => {
+                return Err(lambda_http::Error::from(format!(
+                    "crop_id {supplied_crop} does not match the canonical crop linked to grower_crop_id {gc_id}"
+                )));
+            }
+        }
     }
 
-    if let Some(variety) = variety_id {
-        let matches = client
+    // Effective canonical crop = grower crop's canonical link if present,
+    // otherwise the supplied crop_id.
+    let effective_crop_id = grower_crop_canonical_id.or(crop_id);
+
+    if let Some(crop) = effective_crop_id {
+        let crop_exists = client
             .query_one(
-                "select exists(select 1 from crop_varieties where id = $1 and crop_id = $2)",
-                &[&variety, &crop_id],
+                "select exists(select 1 from crops where id = $1)",
+                &[&crop],
             )
             .await
             .map_err(|error| db_error(&error))?
             .get::<_, bool>(0);
 
-        if !matches {
+        if !crop_exists {
             return Err(lambda_http::Error::from(
-                "variety_id must belong to the specified crop_id".to_string(),
+                "crop_id does not reference an existing catalog crop".to_string(),
             ));
         }
+
+        if let Some(variety) = variety_id {
+            let matches = client
+                .query_one(
+                    "select exists(select 1 from crop_varieties where id = $1 and crop_id = $2)",
+                    &[&variety, &crop],
+                )
+                .await
+                .map_err(|error| db_error(&error))?
+                .get::<_, bool>(0);
+
+            if !matches {
+                return Err(lambda_http::Error::from(
+                    "variety_id must belong to the specified crop_id".to_string(),
+                ));
+            }
+        }
+    } else if variety_id.is_some() {
+        return Err(lambda_http::Error::from(
+            "variety_id requires a crop_id or a grower_crop_id linked to a catalog crop"
+                .to_string(),
+        ));
     }
 
     Ok(())
