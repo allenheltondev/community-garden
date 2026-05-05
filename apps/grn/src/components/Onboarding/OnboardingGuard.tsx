@@ -1,40 +1,26 @@
 import type { ReactNode } from 'react';
-import { useUser } from '../../hooks/useUser';
-import { PlantLoader } from '../branding/PlantLoader';
+import type { UserProfile } from '../../types/user';
 import { OnboardingFlow } from './OnboardingFlow';
 
 export interface OnboardingGuardProps {
+  user: UserProfile | null;
+  refreshUser: () => Promise<void> | void;
   children: ReactNode;
 }
 
 /**
- * OnboardingGuard Component
+ * OnboardingGuard
  *
- * Wraps the main application and enforces onboarding completion.
- * - Shows loading screen while fetching user data
- * - Redirects to OnboardingFlow if onboarding is incomplete
- * - Renders children (main app) if onboarding is complete
+ * Gates the routed content behind onboarding completion. When onboarding
+ * is incomplete, renders OnboardingFlow in place of the routed children;
+ * otherwise renders children. The user/refreshUser come from a single
+ * useUser instance owned upstream so onboarding completion immediately
+ * flips this guard from flow → routes without a stale-state hop.
  *
- * Owns the single useUser instance for the onboarding flow and passes
- * `user`/`refreshUser` down so OnboardingFlow doesn't keep its own copy.
- * Without this, refreshUser() inside the flow only updates the flow's
- * own state — the guard's user stays stale and never advances past
- * onboarding even after the wizard completes successfully.
+ * Render this *inside* AppShell so the header/footer/left nav stay
+ * visible during onboarding and across every route.
  */
-export function OnboardingGuard({ children }: OnboardingGuardProps) {
-  const { user, isLoading, refreshUser } = useUser();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <PlantLoader size="md" />
-          <p className="text-gray-600 mt-4">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
+export function OnboardingGuard({ user, refreshUser, children }: OnboardingGuardProps) {
   if (!user?.onboardingCompleted) {
     return <OnboardingFlow user={user} refreshUser={refreshUser} />;
   }

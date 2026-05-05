@@ -36,6 +36,9 @@ export function OnboardingFlow({ user, refreshUser }: OnboardingFlowProps) {
   const handleUserTypeSelect = async (userType: UserType) => {
     logger.info('User type selected', { userType });
     await submitUserType(userType);
+    // Refresh so the shell's left nav reflects grower/gatherer items while
+    // the user is still inside the wizard.
+    await refreshUser();
     setStep(userType === 'grower' ? 'grower-wizard' : 'gatherer-wizard');
   };
 

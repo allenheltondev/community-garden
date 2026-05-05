@@ -122,7 +122,7 @@ export function GathererWizard({ onComplete, onBack }: GathererWizardProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-neutral-100 flex items-center justify-center p-4">
+    <div className="w-full flex justify-center p-4">
       <Card className="w-full max-w-md" padding="8">
         <div className="space-y-5">
           <div>

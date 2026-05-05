@@ -3,44 +3,22 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import * as useAuthModule from './hooks/useAuth';
-import * as useUserModule from './hooks/useUser';
 
 vi.mock('./hooks/useAuth');
-vi.mock('./hooks/useUser');
-vi.mock('./shell/AppShell', () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-vi.mock('./pages/DashboardPage', () => ({
-  DashboardPage: () => <div>Profile View</div>,
-}));
-vi.mock('./pages/CropsPage', () => ({ CropsPage: () => <div /> }));
-vi.mock('./pages/ListingsPage', () => ({ ListingsPage: () => <div /> }));
-vi.mock('./pages/RequestsPage', () => ({ RequestsPage: () => <div /> }));
-vi.mock('./pages/RemindersPage', () => ({ RemindersPage: () => <div /> }));
-vi.mock('./components/Onboarding/OnboardingGuard', () => ({
-  OnboardingGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock('./shell/AuthenticatedRoot', () => ({
+  AuthenticatedRoot: () => <div data-testid="authenticated-root">App content</div>,
 }));
 
 describe('App', () => {
   const mockUseAuth = vi.mocked(useAuthModule.useAuth);
-  const mockUseUser = vi.mocked(useUserModule.useUser);
   const assignSpy = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock window.location.assign for redirect testing
     Object.defineProperty(window, 'location', {
       writable: true,
       value: { ...window.location, assign: assignSpy, href: 'https://goodroots.network/' },
-    });
-
-    mockUseUser.mockReturnValue({
-      user: null,
-      isLoading: false,
-      error: null,
-      refreshUser: vi.fn(),
-      clearError: vi.fn(),
     });
 
     Object.defineProperty(window, 'matchMedia', {
@@ -102,7 +80,7 @@ describe('App', () => {
     expect(redirectUrl).toContain(encodeURIComponent('https://goodroots.network/'));
   });
 
-  it('shows profile view when authenticated', async () => {
+  it('renders the authenticated root when authenticated', async () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -114,31 +92,13 @@ describe('App', () => {
       refreshAuth: vi.fn(),
     });
 
-    mockUseUser.mockReturnValue({
-      user: {
-        userId: '123',
-        email: 'test@example.com',
-        firstName: 'Test',
-        lastName: 'User',
-        tier: 'free',
-        userType: 'grower',
-        onboardingCompleted: true,
-        growerProfile: null,
-        gathererProfile: null,
-      },
-      isLoading: false,
-      error: null,
-      refreshUser: vi.fn(),
-      clearError: vi.fn(),
-    });
-
     render(
       <MemoryRouter>
         <App />
       </MemoryRouter>
     );
 
-    expect(await screen.findByText(/profile view/i)).toBeInTheDocument();
+    expect(await screen.findByTestId('authenticated-root')).toBeInTheDocument();
     expect(assignSpy).not.toHaveBeenCalled();
   });
 });

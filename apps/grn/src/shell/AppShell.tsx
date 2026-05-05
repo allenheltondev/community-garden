@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { AvatarMenu, SiteFooter, SiteHeader } from '@olivias/ui';
 import { brandConfig } from '../config/brand';
 import { useAuth } from '../hooks/useAuth';
-import { useUser } from '../hooks/useUser';
+import type { UserProfile } from '../types/user';
 
 const NAV_EXPANDED_STORAGE_KEY = 'og-grn-nav-expanded';
 
@@ -135,12 +135,12 @@ function readStoredExpanded(): boolean {
 }
 
 export interface AppShellProps {
+  user: UserProfile | null;
   children: ReactNode;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ user, children }: AppShellProps) {
   const { signOut } = useAuth();
-  const { user } = useUser();
   const [expanded, setExpanded] = useState<boolean>(() => readStoredExpanded());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
