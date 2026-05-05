@@ -3,9 +3,11 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { AvatarMenu, SiteFooter, SiteHeader } from '@olivias/ui';
 import { brandConfig } from '../config/brand';
 import { useAuth } from '../hooks/useAuth';
-import { useUser } from '../hooks/useUser';
+import type { UserProfile } from '../types/user';
 
 const NAV_EXPANDED_STORAGE_KEY = 'og-grn-nav-expanded';
+
+const foundationLogo = '/images/icons/logo.svg';
 
 const foundationHomeUrl = import.meta.env.VITE_FOUNDATION_URL
   ? import.meta.env.VITE_FOUNDATION_URL.replace(/\/+$/, '')
@@ -135,12 +137,12 @@ function readStoredExpanded(): boolean {
 }
 
 export interface AppShellProps {
+  user: UserProfile | null;
   children: ReactNode;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ user, children }: AppShellProps) {
   const { signOut } = useAuth();
-  const { user } = useUser();
   const [expanded, setExpanded] = useState<boolean>(() => readStoredExpanded());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
@@ -203,6 +205,8 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="og-app-shell grn-app-shell">
       <SiteHeader
+        brandLogoSrc={foundationLogo}
+        brandLogoAlt=""
         brandEyebrow="Olivia's Garden Foundation"
         brandTitle={brandConfig.name.full}
         brandHref={`${foundationHomeUrl}/`}
@@ -314,11 +318,7 @@ export function AppShell({ children }: AppShellProps) {
       </div>
       <SiteFooter
         meta={`${new Date().getFullYear()} Olivia's Garden Foundation. All rights reserved.`}
-        links={footerLinks.map((link) => ({
-          id: link.id,
-          label: link.label,
-          onSelect: () => window.location.assign(link.href),
-        }))}
+        links={footerLinks}
         socialLinks={[
           {
             id: 'instagram',

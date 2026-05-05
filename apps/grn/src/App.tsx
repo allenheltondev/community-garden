@@ -1,32 +1,14 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { PlantLoader } from './components/branding/PlantLoader';
 
-// Lazy-load the entire authenticated shell + every route + the onboarding
-// guard so the main bundle stays under the perf:budget cap. Eagerly importing
-// AppShell pulls useUser → services/api.ts (~26 KB) into main; deferring it
-// keeps that out of the initial download until the user is past auth.
-const AppShell = lazy(() =>
-  import('./shell/AppShell').then((m) => ({ default: m.AppShell }))
-);
-const OnboardingGuard = lazy(() =>
-  import('./components/Onboarding/OnboardingGuard').then((m) => ({ default: m.OnboardingGuard }))
-);
-const DashboardPage = lazy(() =>
-  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage }))
-);
-const CropsPage = lazy(() =>
-  import('./pages/CropsPage').then((m) => ({ default: m.CropsPage }))
-);
-const ListingsPage = lazy(() =>
-  import('./pages/ListingsPage').then((m) => ({ default: m.ListingsPage }))
-);
-const RequestsPage = lazy(() =>
-  import('./pages/RequestsPage').then((m) => ({ default: m.RequestsPage }))
-);
-const RemindersPage = lazy(() =>
-  import('./pages/RemindersPage').then((m) => ({ default: m.RemindersPage }))
+// Lazy-load the entire authenticated tree (shell + useUser + onboarding +
+// every page) so the main bundle stays under the perf:budget cap.
+// Eagerly importing useUser pulls services/api.ts (~26 KB) into main;
+// deferring it keeps that out of the initial download until the user
+// is past auth.
+const AuthenticatedRoot = lazy(() =>
+  import('./shell/AuthenticatedRoot').then((m) => ({ default: m.AuthenticatedRoot }))
 );
 
 const foundationLoginUrl = import.meta.env.VITE_FOUNDATION_URL
@@ -64,18 +46,7 @@ function App() {
 
   return (
     <Suspense fallback={<FullPageLoader />}>
-      <OnboardingGuard>
-        <AppShell>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/crops" element={<CropsPage />} />
-            <Route path="/listings" element={<ListingsPage />} />
-            <Route path="/requests" element={<RequestsPage />} />
-            <Route path="/reminders" element={<RemindersPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AppShell>
-      </OnboardingGuard>
+      <AuthenticatedRoot />
     </Suspense>
   );
 }

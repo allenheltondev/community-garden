@@ -208,7 +208,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-neutral-100 flex items-center justify-center p-4">
+    <div className="w-full flex justify-center p-4">
       <Card className="w-full max-w-md" padding="8">
         <div className="mb-6">
           <div className="flex justify-between text-sm text-neutral-600 mb-2">

@@ -48,7 +48,7 @@ export function UserTypeSelection({ onSelect }: UserTypeSelectionProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 px-4 py-8">
+    <div className="w-full flex justify-center px-4 py-8">
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
