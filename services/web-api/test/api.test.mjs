@@ -38,6 +38,8 @@ describe('web-api donation handler', () => {
     delete process.env.STRIPE_SECRET_KEY;
     delete process.env.OGF_USER_POOL_ID;
     delete process.env.OGF_USER_POOL_CLIENT_ID;
+    delete process.env.FOUNDATION_ENVIRONMENT;
+    delete process.env.ALLOWED_RETURN_URL_ORIGINS;
   });
 
   it('returns 422 for invalid donation amount', async () => {
@@ -133,6 +135,49 @@ describe('web-api donation handler', () => {
     expect(JSON.parse(response.body)).toEqual({
       error: 'returnUrl origin is not allowed'
     });
+  });
+
+  it('rejects localhost returnUrl origins in production', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.FOUNDATION_ENVIRONMENT = 'prod';
+
+    const response = await handler(createApiGatewayEvent({
+      method: 'POST',
+      path: '/donations/checkout-session',
+      body: {
+        mode: 'one_time',
+        amountCents: 2500,
+        returnUrl: 'http://localhost:4173/donate?session_id={CHECKOUT_SESSION_ID}'
+      }
+    }));
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'returnUrl origin is not allowed'
+    });
+  });
+
+  it('accepts localhost returnUrl origins outside production', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+    process.env.FOUNDATION_ENVIRONMENT = 'staging';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'cs_test_local', client_secret: 'cs_test_local_secret' })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handler(createApiGatewayEvent({
+      method: 'POST',
+      path: '/donations/checkout-session',
+      body: {
+        mode: 'one_time',
+        amountCents: 2500,
+        returnUrl: 'http://localhost:4173/donate?session_id={CHECKOUT_SESSION_ID}'
+      }
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('returns checkout session status for embedded completion handling', async () => {

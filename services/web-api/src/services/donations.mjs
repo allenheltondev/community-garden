@@ -44,14 +44,24 @@ export const donationCheckoutSessionSchema = {
   }
 };
 
-const defaultAllowedReturnOrigins = [
-  'http://localhost:4173',
-  'http://localhost:4174',
-  'http://127.0.0.1:4173',
-  'http://127.0.0.1:4174',
+const productionAllowedReturnOrigins = [
   'https://oliviasgarden.org',
   'https://www.oliviasgarden.org'
 ];
+
+const localDevAllowedReturnOrigins = [
+  'http://localhost:4173',
+  'http://localhost:4174',
+  'http://127.0.0.1:4173',
+  'http://127.0.0.1:4174'
+];
+
+function getDefaultAllowedReturnOrigins() {
+  if (process.env.FOUNDATION_ENVIRONMENT === 'prod') {
+    return productionAllowedReturnOrigins;
+  }
+  return [...productionAllowedReturnOrigins, ...localDevAllowedReturnOrigins];
+}
 
 function requiredEnvVar(name) {
   const value = process.env[name];
@@ -97,7 +107,7 @@ function getAllowedReturnOrigins() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  return new Set([...defaultAllowedReturnOrigins, ...configuredOrigins]);
+  return new Set([...getDefaultAllowedReturnOrigins(), ...configuredOrigins]);
 }
 
 function parseAndValidateReturnUrl(returnUrl) {
