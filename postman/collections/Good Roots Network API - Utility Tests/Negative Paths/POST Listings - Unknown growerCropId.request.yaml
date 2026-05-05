@@ -1,0 +1,41 @@
+$kind: http-request
+name: 'POST /listings - Unknown growerCropId'
+description: |-
+  Sends a POST /listings request with a `growerCropId` that does not exist in
+  the authenticated user's crop library. Expects a 400 status code because the
+  reference must resolve to an existing grower crop owned by the caller.
+method: POST
+url: '{{baseUrl}}/listings'
+order: 2100
+headers:
+  - key: Authorization
+    value: 'Bearer {{premiumAuthToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Negative Path Test Listing",
+      "growerCropId": "00000000-0000-4000-8000-000000000000",
+      "quantityTotal": 1,
+      "unit": "lb",
+      "availableStart": "2026-07-01T08:00:00Z",
+      "availableEnd": "2026-07-03T18:00:00Z",
+      "pickupLocationText": "Front porch",
+      "status": "active"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });
+
+      pm.test("Response surfaces the grower-crop ownership rule", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("error");
+          pm.expect(body.error).to.include("grower_crop_id");
+          pm.expect(body.error).to.include("does not reference an existing grower crop");
+      });

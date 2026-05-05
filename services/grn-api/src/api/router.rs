@@ -279,6 +279,9 @@ fn map_api_error_to_response(
         || message.contains("unit is required")
         || message.contains("crop_name is required")
         || message.contains("does not reference an existing catalog crop")
+        || message.contains("does not reference an existing grower crop")
+        || message.contains("does not match the canonical crop linked to grower_crop_id")
+        || message.contains("variety_id requires a crop_id or a grower_crop_id")
         || message.contains("must belong to the specified crop_id")
         || message.contains("must belong to the specified cropId")
         || message.contains("Request body is required")
@@ -415,6 +418,34 @@ mod tests {
     fn map_api_error_maps_organization_name_validation_to_400() {
         let error = lambda_http::Error::from(
             "organizationName is required when isOrganization is true".to_string(),
+        );
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_unknown_grower_crop_to_400() {
+        let error = lambda_http::Error::from(
+            "grower_crop_id does not reference an existing grower crop".to_string(),
+        );
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_grower_crop_canonical_mismatch_to_400() {
+        let error = lambda_http::Error::from(
+            "crop_id 5df666d4-f6b1-4e6f-97d6-321e531ad7ca does not match the canonical crop linked to grower_crop_id 0e7ab2f8-9d1b-46b0-9c53-b6053bc90011".to_string(),
+        );
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_variety_without_crop_context_to_400() {
+        let error = lambda_http::Error::from(
+            "variety_id requires a crop_id or a grower_crop_id linked to a catalog crop"
+                .to_string(),
         );
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 400);
