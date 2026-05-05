@@ -167,8 +167,8 @@ export const notFoundRoute: AppRoute = {
 const primaryPageOrder = new Map([
   ['/', 0],
   ['/okra', 1],
-  ['/donate', 2],
-  ['/good-roots', 3],
+  ['/good-roots', 2],
+  ['/donate', 3],
   ['/about', 4],
 ]);
 

@@ -37,7 +37,6 @@ export function BrowsePage() {
   return (
     <section className="store-section">
       <SectionHeading
-        eyebrow="Store"
         title="Support Olivia's Garden"
         body="Every purchase helps us grow food, share seeds, and welcome more neighbors into the garden."
       />

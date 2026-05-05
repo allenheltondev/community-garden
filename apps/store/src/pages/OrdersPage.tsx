@@ -46,7 +46,6 @@ export function OrdersPage({ session }: OrdersPageProps) {
   return (
     <section className="store-section">
       <SectionHeading
-        eyebrow="Account"
         title="My orders"
         body="A history of everything you've contributed to or purchased from the garden."
       />

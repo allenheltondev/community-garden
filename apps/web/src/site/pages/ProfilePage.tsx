@@ -702,7 +702,6 @@ export function ProfilePage({
   return (
     <>
       <PageHero
-        eyebrow="Profile"
         title={`Welcome, ${greetingName}.`}
         body="Keep your public details up to date and review what you've been part of at Olivia's Garden."
         className="profile-hero"
