@@ -85,6 +85,16 @@ export const routes: AppRoute[] = [
     prerender: true,
   },
   {
+    path: '/workshops',
+    label: 'Workshops',
+    showInNav: true,
+    showInFooter: true,
+    title: 'Workshops',
+    description: "Hands-on workshops at Olivia's Garden Foundation: garden prep, animal care, food preservation, and more. Sign up or get on the waitlist for upcoming sessions.",
+    seoImage: socialShareImage,
+    prerender: true,
+  },
+  {
     path: '/donate',
     label: 'Donate',
     showInNav: true,
@@ -167,9 +177,10 @@ export const notFoundRoute: AppRoute = {
 const primaryPageOrder = new Map([
   ['/', 0],
   ['/okra', 1],
-  ['/good-roots', 2],
+  ['/workshops', 2],
   ['/donate', 3],
-  ['/about', 4],
+  ['/good-roots', 4],
+  ['/about', 5],
 ]);
 
 function byPrimaryPageOrder(left: AppRoute, right: AppRoute) {
