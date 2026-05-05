@@ -7,6 +7,8 @@ import type { UserProfile } from '../types/user';
 
 const NAV_EXPANDED_STORAGE_KEY = 'og-grn-nav-expanded';
 
+const foundationLogo = '/images/icons/logo.svg';
+
 const foundationHomeUrl = import.meta.env.VITE_FOUNDATION_URL
   ? import.meta.env.VITE_FOUNDATION_URL.replace(/\/+$/, '')
   : 'https://oliviasgarden.org';
@@ -203,6 +205,8 @@ export function AppShell({ user, children }: AppShellProps) {
   return (
     <div className="og-app-shell grn-app-shell">
       <SiteHeader
+        brandLogoSrc={foundationLogo}
+        brandLogoAlt=""
         brandEyebrow="Olivia's Garden Foundation"
         brandTitle={brandConfig.name.full}
         brandHref={`${foundationHomeUrl}/`}
@@ -314,11 +318,7 @@ export function AppShell({ user, children }: AppShellProps) {
       </div>
       <SiteFooter
         meta={`${new Date().getFullYear()} Olivia's Garden Foundation. All rights reserved.`}
-        links={footerLinks.map((link) => ({
-          id: link.id,
-          label: link.label,
-          onSelect: () => window.location.assign(link.href),
-        }))}
+        links={footerLinks}
         socialLinks={[
           {
             id: 'instagram',
