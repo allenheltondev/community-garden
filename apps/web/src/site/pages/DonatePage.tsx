@@ -363,7 +363,6 @@ export function DonatePage({
   return (
     <>
       <PageHero
-        eyebrow="Donate"
         title="Plant something permanent in Olivia's Garden."
         body="Every gift lives somewhere you can point to. Each donor gets a named acrylic marker placed in the memorial garden — a small, visible reminder that you are part of the year this garden is holding."
         className="donate-hero"

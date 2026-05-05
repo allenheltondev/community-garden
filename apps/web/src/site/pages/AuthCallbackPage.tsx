@@ -80,7 +80,6 @@ export function AuthCallbackPage({
 
   return (
     <PageHero
-      eyebrow="Sign in"
       title="Sign-in needs attention"
       body={error}
       actions={(

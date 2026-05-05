@@ -2,9 +2,11 @@ import { type MouseEvent, type ReactNode } from 'react';
 import {
   AvatarMenu,
   Button,
+  PageHero as SharedPageHero,
   SiteFooter as SharedSiteFooter,
   SiteHeader as SharedSiteHeader,
 } from '@olivias/ui';
+import type { PageHeroProps } from '@olivias/ui';
 import type { AuthSession } from '../auth/session';
 import type { AppRoute } from './routes';
 import {
@@ -222,42 +224,9 @@ export function SiteFooter({
 }
 
 export function PageHero({
-  eyebrow,
-  title,
-  body,
-  aside,
-  actions,
-  className,
-  titleClassName,
-  backgroundImage,
-}: {
-  eyebrow?: string;
-  title: string;
-  body: string;
-  aside?: ReactNode;
-  actions?: ReactNode;
-  className?: string;
-  titleClassName?: string;
-  backgroundImage?: string;
-}) {
-  const backgroundImageValue = backgroundImage
-    ? (backgroundImage.startsWith('/') ? `url(${backgroundImage})` : backgroundImage)
-    : undefined;
-
-  return (
-    <section
-      className={`page-hero ${backgroundImage ? 'page-hero--background' : ''} ${className ?? ''}`.trim()}
-      style={backgroundImageValue ? { ['--page-hero-image' as string]: backgroundImageValue } : undefined}
-    >
-      <div className={`page-hero__copy ${backgroundImage ? 'page-hero__copy--overlay' : ''}`.trim()}>
-        {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
-        <h1 className={titleClassName}>{title}</h1>
-        <p className="page-hero__body">{body}</p>
-        {actions ? <div className="page-hero__actions">{actions}</div> : null}
-      </div>
-      {aside ? <div className="page-hero__aside">{aside}</div> : null}
-    </section>
-  );
+  ...props
+}: PageHeroProps) {
+  return <SharedPageHero {...props} />;
 }
 
 export function Section({
