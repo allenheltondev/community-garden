@@ -52,12 +52,46 @@ export function OrdersPage({ session }: OrdersPageProps) {
 
       {error ? <FormFeedback tone="error">{error}</FormFeedback> : null}
 
-      {orders === null && !error ? <p className="store-empty">Loading orders…</p> : null}
-
       {orders && orders.length === 0 ? (
         <p className="store-empty">
           You haven't placed any orders yet. <Link to="/">Browse the store</Link>.
         </p>
+      ) : null}
+
+      {orders === null && !error ? (
+        <div
+          className="store-order-list store-order-list--loading"
+          aria-busy="true"
+          aria-live="polite"
+          aria-label="Loading orders"
+        >
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Card
+              key={index}
+              className="store-order-list__item store-order-list__item--skeleton"
+              aria-hidden="true"
+            >
+              <div className="store-order-list__header">
+                <div>
+                  <div className="skeleton-line skeleton-line--status" />
+                  <div className="skeleton-line skeleton-line--title" />
+                  <div className="skeleton-line skeleton-line--meta" />
+                </div>
+                <div className="skeleton-line skeleton-line--total" />
+              </div>
+              <ul className="store-order-list__lines">
+                <li>
+                  <div className="skeleton-line skeleton-line--text" />
+                  <div className="skeleton-line skeleton-line--price" />
+                </li>
+                <li>
+                  <div className="skeleton-line skeleton-line--text skeleton-line--text-short" />
+                  <div className="skeleton-line skeleton-line--price" />
+                </li>
+              </ul>
+            </Card>
+          ))}
+        </div>
       ) : null}
 
       <div className="store-order-list">

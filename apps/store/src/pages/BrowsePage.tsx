@@ -43,12 +43,38 @@ export function BrowsePage() {
 
       {error ? <FormFeedback tone="error">{error}</FormFeedback> : null}
 
-      {products === null && !error ? (
-        <p className="store-empty">Loading products…</p>
-      ) : null}
-
       {products && products.length === 0 ? (
         <p className="store-empty">No products are available right now. Check back soon.</p>
+      ) : null}
+
+      {products === null && !error ? (
+        <div
+          className="store-product-grid store-product-grid--loading"
+          aria-busy="true"
+          aria-live="polite"
+          aria-label="Loading products"
+        >
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Card
+              key={index}
+              className="store-product-card store-product-card--skeleton"
+              padding="none"
+              aria-hidden="true"
+            >
+              <div className="store-product-card__media store-product-card__media--skeleton" />
+              <div className="store-product-card__body">
+                <div className="skeleton-line skeleton-line--label" />
+                <div className="skeleton-line skeleton-line--title" />
+                <div className="skeleton-line skeleton-line--text" />
+                <div className="skeleton-line skeleton-line--text skeleton-line--text-short" />
+                <div className="store-product-card__footer">
+                  <div className="skeleton-line skeleton-line--price" />
+                  <div className="skeleton-line skeleton-line--button" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       ) : null}
 
       <div className="store-product-grid">
