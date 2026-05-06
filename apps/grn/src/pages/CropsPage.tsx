@@ -36,7 +36,7 @@ export function CropsPage() {
         title="Crop library"
         body="Track what you grow and prep listings from your library."
       />
-      <CropLibraryPanel viewerUserId={profile.userId} />
+      <CropLibraryPanel viewerUserId={profile.id} />
     </section>
   );
 }

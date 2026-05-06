@@ -47,7 +47,7 @@ export function useUser() {
       });
 
       logger.info('User profile fetched successfully', {
-        userId: userProfile.userId,
+        userId: userProfile.id,
         userType: userProfile.userType,
         onboardingCompleted: userProfile.onboardingCompleted,
       });
@@ -91,7 +91,7 @@ export function useUser() {
           });
 
           logger.info('User profile fetched successfully', {
-            userId: userProfile.userId,
+            userId: userProfile.id,
             userType: userProfile.userType,
             onboardingCompleted: userProfile.onboardingCompleted,
           });

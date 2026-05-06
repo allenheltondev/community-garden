@@ -17,13 +17,12 @@ vi.mock('../utils/logging', () => ({
 
 describe('useUser', () => {
   const mockUserProfile: UserProfile = {
-    userId: 'test-user-id',
+    id: 'test-user-id',
     email: 'test@example.com',
-    firstName: 'Test',
-    lastName: 'User',
-    tier: 'free',
+    displayName: 'Test User',
     userType: 'grower',
     onboardingCompleted: true,
+    subscription: { tier: 'free' },
     growerProfile: {
       homeZone: '8a',
       address: '123 Main St, Springfield, IL',

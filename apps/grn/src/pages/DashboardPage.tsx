@@ -23,6 +23,18 @@ const tierClassNames: Record<string, string> = {
   pro: 'grn-tier-chip--pro',
 };
 
+function deriveInitials(displayName?: string | null, email?: string | null): string {
+  const tokens = displayName?.split(/\s+/).filter(Boolean) ?? [];
+  if (tokens.length >= 2) {
+    return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+  }
+  if (tokens.length === 1) {
+    return tokens[0].slice(0, 2).toUpperCase();
+  }
+  const local = email?.split('@')[0]?.replace(/[^a-zA-Z0-9]/g, '') ?? '';
+  return local.slice(0, 2).toUpperCase() || 'G';
+}
+
 export function DashboardPage() {
   const { signOut } = useAuth();
 
@@ -102,12 +114,11 @@ export function DashboardPage() {
       ? 'Phase 1: Grower Listing Flow'
       : 'Pick a participation mode to get started.';
 
-  const firstInitial = profile.firstName?.charAt(0) ?? '';
-  const lastInitial = profile.lastName?.charAt(0) ?? '';
-  const initials = `${firstInitial}${lastInitial}`.toUpperCase() || 'G';
-  const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || profile.email;
-  const tierLabel = tierLabels[profile.tier] || profile.tier;
-  const tierClass = tierClassNames[profile.tier] ?? '';
+  const fullName = profile.displayName?.trim() || profile.email || 'Member';
+  const initials = deriveInitials(profile.displayName, profile.email);
+  const tier = profile.subscription.tier;
+  const tierLabel = tierLabels[tier] || tier;
+  const tierClass = tierClassNames[tier] ?? '';
 
   const overviewItems = [
     {
@@ -118,7 +129,7 @@ export function DashboardPage() {
     {
       key: 'email',
       label: 'Email',
-      value: profile.email,
+      value: profile.email ?? '—',
     },
     {
       key: 'tier',

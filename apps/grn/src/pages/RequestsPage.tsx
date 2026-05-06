@@ -37,7 +37,7 @@ export function RequestsPage() {
         body="Search nearby growers and coordinate pickup details."
       />
       <SearcherRequestPanel
-        viewerUserId={profile.userId}
+        viewerUserId={profile.id}
         gathererGeoKey={profile.gathererProfile?.geoKey}
         defaultLat={profile.gathererProfile?.lat}
         defaultLng={profile.gathererProfile?.lng}
