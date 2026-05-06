@@ -771,7 +771,14 @@ jobs:
   staging-validation:
     name: Shared Staging Deploy And Validation
     needs: [changes, ci-summary]
-    if: github.event.action != 'closed' && (needs.changes.outputs.shared_all == 'true' || needs.changes.outputs.grn_backend == 'true' || needs.changes.outputs.grn_frontend == 'true' || needs.changes.outputs.admin_backend == 'true' || needs.changes.outputs.admin_frontend == 'true' || needs.changes.outputs.okra_backend == 'true' || needs.changes.outputs.notifications_backend == 'true' || needs.changes.outputs.store_backend == 'true' || needs.changes.outputs.store_frontend == 'true')
+    # `always() && needs.ci-summary.result == 'success'` is required: without a
+    # status-check function GitHub implicitly prepends `success() &&` and auto-
+    # skips this job whenever any of ci-summary's many transitive deps are
+    # skipped (which happens any time `shared_all` is false). The OR over the
+    # changes outputs then never gets a chance to evaluate. Gating on
+    # ci-summary's explicit result preserves the "ci must pass before deploy"
+    # semantic while letting the path-filtered skips through.
+    if: always() && needs.ci-summary.result == 'success' && github.event.action != 'closed' && (needs.changes.outputs.shared_all == 'true' || needs.changes.outputs.grn_backend == 'true' || needs.changes.outputs.grn_frontend == 'true' || needs.changes.outputs.admin_backend == 'true' || needs.changes.outputs.admin_frontend == 'true' || needs.changes.outputs.okra_backend == 'true' || needs.changes.outputs.notifications_backend == 'true' || needs.changes.outputs.store_backend == 'true' || needs.changes.outputs.store_frontend == 'true')
     uses: ./.github/workflows/pull-request-staging-validation-reusable.yml
     with:
       shared_all: ${{ needs.changes.outputs.shared_all }}
