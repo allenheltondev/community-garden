@@ -102,7 +102,10 @@ export function DashboardPage() {
       ? 'Phase 1: Grower Listing Flow'
       : 'Pick a participation mode to get started.';
 
-  const initials = `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase() || 'G';
+  const firstInitial = profile.firstName?.charAt(0) ?? '';
+  const lastInitial = profile.lastName?.charAt(0) ?? '';
+  const initials = `${firstInitial}${lastInitial}`.toUpperCase() || 'G';
+  const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || profile.email;
   const tierLabel = tierLabels[profile.tier] || profile.tier;
   const tierClass = tierClassNames[profile.tier] ?? '';
 
@@ -110,7 +113,7 @@ export function DashboardPage() {
     {
       key: 'name',
       label: 'Name',
-      value: `${profile.firstName} ${profile.lastName}`,
+      value: fullName,
     },
     {
       key: 'email',
