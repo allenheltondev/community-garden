@@ -18,13 +18,12 @@ vi.mock('../../utils/logging', () => ({
 }));
 
 const baseUser: UserProfile = {
-  userId: 'test-user-id',
+  id: 'test-user-id',
   email: 'test@example.com',
-  firstName: 'Test',
-  lastName: 'User',
-  tier: 'free',
+  displayName: 'Test User',
   userType: null,
   onboardingCompleted: false,
+  subscription: { tier: 'free' },
   growerProfile: null,
   gathererProfile: null,
 };

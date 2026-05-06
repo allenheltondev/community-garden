@@ -37,7 +37,7 @@ export function ListingsPage() {
         body="Post what's ready to share and review listings you've already created."
       />
       <GrowerListingPanel
-        viewerUserId={profile.userId}
+        viewerUserId={profile.id}
         defaultLat={profile.growerProfile?.lat}
         defaultLng={profile.growerProfile?.lng}
       />

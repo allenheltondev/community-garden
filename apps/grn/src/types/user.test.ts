@@ -104,13 +104,12 @@ describe('User Types', () => {
   describe('UserProfile', () => {
     it('should accept user with no onboarding', () => {
       const user: UserProfile = {
-        userId: 'test-uuid',
+        id: 'test-uuid',
         email: 'test@example.com',
-        firstName: 'Jane',
-        lastName: 'Doe',
-        tier: 'free',
+        displayName: 'Jane Doe',
         userType: null,
         onboardingCompleted: false,
+        subscription: { tier: 'free' },
       };
 
       expect(user.userType).toBeNull();
@@ -119,13 +118,12 @@ describe('User Types', () => {
 
     it('should accept grower user with profile', () => {
       const user: UserProfile = {
-        userId: 'test-uuid',
+        id: 'test-uuid',
         email: 'grower@example.com',
-        firstName: 'John',
-        lastName: 'Grower',
-        tier: 'free',
+        displayName: 'John Grower',
         userType: 'grower',
         onboardingCompleted: true,
+        subscription: { tier: 'free' },
         growerProfile: {
           homeZone: '8a',
           address: '123 Main St, Springfield, IL',
@@ -146,13 +144,12 @@ describe('User Types', () => {
 
     it('should accept gatherer user with profile', () => {
       const user: UserProfile = {
-        userId: 'test-uuid',
+        id: 'test-uuid',
         email: 'gatherer@example.com',
-        firstName: 'Jane',
-        lastName: 'Gatherer',
-        tier: 'supporter',
+        displayName: 'Jane Gatherer',
         userType: 'gatherer',
         onboardingCompleted: true,
+        subscription: { tier: 'supporter' },
         gathererProfile: {
           address: '456 Oak Ave, Springfield, IL',
           geoKey: '9q8yy9',
@@ -168,6 +165,20 @@ describe('User Types', () => {
       expect(user.userType).toBe('gatherer');
       expect(user.gathererProfile).toBeDefined();
       expect(user.gathererProfile?.searchRadiusMiles).toBe(10.0);
+    });
+
+    it('exposes tier under subscription', () => {
+      const user: UserProfile = {
+        id: 'test-uuid',
+        email: 'pro@example.com',
+        displayName: 'Pro User',
+        userType: 'grower',
+        onboardingCompleted: true,
+        subscription: { tier: 'pro', subscriptionStatus: 'active', proExpiresAt: '2026-12-31T00:00:00Z' },
+      };
+
+      expect(user.subscription.tier).toBe('pro');
+      expect(user.subscription.subscriptionStatus).toBe('active');
     });
   });
 });

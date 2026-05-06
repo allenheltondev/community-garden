@@ -43,17 +43,34 @@ export interface GathererProfile {
 }
 
 /**
- * User profile information returned from the API
- * Matches the backend UserProfile model
+ * Subscription metadata nested under the user profile.
+ * Mirrors `SubscriptionMetadata` on the backend.
+ */
+export interface SubscriptionMetadata {
+  tier: UserTier;
+  subscriptionStatus?: string | null;
+  proExpiresAt?: string | null;
+}
+
+/**
+ * User profile returned from `GET /me`.
+ *
+ * The shape mirrors the GRN backend's `MeProfileResponse` after the
+ * foundation profile consolidation: identity (name, email) lives in
+ * Cognito and is exposed as a single `displayName`, and tier moved
+ * under `subscription`. The frontend should not reach for old
+ * `firstName`/`lastName`/top-level `tier` fields — they no longer
+ * exist on the wire.
  */
 export interface UserProfile {
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  tier: UserTier;
+  id: string;
+  email?: string | null;
+  displayName?: string | null;
+  isVerified?: boolean;
   userType: UserType | null;
   onboardingCompleted: boolean;
+  createdAt?: string;
+  subscription: SubscriptionMetadata;
   growerProfile?: GrowerProfile | null;
   gathererProfile?: GathererProfile | null;
 }

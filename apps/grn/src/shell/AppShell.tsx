@@ -110,12 +110,14 @@ const foundationHeaderNav = [
   { id: 'foundation-okra', label: 'Okra Project', href: `${foundationHomeUrl}/okra` },
 ];
 
-function getInitials(firstName?: string, lastName?: string, email?: string): string {
-  const first = firstName?.trim().charAt(0) ?? '';
-  const last = lastName?.trim().charAt(0) ?? '';
-  const combined = `${first}${last}`.trim();
-  if (combined) return combined.toUpperCase();
-
+function getInitials(displayName?: string | null, email?: string | null): string {
+  const tokens = displayName?.split(/\s+/).filter(Boolean) ?? [];
+  if (tokens.length >= 2) {
+    return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+  }
+  if (tokens.length === 1) {
+    return tokens[0].slice(0, 2).toUpperCase();
+  }
   const source = email?.trim() ?? '';
   if (!source) return 'G';
   const parts = source
@@ -197,10 +199,8 @@ export function AppShell({ user, children }: AppShellProps) {
     href: item.href,
   }));
 
-  const initials = getInitials(user?.firstName, user?.lastName, user?.email);
-  const displayName = user
-    ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email || 'Member'
-    : 'Member';
+  const initials = getInitials(user?.displayName, user?.email);
+  const displayName = user?.displayName?.trim() || user?.email || 'Member';
 
   return (
     <div className="og-app-shell grn-app-shell">
