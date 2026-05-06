@@ -363,6 +363,95 @@ html {
 }
 
 /*
+ * Loading skeleton for the workshops list. Mirrors the real card
+ * shape (16:9 media, status pill spot, title + meta + 2 lines of
+ * summary + CTA pill) so the layout doesn't jump when data lands.
+ */
+.workshop-card--skeleton {
+  pointer-events: none;
+}
+
+.workshop-card--skeleton:hover {
+  transform: none;
+  box-shadow: var(--og-shadow-card);
+}
+
+.workshop-card__status--skeleton {
+  background: rgba(255, 253, 248, 0.7);
+  width: 5.5rem;
+  height: 1.35rem;
+  box-shadow: none;
+}
+
+.skeleton-line {
+  border-radius: 999px;
+  background: rgba(79, 56, 37, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line::after,
+.workshop-card--skeleton .workshop-card__media::after,
+.workshop-card__status--skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 253, 248, 0.55) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: workshop-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.workshop-card--skeleton .workshop-card__media {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line--title {
+  height: 1.1rem;
+  width: 78%;
+  margin-bottom: 0.25rem;
+}
+
+.skeleton-line--meta {
+  height: 0.85rem;
+  width: 60%;
+}
+
+.skeleton-line--summary {
+  height: 0.7rem;
+  width: 100%;
+}
+
+.skeleton-line--summary-short {
+  width: 82%;
+}
+
+.skeleton-line--cta {
+  height: 2.2rem;
+  width: 8.5rem;
+  border-radius: 999px;
+}
+
+@keyframes workshop-skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line::after,
+  .workshop-card--skeleton .workshop-card__media::after,
+  .workshop-card__status--skeleton::after {
+    animation: none;
+  }
+}
+
+/*
  * Workshop detail page.
  *
  * Hero with full-bleed cover + gradient overlay, then a two-column

@@ -179,7 +179,33 @@ export function WorkshopsPage({ onNavigate, authSession }: WorkshopsPageProps) {
           <p className="workshops-list__error" role="alert">{error}</p>
         ) : null}
         {workshops === null && !error ? (
-          <p className="workshops-list__loading">Loading workshops…</p>
+          <div
+            className="workshops-grid workshops-grid--loading"
+            aria-busy="true"
+            aria-live="polite"
+            aria-label="Loading workshops"
+          >
+            {Array.from({ length: 6 }).map((_, index) => (
+              <article
+                key={index}
+                className="workshop-card workshop-card--skeleton"
+                aria-hidden="true"
+              >
+                <div className="workshop-card__media">
+                  <span className="workshop-card__status workshop-card__status--skeleton" />
+                </div>
+                <div className="workshop-card__body">
+                  <div className="skeleton-line skeleton-line--title" />
+                  <div className="skeleton-line skeleton-line--meta" />
+                  <div className="skeleton-line skeleton-line--summary" />
+                  <div className="skeleton-line skeleton-line--summary skeleton-line--summary-short" />
+                  <div className="workshop-card__cta">
+                    <div className="skeleton-line skeleton-line--cta" />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
         ) : null}
         {workshops !== null && upcoming.length === 0 && !error ? (
           <Card title="No workshops scheduled yet.">
