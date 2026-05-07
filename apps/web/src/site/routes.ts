@@ -196,6 +196,8 @@ export const goodRootsNetworkUrl = import.meta.env.VITE_GRN_URL || 'https://grn.
 export const adminUrl = import.meta.env.VITE_ADMIN_URL || 'https://admin.oliviasgarden.org';
 export const instagramUrl = 'https://instagram.com/oliviasgardentx';
 export const facebookUrl = 'https://www.facebook.com/profile.php?id=100087146659606#';
+export const candidProfileUrl = 'https://app.candid.org/profile/16182978/olivias-garden-foundation/?pkId=35b25f41-ab7c-4561-8c50-493d5bbb7532&isActive=true';
+export const candidSealImageUrl = 'https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/16182978/svg';
 export const siteUrl = (import.meta.env.VITE_SITE_URL ?? 'https://oliviasgarden.org').replace(/\/+$/, '');
 export const webApiBase = (import.meta.env.VITE_WEB_API_BASE ?? '/api/web').replace(/\/+$/, '');
 export const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim() ?? '';

@@ -11,6 +11,7 @@ import type { AuthSession } from '../auth/session';
 import type { AppRoute } from './routes';
 import {
   adminUrl,
+  candidProfileUrl,
   facebookUrl,
   footerRoutes,
   goodRootsNetworkUrl,
@@ -202,7 +203,15 @@ export function SiteFooter({
 
   return (
     <SharedSiteFooter
-      meta={`${foundationOrganization.name} is a 501(c)(3) nonprofit organization, EIN ${foundationOrganization.ein}. Donations are tax-deductible. ©2026 ${foundationOrganization.name}. All rights reserved.`}
+      meta={(
+        <>
+          {foundationOrganization.name} is a 501(c)(3) nonprofit organization, EIN {foundationOrganization.ein}. Donations are tax-deductible. ©2026{' '}
+          <a href={candidProfileUrl} target="_blank" rel="noreferrer" className="og-site-footer__link og-site-footer__link--meta">
+            {foundationOrganization.name}
+          </a>
+          . All rights reserved.
+        </>
+      )}
       links={footerLinks}
       legalLinks={legalFooterLinks}
       socialLinks={[

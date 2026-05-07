@@ -13,7 +13,7 @@ import {
 } from '../chrome';
 import { foundationOrganization } from '../organization';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
-import { facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
+import { candidProfileUrl, candidSealImageUrl, facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
 
 const CONTACT_EMAIL = foundationOrganization.contactEmail;
 
@@ -326,6 +326,18 @@ export function AboutPage() {
         <p>
           We are still learning. We are building in public. And we are glad you found us.
         </p>
+      </section>
+
+      <section className="about-candid-seal" aria-label="Candid nonprofit transparency profile">
+        <a
+          className="about-candid-seal__link"
+          aria-label="View Olivia's Garden Foundation on Candid"
+          href={candidProfileUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <img alt="" src={candidSealImageUrl} loading="lazy" />
+        </a>
       </section>
     </div>
   );

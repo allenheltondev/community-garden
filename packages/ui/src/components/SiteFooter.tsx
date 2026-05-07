@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export interface SiteFooterLink {
   id: string;
   label: string;
@@ -14,7 +16,7 @@ export interface SiteFooterSocialLink {
 }
 
 export interface SiteFooterProps {
-  meta: string;
+  meta: ReactNode;
   links?: SiteFooterLink[];
   legalLinks?: SiteFooterLink[];
   socialLinks?: SiteFooterSocialLink[];
