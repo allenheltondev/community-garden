@@ -414,14 +414,49 @@ create table if not exists garden_beds (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  -- Garden designer geometry (added in 0029_garden_layout.sql)
+  bed_type text not null default 'raised',
+  shape text not null default 'rect',
+  position_x integer,
+  position_y integer,
+  rotation_deg integer not null default 0,
+  points jsonb,
+  color text,
+
   constraint garden_beds_name_not_empty check (length(trim(name)) > 0),
   constraint garden_beds_length_nonnegative check (length_inches is null or length_inches >= 0),
-  constraint garden_beds_width_nonnegative check (width_inches is null or width_inches >= 0)
+  constraint garden_beds_width_nonnegative check (width_inches is null or width_inches >= 0),
+  constraint garden_beds_bed_type_allowed check (bed_type in ('in_ground', 'raised', 'mound')),
+  constraint garden_beds_shape_allowed check (shape in ('rect', 'circle', 'polygon')),
+  constraint garden_beds_rotation_range check (rotation_deg >= -360 and rotation_deg <= 360),
+  constraint garden_beds_polygon_requires_points check (
+    shape <> 'polygon' or (points is not null and jsonb_typeof(points) = 'array')
+  )
 );
 
 create index if not exists idx_garden_beds_user
   on garden_beds(user_id)
   where archived_at is null;
+
+-- ============================
+-- GARDEN CANVAS (single per user in v1; UNIQUE drops when multi-garden ships)
+-- ============================
+create table if not exists garden_canvases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references users(id) on delete cascade,
+  width_inches integer not null default 360,
+  height_inches integer not null default 240,
+  background_image_key text,
+  background_opacity smallint not null default 60,
+  north_offset_deg smallint not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint garden_canvases_width_positive check (width_inches > 0),
+  constraint garden_canvases_height_positive check (height_inches > 0),
+  constraint garden_canvases_opacity_range check (background_opacity between 0 and 100),
+  constraint garden_canvases_north_range check (north_offset_deg between -360 and 360)
+);
 
 -- ============================
 -- GROWER CROP LIBRARY

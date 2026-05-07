@@ -62,6 +62,14 @@ paths:
     $ref: 'openapi/paths/crop-library.yaml#/~1crops'
   /crops/{cropLibraryId}:
     $ref: 'openapi/paths/crop-library.yaml#/~1crops~1{cropLibraryId}'
+  /beds:
+    $ref: 'openapi/paths/garden.yaml#/~1beds'
+  /beds/{bedId}:
+    $ref: 'openapi/paths/garden.yaml#/~1beds~1{bedId}'
+  /garden:
+    $ref: 'openapi/paths/garden.yaml#/~1garden'
+  /garden/background-upload-url:
+    $ref: 'openapi/paths/garden.yaml#/~1garden~1background-upload-url'
   /catalog/crops:
     $ref: 'openapi/paths/catalog.yaml#/~1catalog~1crops'
   /catalog/crops/{cropId}/varieties:

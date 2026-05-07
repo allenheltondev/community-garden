@@ -335,6 +335,17 @@ Resources:
               Action:
                 - events:PutEvents
               Resource: !GetAtt EventBus.Arn
+            # Garden designer uploads land here. Presigned PUT URLs are
+            # signed with the ApiFunction's role, so S3 evaluates this
+            # policy when the browser PUTs the image. Restricted to the
+            # garden-backgrounds/ prefix so the role can't be repurposed
+            # to write anywhere else in the shared assets bucket.
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub
+                - '${SharedAssetsBucketArn}/garden-backgrounds/*'
+                - SharedAssetsBucketArn: !ImportValue OGF-AssetsBucketArn
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
@@ -346,6 +357,8 @@ Resources:
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
           STRIPE_PRO_PRICE_ID: !Ref StripeProPriceId
+          MEDIA_BUCKET_NAME: !ImportValue OGF-AssetsBucketName
+          MEDIA_CDN_DOMAIN: !ImportValue OGF-AssetsPublicDomainName
           RUST_LOG: info
           RUST_BACKTRACE: "1"
       Events:

@@ -30,6 +30,7 @@ if_same_then_else = "allow"
 aws-config = { workspace = true }
 aws-sdk-cognitoidentityprovider = { workspace = true }
 aws-sdk-eventbridge = { workspace = true }
+aws-sdk-s3 = { workspace = true }
 aws_lambda_events = { workspace = true }
 jsonwebtoken = { workspace = true }
 lambda_http = { workspace = true }

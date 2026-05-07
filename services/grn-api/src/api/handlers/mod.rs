@@ -8,6 +8,7 @@ pub mod claim;
 pub mod claim_read;
 pub mod crop;
 pub mod feed;
+pub mod garden_canvas;
 pub mod listing;
 pub mod listing_discovery;
 pub mod reminder;
