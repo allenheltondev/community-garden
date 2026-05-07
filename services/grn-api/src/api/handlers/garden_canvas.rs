@@ -68,6 +68,10 @@ pub async fn update_my_canvas(
     validate_canvas_payload(&payload)?;
 
     let client = db::connect().await?;
+    // Explicit casts on $5/$6: Postgres otherwise infers their type as
+    // integer from the bare `60`/`0` literals in coalesce, but the Rust
+    // value is i16. Without the cast, tokio_postgres rejects the call
+    // with `error serializing parameter 4` (0-indexed → $5).
     let row = client
         .query_one(
             "
@@ -80,8 +84,8 @@ pub async fn update_my_canvas(
                 coalesce($2, 360),
                 coalesce($3, 240),
                 $4,
-                coalesce($5, 60),
-                coalesce($6, 0)
+                coalesce($5::smallint, 60::smallint),
+                coalesce($6::smallint, 0::smallint)
             )
             on conflict (user_id) do update
               set width_inches = coalesce(excluded.width_inches, garden_canvases.width_inches),
