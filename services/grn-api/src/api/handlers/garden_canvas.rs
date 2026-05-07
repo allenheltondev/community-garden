@@ -68,6 +68,10 @@ pub async fn update_my_canvas(
     validate_canvas_payload(&payload)?;
 
     let client = db::connect().await?;
+    // Explicit casts on $5/$6: Postgres otherwise infers their type as
+    // integer from the bare `60`/`0` literals in coalesce, but the Rust
+    // value is i16. Without the cast, tokio_postgres rejects the call
+    // with `error serializing parameter 4` (0-indexed → $5).
     let row = client
         .query_one(
             "
@@ -80,8 +84,8 @@ pub async fn update_my_canvas(
                 coalesce($2, 360),
                 coalesce($3, 240),
                 $4,
-                coalesce($5, 60),
-                coalesce($6, 0)
+                coalesce($5::smallint, 60::smallint),
+                coalesce($6::smallint, 0::smallint)
             )
             on conflict (user_id) do update
               set width_inches = coalesce(excluded.width_inches, garden_canvases.width_inches),
@@ -265,12 +269,17 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
 }
 
 fn row_to_canvas(row: &Row) -> GardenCanvas {
+    let background_image_key: Option<String> = row.get("background_image_key");
+    let background_image_url = background_image_key
+        .as_deref()
+        .and_then(build_background_image_url);
     GardenCanvas {
         id: row.get::<_, Uuid>("id").to_string(),
         user_id: row.get::<_, Uuid>("user_id").to_string(),
         width_inches: row.get("width_inches"),
         height_inches: row.get("height_inches"),
-        background_image_key: row.get("background_image_key"),
+        background_image_key,
+        background_image_url,
         background_opacity: row.get("background_opacity"),
         north_offset_deg: row.get("north_offset_deg"),
         created_at: row
@@ -280,6 +289,16 @@ fn row_to_canvas(row: &Row) -> GardenCanvas {
             .get::<_, chrono::DateTime<chrono::Utc>>("updated_at")
             .to_rfc3339(),
     }
+}
+
+fn build_background_image_url(key: &str) -> Option<String> {
+    let domain = env::var("MEDIA_CDN_DOMAIN").ok()?;
+    let trimmed_domain = domain.trim_end_matches('/');
+    let trimmed_key = key.trim_start_matches('/');
+    if trimmed_domain.is_empty() || trimmed_key.is_empty() {
+        return None;
+    }
+    Some(format!("https://{trimmed_domain}/{trimmed_key}"))
 }
 
 fn json_response<T: Serialize>(

@@ -190,6 +190,14 @@ GardenCanvas:
       type: string
       nullable: true
       description: "S3 object key under garden-backgrounds/, or null."
+    background_image_url:
+      type: string
+      format: uri
+      nullable: true
+      description: |
+        Resolved CDN URL for the background image, derived from the
+        configured MEDIA_CDN_DOMAIN. Null when there's no key, or when
+        no CDN domain is configured for the environment.
     background_opacity:
       type: integer
       minimum: 0

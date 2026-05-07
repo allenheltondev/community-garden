@@ -44,6 +44,14 @@ export type SunExposure =
   | 'full_shade'
   | 'mixed';
 
+export type BedType = 'in_ground' | 'raised' | 'mound';
+export type BedShape = 'rect' | 'circle' | 'polygon';
+
+export interface BedPolygonPoint {
+  x: number;
+  y: number;
+}
+
 export interface GardenBed {
   id: string;
   userId: string;
@@ -55,6 +63,26 @@ export interface GardenBed {
   widthInches: number | null;
   locationNotes: string | null;
   sortOrder: number;
+  bedType: BedType;
+  shape: BedShape;
+  positionX: number | null;
+  positionY: number | null;
+  rotationDeg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GardenCanvas {
+  id: string;
+  userId: string;
+  widthInches: number;
+  heightInches: number;
+  backgroundImageKey: string | null;
+  backgroundImageUrl: string | null;
+  backgroundOpacity: number;
+  northOffsetDeg: number;
   createdAt: string;
   updatedAt: string;
 }

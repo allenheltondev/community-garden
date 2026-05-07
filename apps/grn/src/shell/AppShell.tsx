@@ -54,6 +54,22 @@ const growerNavItems: NavItem[] = [
     ),
   },
   {
+    id: 'garden',
+    path: '/garden',
+    label: 'Designer',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M3 4h8v8H3V4Zm0 10h8v6H3v-6Zm10-10h8v6h-8V4Zm0 8h8v8h-8v-8Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
+  {
     id: 'listings',
     path: '/listings',
     label: 'Listings',

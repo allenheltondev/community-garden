@@ -3,10 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { getApiEndpoint } from '../config/amplify';
 import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../types/user';
 import type {
+  BedPolygonPoint,
+  BedShape,
+  BedType,
   CatalogCrop,
   CatalogVariety,
   DiscoverListingsResponse,
   GardenBed,
+  GardenCanvas,
   GrowerCropItem,
   Listing,
   ListMyListingsResponse,
@@ -106,6 +110,14 @@ async function apiFetch<T>(
         response.status,
         correlationId
       );
+    }
+
+    // 204 No Content (and any other empty body) has no JSON to parse.
+    // Returning undefined cast to T keeps the type-untyped void callers
+    // working without forcing every call site to special-case the
+    // response.
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return undefined as T;
     }
 
     return await response.json();
@@ -253,8 +265,36 @@ interface RawGardenBed {
   width_inches: number | null;
   location_notes: string | null;
   sort_order: number;
+  bed_type: BedType;
+  shape: BedShape;
+  position_x: number | null;
+  position_y: number | null;
+  rotation_deg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface RawGardenCanvas {
+  id: string;
+  user_id: string;
+  width_inches: number;
+  height_inches: number;
+  background_image_key: string | null;
+  background_image_url: string | null;
+  background_opacity: number;
+  north_offset_deg: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RawBackgroundUploadIntentResponse {
+  upload_url: string;
+  method: string;
+  headers: Record<string, string>;
+  s3_key: string;
+  expires_in_seconds: number;
 }
 
 interface RawListingItem {
@@ -452,6 +492,28 @@ function mapGardenBed(raw: RawGardenBed): GardenBed {
     widthInches: raw.width_inches,
     locationNotes: raw.location_notes,
     sortOrder: raw.sort_order,
+    bedType: raw.bed_type,
+    shape: raw.shape,
+    positionX: raw.position_x,
+    positionY: raw.position_y,
+    rotationDeg: raw.rotation_deg,
+    points: raw.points,
+    color: raw.color,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function mapGardenCanvas(raw: RawGardenCanvas): GardenCanvas {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    widthInches: raw.width_inches,
+    heightInches: raw.height_inches,
+    backgroundImageKey: raw.background_image_key,
+    backgroundImageUrl: raw.background_image_url,
+    backgroundOpacity: raw.background_opacity,
+    northOffsetDeg: raw.north_offset_deg,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -731,6 +793,34 @@ export interface UpsertGardenBedRequest {
   widthInches?: number | null;
   locationNotes?: string | null;
   sortOrder?: number;
+  bedType?: BedType;
+  shape?: BedShape;
+  positionX?: number | null;
+  positionY?: number | null;
+  rotationDeg?: number;
+  points?: BedPolygonPoint[] | null;
+  color?: string | null;
+}
+
+export interface UpsertGardenCanvasRequest {
+  widthInches?: number;
+  heightInches?: number;
+  backgroundImageKey?: string | null;
+  backgroundOpacity?: number;
+  northOffsetDeg?: number;
+}
+
+export interface RequestBackgroundUploadUrlInput {
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp';
+  contentLength: number;
+}
+
+export interface BackgroundUploadIntent {
+  uploadUrl: string;
+  method: string;
+  headers: Record<string, string>;
+  s3Key: string;
+  expiresInSeconds: number;
 }
 
 export async function listMyBeds(): Promise<GardenBed[]> {
@@ -758,6 +848,40 @@ export async function deleteMyBed(bedId: string): Promise<void> {
   await apiFetch(`/beds/${bedId}`, {
     method: 'DELETE',
   });
+}
+
+export async function getMyGardenCanvas(): Promise<GardenCanvas> {
+  const response = await apiFetch<RawGardenCanvas>('/garden');
+  return mapGardenCanvas(response);
+}
+
+export async function updateMyGardenCanvas(
+  data: UpsertGardenCanvasRequest
+): Promise<GardenCanvas> {
+  const response = await apiFetch<RawGardenCanvas>('/garden', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return mapGardenCanvas(response);
+}
+
+export async function requestBackgroundUploadUrl(
+  data: RequestBackgroundUploadUrlInput
+): Promise<BackgroundUploadIntent> {
+  const response = await apiFetch<RawBackgroundUploadIntentResponse>(
+    '/garden/background-upload-url',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+  return {
+    uploadUrl: response.upload_url,
+    method: response.method,
+    headers: response.headers,
+    s3Key: response.s3_key,
+    expiresInSeconds: response.expires_in_seconds,
+  };
 }
 
 export async function listMyListings(
