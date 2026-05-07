@@ -40,9 +40,12 @@ pub async fn list_my_beds(
             &[&user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|e| db_error(&e))?;
 
-    let beds = rows.into_iter().map(|row| row_to_bed(&row)).collect::<Vec<_>>();
+    let beds = rows
+        .into_iter()
+        .map(|row| row_to_bed(&row))
+        .collect::<Vec<_>>();
     json_response(200, &beds)
 }
 
@@ -77,12 +80,15 @@ pub async fn create_my_bed(
                 &payload.soil_type.as_ref().map(|s| s.trim().to_string()),
                 &payload.length_inches,
                 &payload.width_inches,
-                &payload.location_notes.as_ref().map(|s| s.trim().to_string()),
+                &payload
+                    .location_notes
+                    .as_ref()
+                    .map(|s| s.trim().to_string()),
                 &payload.sort_order,
             ],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|e| db_error(&e))?;
 
     info!(
         correlation_id = correlation_id,
@@ -133,14 +139,17 @@ pub async fn update_my_bed(
                 &payload.soil_type.as_ref().map(|s| s.trim().to_string()),
                 &payload.length_inches,
                 &payload.width_inches,
-                &payload.location_notes.as_ref().map(|s| s.trim().to_string()),
+                &payload
+                    .location_notes
+                    .as_ref()
+                    .map(|s| s.trim().to_string()),
                 &payload.sort_order,
                 &id,
                 &user_id,
             ],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|e| db_error(&e))?;
 
     if let Some(row) = maybe_row {
         info!(
@@ -178,7 +187,7 @@ pub async fn delete_my_bed(
             &[&id, &user_id],
         )
         .await
-        .map_err(db_error)?;
+        .map_err(|e| db_error(&e))?;
 
     if archived == 0 {
         return not_found_response();
@@ -202,9 +211,7 @@ pub fn validate_bed_payload(
 ) -> Result<String, lambda_http::Error> {
     let trimmed = payload.name.trim();
     if trimmed.is_empty() {
-        return Err(lambda_http::Error::from(
-            "bed name is required".to_string(),
-        ));
+        return Err(lambda_http::Error::from("bed name is required".to_string()));
     }
     if trimmed.len() > 80 {
         return Err(lambda_http::Error::from(
@@ -298,11 +305,12 @@ fn not_found_response() -> Result<Response<Body>, lambda_http::Error> {
     })
 }
 
-fn db_error(error: tokio_postgres::Error) -> lambda_http::Error {
+fn db_error(error: &tokio_postgres::Error) -> lambda_http::Error {
     lambda_http::Error::from(format!("Database query error: {error}"))
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::{validate_bed_payload, UpsertGardenBedRequest};
 
@@ -321,7 +329,10 @@ mod tests {
 
     #[test]
     fn accepts_valid_payload() {
-        assert_eq!(validate_bed_payload(&payload()).unwrap(), "Front raised bed");
+        assert_eq!(
+            validate_bed_payload(&payload()).unwrap(),
+            "Front raised bed"
+        );
     }
 
     #[test]

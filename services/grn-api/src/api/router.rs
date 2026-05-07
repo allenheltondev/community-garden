@@ -101,9 +101,6 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("GET", "/crops") => handle(crop::list_my_crops(event, &correlation_id).await)?,
         ("POST", "/crops") => handle(crop::create_my_crop(event, &correlation_id).await)?,
 
-        ("GET", "/beds") => handle(bed::list_my_beds(event, &correlation_id).await)?,
-        ("POST", "/beds") => handle(bed::create_my_bed(event, &correlation_id).await)?,
-
         ("GET", "/my/listings") => handle(listing::list_my_listings(event, &correlation_id).await)?,
         ("GET", "/listings/discover") => {
             handle(listing_discovery::discover_listings(event, &correlation_id).await)?
@@ -158,6 +155,15 @@ async fn route_dynamic_routes(
             "GET" => crop::get_my_crop(event, correlation_id, crop_library_id).await,
             "PUT" => crop::update_my_crop(event, correlation_id, crop_library_id).await,
             "DELETE" => crop::delete_my_crop(event, correlation_id, crop_library_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
+    if request_path == "/beds" {
+        let result = match event.method().as_str() {
+            "GET" => bed::list_my_beds(event, correlation_id).await,
+            "POST" => bed::create_my_bed(event, correlation_id).await,
             _ => method_not_allowed(),
         };
         return handle(result);

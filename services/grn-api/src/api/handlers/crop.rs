@@ -97,8 +97,10 @@ pub async fn create_my_crop(
     let variety_id = parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?;
     let bed_id = parse_optional_uuid(payload.bed_id.as_deref(), "bed_id")?;
     let planting_date = parse_optional_date(payload.planting_date.as_deref(), "plantingDate")?;
-    let expected_harvest_date =
-        parse_optional_date(payload.expected_harvest_date.as_deref(), "expectedHarvestDate")?;
+    let expected_harvest_date = parse_optional_date(
+        payload.expected_harvest_date.as_deref(),
+        "expectedHarvestDate",
+    )?;
 
     let client = db::connect().await?;
 
@@ -181,8 +183,10 @@ pub async fn update_my_crop(
     let variety_id = parse_optional_uuid(payload.variety_id.as_deref(), "variety_id")?;
     let bed_id = parse_optional_uuid(payload.bed_id.as_deref(), "bed_id")?;
     let planting_date = parse_optional_date(payload.planting_date.as_deref(), "plantingDate")?;
-    let expected_harvest_date =
-        parse_optional_date(payload.expected_harvest_date.as_deref(), "expectedHarvestDate")?;
+    let expected_harvest_date = parse_optional_date(
+        payload.expected_harvest_date.as_deref(),
+        "expectedHarvestDate",
+    )?;
 
     let client = db::connect().await?;
 
@@ -475,22 +479,24 @@ fn parse_optional_uuid(
     value: Option<&str>,
     field_name: &str,
 ) -> Result<Option<Uuid>, lambda_http::Error> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(None),
-        Some(v) => parse_uuid(v, field_name).map(Some),
-    }
+    value
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map_or(Ok(None), |v| parse_uuid(v, field_name).map(Some))
 }
 
 fn parse_optional_date(
     value: Option<&str>,
     field_name: &str,
 ) -> Result<Option<NaiveDate>, lambda_http::Error> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(None),
-        Some(v) => NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map(Some)
-            .map_err(|_| lambda_http::Error::from(format!("{field_name} must be YYYY-MM-DD"))),
-    }
+    value
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map_or(Ok(None), |v| {
+            NaiveDate::parse_from_str(v, "%Y-%m-%d")
+                .map(Some)
+                .map_err(|_| lambda_http::Error::from(format!("{field_name} must be YYYY-MM-DD")))
+        })
 }
 
 fn parse_json_body<T: serde::de::DeserializeOwned>(
