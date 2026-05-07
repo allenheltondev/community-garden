@@ -1,3 +1,4 @@
+pub mod annotation;
 pub mod bed;
 pub mod catalog;
 pub mod crop;

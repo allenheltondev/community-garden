@@ -1,6 +1,6 @@
 use crate::handlers::{
-    agent_task, ai_copilot, analytics, bed, billing, catalog, claim, claim_read, crop, feed,
-    garden_canvas, listing, listing_discovery, reminder, request, user,
+    agent_task, ai_copilot, analytics, annotation, bed, billing, catalog, claim, claim_read, crop,
+    feed, garden_canvas, listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -269,6 +269,22 @@ async fn route_garden_designer_request(
             _ => method_not_allowed(),
         });
     }
+    if request_path == "/annotations" {
+        return Some(match event.method().as_str() {
+            "GET" => annotation::list_my_annotations(event, correlation_id).await,
+            "POST" => annotation::create_my_annotation(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if let Some(annotation_id) = request_path.strip_prefix("/annotations/") {
+        return Some(match event.method().as_str() {
+            "PUT" => annotation::update_my_annotation(event, correlation_id, annotation_id).await,
+            "DELETE" => {
+                annotation::delete_my_annotation(event, correlation_id, annotation_id).await
+            }
+            _ => method_not_allowed(),
+        });
+    }
     None
 }
 
@@ -293,16 +309,24 @@ fn handle(
 }
 
 fn is_garden_designer_validation_message(message: &str) -> bool {
-    // Bed shape/type/geometry + canvas + presigned-upload validation messages.
-    // Kept here so map_api_error_to_response stays under the clippy
-    // too_many_lines threshold; each contains() check is one phrase that
-    // must round-trip from a handler validation Err to a 400 response.
+    // Bed shape/type/geometry + canvas + presigned-upload + annotation
+    // validation messages. Kept here so map_api_error_to_response stays
+    // under the clippy too_many_lines threshold; each contains() check is
+    // one phrase that must round-trip from a handler validation Err to a
+    // 400 response.
     message.contains("Invalid bedType")
         || message.contains("Invalid bed shape")
+        || message.contains("Invalid annotation shape")
+        || message.contains("annotation label is required")
+        || message.contains("annotation label must be")
+        || message.contains("annotation icon must be")
+        || message.contains("annotation dimensions must be")
         || message.contains("rotationDeg must be")
         || message.contains("points is required when shape is polygon")
+        || message.contains("points is required when shape is line")
         || message.contains("points must be an array")
         || message.contains("points must contain at least 3 entries")
+        || message.contains("points must contain at least 2 entries")
         || message.contains("points must contain")
         || message.contains("each point must")
         || message.contains("point coordinates must fit")

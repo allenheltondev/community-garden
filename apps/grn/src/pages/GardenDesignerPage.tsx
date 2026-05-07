@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { PlantLoader } from '../components/branding/PlantLoader';
+import { AnnotationInspector } from '../components/GardenDesigner/AnnotationInspector';
 import { BedInspector } from '../components/GardenDesigner/BedInspector';
 import {
   DesignerCanvas,
@@ -37,7 +38,8 @@ export function GardenDesignerPage() {
     );
   }
 
-  const inspectorOpen = designer.selectedBed !== undefined;
+  const inspectorOpen =
+    designer.selectedBed !== undefined || designer.selectedAnnotation !== undefined;
 
   async function handlePickBackgroundFile(file: File) {
     setUploadError(null);
@@ -62,9 +64,9 @@ export function GardenDesignerPage() {
             Lay out your beds, drop in crops, and watch it come together.
           </p>
         </div>
-        {designer.beds.length === 0 && (
+        {designer.beds.length === 0 && designer.annotations.length === 0 && (
           <p className="grn-designer-page__hint">
-            Start by adding a bed from the toolbar on the left.
+            Start by adding a bed or a landmark from the toolbar on the left.
           </p>
         )}
       </header>
@@ -72,6 +74,7 @@ export function GardenDesignerPage() {
       <GardenPropertiesBar
         canvas={designer.canvas}
         beds={designer.beds}
+        annotations={designer.annotations}
         isEditable={designer.isEditable}
         isSaving={designer.isSaving}
         onCanvasChange={designer.patchCanvas}
@@ -98,6 +101,9 @@ export function GardenDesignerPage() {
           onAddBed={(shape) => {
             void designer.addBed(shape);
           }}
+          onAddAnnotation={(presetId) => {
+            void designer.addAnnotation(presetId);
+          }}
           onStartDrawingPolygon={() => designer.setMode('drawing-polygon')}
           onCancelDrawingPolygon={() => designer.setMode('idle')}
           gridSnap={designer.snap}
@@ -109,15 +115,18 @@ export function GardenDesignerPage() {
           ref={canvasRef}
           canvas={designer.canvas}
           beds={designer.beds}
+          annotations={designer.annotations}
           cropsByBedId={designer.cropsByBedId}
-          selectedBedId={designer.selectedBedId}
+          selected={designer.selected}
           isEditable={designer.isEditable}
           mode={designer.mode}
           snap={designer.snap}
           backgroundImageUrl={designer.canvas.backgroundImageUrl}
-          onSelect={designer.setSelectedBedId}
+          onSelect={designer.setSelected}
           onMoveBed={designer.moveBed}
           onResizeBed={designer.resizeBed}
+          onMoveAnnotation={designer.moveAnnotation}
+          onResizeAnnotation={designer.resizeAnnotation}
           onCommitPolygon={(points) => {
             void designer.commitPolygon(points);
           }}
@@ -141,7 +150,27 @@ export function GardenDesignerPage() {
                 void designer.deleteBed(designer.selectedBed.id);
               }
             }}
-            onClose={() => designer.setSelectedBedId(null)}
+            onClose={() => designer.setSelected(null)}
+          />
+        )}
+
+        {designer.selectedAnnotation && (
+          <AnnotationInspector
+            key={designer.selectedAnnotation.id}
+            annotation={designer.selectedAnnotation}
+            isEditable={designer.isEditable}
+            isSaving={designer.isSaving}
+            onChange={(patch) => {
+              if (designer.selectedAnnotation) {
+                designer.patchAnnotation(designer.selectedAnnotation.id, patch);
+              }
+            }}
+            onDelete={() => {
+              if (designer.selectedAnnotation) {
+                void designer.deleteAnnotation(designer.selectedAnnotation.id);
+              }
+            }}
+            onClose={() => designer.setSelected(null)}
           />
         )}
       </div>

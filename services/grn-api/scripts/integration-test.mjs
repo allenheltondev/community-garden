@@ -47,6 +47,24 @@ const GARDEN_BED_FIELDS = [
   'updated_at'
 ];
 
+const GARDEN_ANNOTATION_FIELDS = [
+  'id',
+  'user_id',
+  'label',
+  'icon',
+  'shape',
+  'position_x',
+  'position_y',
+  'length_inches',
+  'width_inches',
+  'rotation_deg',
+  'points',
+  'color',
+  'sort_order',
+  'created_at',
+  'updated_at'
+];
+
 const GARDEN_CANVAS_FIELDS = [
   'id',
   'user_id',
@@ -88,6 +106,7 @@ async function run() {
 
   const reporter = createReporter(runPrefix);
   const createdBedIds = [];
+  const createdAnnotationIds = [];
 
   // --- Auth Boundary ---
   console.log('\n=== Auth Boundary ===');
@@ -128,6 +147,18 @@ async function run() {
       reporter.assert('auth-boundary',
         res.status === 401 || res.status === 403,
         `GET /garden with invalid token returns 401/403 (got ${res.status})`, res.json);
+    }
+    {
+      const res = await noAuthApi.request('/annotations');
+      reporter.assert('auth-boundary', res.status === 401, `GET /annotations without auth returns 401 (got ${res.status})`, res.json);
+    }
+    {
+      const res = await noAuthApi.request('/annotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'should fail' })
+      });
+      reporter.assert('auth-boundary', res.status === 401, `POST /annotations without auth returns 401 (got ${res.status})`, res.json);
     }
   }
 
@@ -393,6 +424,121 @@ async function run() {
     reporter.fail('garden-canvas', `Garden canvas error: ${err.message}`);
   }
 
+  // --- Annotation validation ---
+  console.log('\n=== Annotation validation ===');
+  {
+    const cases = [
+      { label: 'blank label', body: { label: '   ' } },
+      { label: 'unknown shape', body: { label: 'bad', shape: 'octagon' } },
+      { label: 'polygon without points', body: { label: 'pond', shape: 'polygon' } },
+      { label: 'line with one point', body: { label: 'path', shape: 'line', points: [{ x: 0, y: 0 }] } },
+      { label: 'polygon with 2 points', body: { label: 'pond', shape: 'polygon', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] } },
+      { label: 'invalid color', body: { label: 'tree', color: 'green' } },
+      { label: 'rotation out of range', body: { label: 'spin', rotationDeg: 720 } },
+      { label: 'negative dimensions', body: { label: 'tiny', lengthInches: -1 } },
+      { label: 'long label', body: { label: 'x'.repeat(200) } }
+    ];
+    for (const { label, body } of cases) {
+      const res = await growerApi.request('/annotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      reporter.assert('annotation-validation', res.status === 400,
+        `POST /annotations (${label}) returns 400 (got ${res.status})`, res.json);
+    }
+    {
+      const res = await growerApi.request('/annotations/not-a-uuid', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'whatever' })
+      });
+      reporter.assert('annotation-validation', res.status === 400,
+        `PUT /annotations/not-a-uuid returns 400 (got ${res.status})`, res.json);
+    }
+  }
+
+  // --- Annotation CRUD ---
+  console.log('\n=== Annotation CRUD ===');
+  try {
+    const lineLabel = `${runPrefix}-path`;
+    const linePayload = {
+      label: lineLabel,
+      icon: '🛤️',
+      shape: 'line',
+      points: [
+        { x: 0, y: 0 },
+        { x: 240, y: 0 },
+        { x: 360, y: 60 }
+      ],
+      positionX: 12,
+      positionY: 60,
+      rotationDeg: 0,
+      color: '#8a6230',
+      sortOrder: 1
+    };
+    const createRes = await growerApi.request('/annotations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(linePayload)
+    });
+    reporter.assert('annotation-crud', createRes.status === 201, `POST /annotations returns 201 (got ${createRes.status})`, createRes.json);
+    const created = createRes.json;
+    if (created?.id) createdAnnotationIds.push(created.id);
+    const fieldGap = missingFields(created ?? {}, GARDEN_ANNOTATION_FIELDS);
+    reporter.assert('annotation-crud', fieldGap.length === 0,
+      fieldGap.length === 0
+        ? 'created annotation has all expected fields'
+        : `created annotation missing fields: ${fieldGap.join(', ')}`,
+      created);
+    reporter.assert('annotation-crud', UUID_PATTERN.test(created?.id ?? ''), `created annotation id is a UUID (got ${created?.id})`, created);
+    reporter.assert('annotation-crud', created?.shape === 'line', `shape roundtrips as line (got ${created?.shape})`, created);
+    reporter.assert('annotation-crud', Array.isArray(created?.points) && created.points.length === 3,
+      `points roundtrip as 3-entry array (got ${created?.points?.length})`, created);
+    reporter.assert('annotation-crud', created?.icon === '🛤️', `icon roundtrips (got ${created?.icon})`, created);
+    reporter.assert('annotation-crud', created?.color === '#8a6230', `color roundtrips (got ${created?.color})`, created);
+
+    if (created?.id) {
+      const updateRes = await growerApi.request(`/annotations/${created.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...linePayload,
+          label: `${lineLabel}-renamed`,
+          shape: 'rect',
+          points: null,
+          positionX: 100,
+          positionY: 100
+        })
+      });
+      reporter.assert('annotation-crud', updateRes.status === 200, `PUT /annotations/:id returns 200 (got ${updateRes.status})`, updateRes.json);
+      reporter.assert('annotation-crud', updateRes.json?.shape === 'rect', `shape updates to rect (got ${updateRes.json?.shape})`, updateRes.json);
+      reporter.assert('annotation-crud', updateRes.json?.points === null, `points cleared on shape change (got ${updateRes.json?.points})`, updateRes.json);
+    }
+
+    {
+      const listRes = await growerApi.request('/annotations');
+      reporter.assert('annotation-crud', listRes.status === 200, `GET /annotations returns 200 (got ${listRes.status})`, listRes.json);
+      const found = Array.isArray(listRes.json) && listRes.json.some((a) => a.id === created?.id);
+      reporter.assert('annotation-crud', found, 'created annotation appears in list', listRes.json);
+    }
+
+    if (created?.id) {
+      const deleteRes = await growerApi.request(`/annotations/${created.id}`, { method: 'DELETE' });
+      reporter.assert('annotation-crud', deleteRes.status === 204, `DELETE /annotations/:id returns 204 (got ${deleteRes.status})`, deleteRes.json);
+      const idx = createdAnnotationIds.indexOf(created.id);
+      if (idx >= 0) createdAnnotationIds.splice(idx, 1);
+    }
+
+    {
+      const dummyId = '00000000-0000-4000-8000-000000000000';
+      const res = await growerApi.request(`/annotations/${dummyId}`, { method: 'DELETE' });
+      reporter.assert('annotation-crud', res.status === 404, `DELETE /annotations/:unknown returns 404 (got ${res.status})`, res.json);
+    }
+  } catch (err) {
+    reporter.fail('annotation-crud', `Annotation CRUD error: ${err.message}`);
+  }
+
   // --- Background upload URL ---
   console.log('\n=== Background upload URL ===');
   try {
@@ -446,12 +592,19 @@ async function run() {
     reporter.fail('background-upload-url', `Background upload URL error: ${err.message}`);
   }
 
-  // --- Cleanup any beds that survived the CRUD scenario ---
+  // --- Cleanup any beds/annotations that survived the CRUD scenario ---
   for (const bedId of createdBedIds) {
     try {
       await growerApi.request(`/beds/${bedId}`, { method: 'DELETE' });
     } catch (err) {
       console.error(`Cleanup failed for bed ${bedId}: ${err.message}`);
+    }
+  }
+  for (const annotationId of createdAnnotationIds) {
+    try {
+      await growerApi.request(`/annotations/${annotationId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error(`Cleanup failed for annotation ${annotationId}: ${err.message}`);
     }
   }
 

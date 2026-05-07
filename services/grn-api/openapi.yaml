@@ -66,6 +66,10 @@ paths:
     $ref: 'openapi/paths/garden.yaml#/~1beds'
   /beds/{bedId}:
     $ref: 'openapi/paths/garden.yaml#/~1beds~1{bedId}'
+  /annotations:
+    $ref: 'openapi/paths/garden.yaml#/~1annotations'
+  /annotations/{annotationId}:
+    $ref: 'openapi/paths/garden.yaml#/~1annotations~1{annotationId}'
   /garden:
     $ref: 'openapi/paths/garden.yaml#/~1garden'
   /garden/background-upload-url:
