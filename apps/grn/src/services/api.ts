@@ -112,6 +112,14 @@ async function apiFetch<T>(
       );
     }
 
+    // 204 No Content (and any other empty body) has no JSON to parse.
+    // Returning undefined cast to T keeps the type-untyped void callers
+    // working without forcing every call site to special-case the
+    // response.
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return undefined as T;
+    }
+
     return await response.json();
   } catch (error) {
     clearTimeout(timeoutId);

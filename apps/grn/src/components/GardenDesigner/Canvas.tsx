@@ -31,6 +31,17 @@ interface DesignerCanvasProps {
   backgroundImageUrl: string | null;
   onSelect: (bedId: string | null) => void;
   onMoveBed: (bedId: string, positionX: number, positionY: number) => void;
+  onResizeBed: (
+    bedId: string,
+    next: {
+      positionX: number;
+      positionY: number;
+      lengthInches: number;
+      widthInches: number;
+      rotationDeg: number;
+      points: BedPolygonPoint[] | null;
+    }
+  ) => void;
   onCommitPolygon: (points: BedPolygonPoint[]) => void;
   onCancelPolygon: () => void;
 }
@@ -71,6 +82,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       backgroundImageUrl,
       onSelect,
       onMoveBed,
+      onResizeBed,
       onCommitPolygon,
       onCancelPolygon,
     },
@@ -78,9 +90,13 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const stageRef = useRef<Konva.Stage | null>(null);
+    // Seed with non-zero defaults so the Konva Stage mounts on first render.
+    // The grid + min-height CSS guarantees the container will have at least
+    // these dimensions; the ResizeObserver below replaces them with the real
+    // measurement as soon as layout settles.
     const [viewport, setViewport] = useState<{ width: number; height: number }>({
-      width: 0,
-      height: 0,
+      width: 800,
+      height: 520,
     });
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -236,8 +252,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
 
     return (
       <div ref={containerRef} className="grn-designer-canvas">
-        {viewport.width > 0 && viewport.height > 0 && (
-          <Stage
+        <Stage
             ref={stageRef}
             width={viewport.width}
             height={viewport.height}
@@ -279,6 +294,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                   crops={cropsByBedId.get(bed.id) ?? []}
                   onSelect={onSelect}
                   onMove={handleBedMove}
+                  onResize={onResizeBed}
                 />
               ))}
               {drawing && draftLinePoints.length >= 4 && (
@@ -314,7 +330,6 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
               )}
             </Layer>
           </Stage>
-        )}
         {drawing && (
           <div className="grn-designer-canvas__draw-hint" role="status">
             Click to add points · double-click to finish · esc to cancel

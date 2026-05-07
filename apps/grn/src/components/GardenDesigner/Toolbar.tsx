@@ -1,6 +1,5 @@
-import type { ChangeEvent } from 'react';
-import type { BedType } from '../../types/listing';
-import { defaultsFor } from './bedDefaults';
+import type { BedShape } from '../../types/listing';
+import { BED_SHAPES } from './bedDefaults';
 
 export type DesignerMode = 'idle' | 'drawing-polygon';
 export type GridSnap = 'off' | '6' | '12';
@@ -10,22 +9,19 @@ interface ToolbarProps {
   editUnlocked: boolean;
   onToggleEditUnlocked: () => void;
   mode: DesignerMode;
-  onAddBed: (type: BedType) => void;
+  onAddBed: (shape: BedShape) => void;
   onStartDrawingPolygon: () => void;
   onCancelDrawingPolygon: () => void;
   gridSnap: GridSnap;
   onGridSnapChange: (snap: GridSnap) => void;
-  onPickBackgroundFile: (file: File) => void;
-  onClearBackground: () => void;
-  hasBackground: boolean;
-  backgroundOpacity: number;
-  onBackgroundOpacityChange: (opacity: number) => void;
   onFitToScreen: () => void;
-  isSaving: boolean;
 }
 
-const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
+/**
+ * Vertical left-rail toolbar, paint.net style. Each tool is a square
+ * icon button with a tooltip; the small select controls are stacked at
+ * the bottom. On mobile this collapses into a horizontal strip via CSS.
+ */
 export function Toolbar({
   isMobile,
   editUnlocked,
@@ -36,24 +32,10 @@ export function Toolbar({
   onCancelDrawingPolygon,
   gridSnap,
   onGridSnapChange,
-  onPickBackgroundFile,
-  onClearBackground,
-  hasBackground,
-  backgroundOpacity,
-  onBackgroundOpacityChange,
   onFitToScreen,
-  isSaving,
 }: ToolbarProps) {
   const editingBlocked = isMobile && !editUnlocked;
   const drawing = mode === 'drawing-polygon';
-
-  function handleFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type)) return;
-    onPickBackgroundFile(file);
-    event.target.value = '';
-  }
 
   return (
     <div
@@ -62,19 +44,20 @@ export function Toolbar({
       aria-label="Garden designer tools"
     >
       <div className="grn-designer-toolbar__group" role="group" aria-label="Add a bed">
-        {(['raised', 'mound', 'in_ground'] as BedType[]).map((type) => (
+        {BED_SHAPES.map((shape) => (
           <button
-            key={type}
+            key={shape.value}
             type="button"
             className="grn-designer-toolbar__btn"
-            onClick={() => onAddBed(type)}
+            onClick={() => onAddBed(shape.value)}
             disabled={editingBlocked || drawing}
-            title={defaultsFor(type).label}
+            title={shape.hint}
+            aria-label={shape.hint}
           >
             <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
-              {defaultsFor(type).emoji}
+              {shape.emoji}
             </span>
-            <span>{defaultsFor(type).label}</span>
+            <span className="grn-designer-toolbar__btn-label">{shape.label}</span>
           </button>
         ))}
         <button
@@ -82,14 +65,23 @@ export function Toolbar({
           className={`grn-designer-toolbar__btn ${drawing ? 'is-active' : ''}`}
           onClick={drawing ? onCancelDrawingPolygon : onStartDrawingPolygon}
           disabled={editingBlocked}
-          title={drawing ? 'Click to add points, double-click to close. Esc to cancel.' : 'Draw a custom in-ground bed shape'}
+          title={
+            drawing
+              ? 'Click to add points, double-click to close. Esc to cancel.'
+              : 'Draw a custom polygon by clicking points'
+          }
+          aria-label={drawing ? 'Cancel drawing' : 'Draw custom shape'}
         >
           <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">✏️</span>
-          <span>{drawing ? 'Drawing… (esc)' : 'Draw shape'}</span>
+          <span className="grn-designer-toolbar__btn-label">
+            {drawing ? 'Drawing…' : 'Draw shape'}
+          </span>
         </button>
       </div>
 
-      <div className="grn-designer-toolbar__group" role="group" aria-label="Snap and fit">
+      <div className="grn-designer-toolbar__divider" aria-hidden="true" />
+
+      <div className="grn-designer-toolbar__group" role="group" aria-label="View">
         <label className="grn-designer-toolbar__field">
           <span>Snap</span>
           <select
@@ -107,70 +99,34 @@ export function Toolbar({
           className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost"
           onClick={onFitToScreen}
           title="Fit canvas to viewport"
+          aria-label="Fit to screen"
         >
-          Fit
+          <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">🔍</span>
+          <span className="grn-designer-toolbar__btn-label">Fit</span>
         </button>
       </div>
 
-      <div className="grn-designer-toolbar__group" role="group" aria-label="Background">
-        <label className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost">
-          <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">🛰️</span>
-          <span>{hasBackground ? 'Replace photo' : 'Add photo'}</span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleFile}
-            disabled={editingBlocked}
-            hidden
-          />
-        </label>
-        {hasBackground && (
-          <>
-            <label className="grn-designer-toolbar__field">
-              <span>Opacity</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={backgroundOpacity}
-                onChange={(e) => onBackgroundOpacityChange(Number(e.target.value))}
-                disabled={editingBlocked}
-              />
-            </label>
+      {isMobile && (
+        <>
+          <div className="grn-designer-toolbar__divider" aria-hidden="true" />
+          <div className="grn-designer-toolbar__group" role="group" aria-label="Edit lock">
             <button
               type="button"
-              className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost"
-              onClick={onClearBackground}
-              disabled={editingBlocked}
+              className={`grn-designer-toolbar__btn ${editUnlocked ? 'is-active' : ''}`}
+              onClick={onToggleEditUnlocked}
+              title={editUnlocked ? 'Lock layout (read-only mode)' : 'Unlock to edit'}
+              aria-pressed={editUnlocked}
             >
-              Remove photo
+              <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
+                {editUnlocked ? '🔓' : '🔒'}
+              </span>
+              <span className="grn-designer-toolbar__btn-label">
+                {editUnlocked ? 'Editing' : 'Locked'}
+              </span>
             </button>
-          </>
-        )}
-      </div>
-
-      <div className="grn-designer-toolbar__group grn-designer-toolbar__group--end">
-        {isMobile && (
-          <button
-            type="button"
-            className={`grn-designer-toolbar__btn ${editUnlocked ? 'is-active' : ''}`}
-            onClick={onToggleEditUnlocked}
-            title={editUnlocked ? 'Lock layout (read-only mode)' : 'Unlock to edit'}
-          >
-            <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
-              {editUnlocked ? '🔓' : '🔒'}
-            </span>
-            <span>{editUnlocked ? 'Editing' : 'Locked'}</span>
-          </button>
-        )}
-        <span
-          className="grn-designer-toolbar__save-status"
-          aria-live="polite"
-          data-saving={isSaving}
-        >
-          {isSaving ? 'Saving…' : 'Saved'}
-        </span>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   DesignerCanvas,
   type DesignerCanvasHandle,
 } from '../components/GardenDesigner/Canvas';
+import { GardenPropertiesBar } from '../components/GardenDesigner/GardenPropertiesBar';
 import { Toolbar } from '../components/GardenDesigner/Toolbar';
 import { useGardenDesigner } from '../hooks/useGardenDesigner';
 
@@ -38,6 +39,16 @@ export function GardenDesignerPage() {
 
   const inspectorOpen = designer.selectedBed !== undefined;
 
+  async function handlePickBackgroundFile(file: File) {
+    setUploadError(null);
+    try {
+      await designer.uploadBackgroundImage(file);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Background upload failed';
+      setUploadError(message);
+    }
+  }
+
   return (
     <div
       className={`grn-designer-page ${inspectorOpen ? 'has-inspector' : ''} ${
@@ -53,43 +64,23 @@ export function GardenDesignerPage() {
         </div>
         {designer.beds.length === 0 && (
           <p className="grn-designer-page__hint">
-            Start by adding a bed from the toolbar above the canvas.
+            Start by adding a bed from the toolbar on the left.
           </p>
         )}
       </header>
 
-      <Toolbar
-        isMobile={designer.isMobile}
-        editUnlocked={designer.editUnlocked}
-        onToggleEditUnlocked={designer.toggleEditUnlocked}
-        mode={designer.mode}
-        onAddBed={(type) => {
-          void designer.addBed(type);
-        }}
-        onStartDrawingPolygon={() => designer.setMode('drawing-polygon')}
-        onCancelDrawingPolygon={() => designer.setMode('idle')}
-        gridSnap={designer.snap}
-        onGridSnapChange={designer.setSnap}
-        onPickBackgroundFile={async (file) => {
-          setUploadError(null);
-          try {
-            await designer.uploadBackgroundImage(file);
-          } catch (err) {
-            const message = err instanceof Error ? err.message : 'Background upload failed';
-            setUploadError(message);
-          }
-        }}
+      <GardenPropertiesBar
+        canvas={designer.canvas}
+        beds={designer.beds}
+        isEditable={designer.isEditable}
+        isSaving={designer.isSaving}
+        onCanvasChange={designer.patchCanvas}
+        hasBackground={Boolean(designer.canvas.backgroundImageKey)}
+        onPickBackgroundFile={handlePickBackgroundFile}
         onClearBackground={() => {
           setUploadError(null);
           void designer.clearBackgroundImage();
         }}
-        hasBackground={Boolean(designer.canvas.backgroundImageKey)}
-        backgroundOpacity={designer.canvas.backgroundOpacity}
-        onBackgroundOpacityChange={(opacity) =>
-          designer.patchCanvas({ backgroundOpacity: opacity })
-        }
-        onFitToScreen={() => canvasRef.current?.fitToScreen()}
-        isSaving={designer.isSaving}
       />
 
       {uploadError && (
@@ -99,6 +90,21 @@ export function GardenDesignerPage() {
       )}
 
       <div className="grn-designer-page__layout">
+        <Toolbar
+          isMobile={designer.isMobile}
+          editUnlocked={designer.editUnlocked}
+          onToggleEditUnlocked={designer.toggleEditUnlocked}
+          mode={designer.mode}
+          onAddBed={(shape) => {
+            void designer.addBed(shape);
+          }}
+          onStartDrawingPolygon={() => designer.setMode('drawing-polygon')}
+          onCancelDrawingPolygon={() => designer.setMode('idle')}
+          gridSnap={designer.snap}
+          onGridSnapChange={designer.setSnap}
+          onFitToScreen={() => canvasRef.current?.fitToScreen()}
+        />
+
         <DesignerCanvas
           ref={canvasRef}
           canvas={designer.canvas}
@@ -111,6 +117,7 @@ export function GardenDesignerPage() {
           backgroundImageUrl={designer.canvas.backgroundImageUrl}
           onSelect={designer.setSelectedBedId}
           onMoveBed={designer.moveBed}
+          onResizeBed={designer.resizeBed}
           onCommitPolygon={(points) => {
             void designer.commitPolygon(points);
           }}

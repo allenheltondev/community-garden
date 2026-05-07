@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { GardenBed, GrowerCropItem, SunExposure } from '../../types/listing';
+import type { BedType, GardenBed, GrowerCropItem, SunExposure } from '../../types/listing';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
-import { BED_COLOR_PALETTE, BED_TYPE_DESCRIPTIONS, defaultsFor } from './bedDefaults';
+import {
+  BED_COLOR_PALETTE,
+  BED_TYPES,
+  bedAreaSquareInches,
+  bedTypeMeta,
+  formatArea,
+  parseSoilField,
+  serializeSoilField,
+  SOIL_OPTIONS,
+} from './bedDefaults';
 
 interface BedInspectorProps {
   bed: GardenBed;
@@ -42,22 +51,36 @@ export function BedInspector({
   const [length, setLength] = useState<number | ''>(bed.lengthInches ?? '');
   const [width, setWidth] = useState<number | ''>(bed.widthInches ?? '');
   const [sun, setSun] = useState<SunExposure | ''>(bed.sunExposure ?? '');
-  const [soil, setSoil] = useState(bed.soilType ?? '');
+  const [soils, setSoils] = useState<string[]>(parseSoilField(bed.soilType));
   const [notes, setNotes] = useState(bed.locationNotes ?? '');
   const [color, setColor] = useState<string | null>(bed.color);
 
-  const defaults = defaultsFor(bed.bedType);
+  const meta = bedTypeMeta(bed.bedType);
+  const areaSquareInches = bedAreaSquareInches({
+    shape: bed.shape,
+    lengthInches: bed.lengthInches,
+    widthInches: bed.widthInches,
+    points: bed.points,
+  });
 
   function commit(patch: Partial<GardenBed>) {
     if (!isEditable) return;
     onChange(patch);
   }
 
+  function toggleSoil(value: string) {
+    const next = soils.includes(value)
+      ? soils.filter((v) => v !== value)
+      : [...soils, value];
+    setSoils(next);
+    commit({ soilType: serializeSoilField(next) });
+  }
+
   return (
     <aside className="grn-designer-inspector" aria-label={`${bed.name} details`}>
       <header className="grn-designer-inspector__header">
         <div>
-          <span className="grn-designer-inspector__eyebrow">{defaults.emoji} {defaults.label}</span>
+          <span className="grn-designer-inspector__eyebrow">{meta.emoji} {meta.label}</span>
           <h2 className="grn-designer-inspector__title">{name || 'Untitled bed'}</h2>
         </div>
         <button
@@ -71,8 +94,21 @@ export function BedInspector({
       </header>
 
       <p className="grn-designer-inspector__description">
-        {BED_TYPE_DESCRIPTIONS[bed.bedType]}
+        {meta.description}
       </p>
+
+      <div className="grn-designer-inspector__metric-row" aria-label="Bed metrics">
+        <div className="grn-designer-inspector__metric">
+          <span className="grn-designer-inspector__metric-label">Total area</span>
+          <span className="grn-designer-inspector__metric-value">
+            {formatArea(areaSquareInches)}
+          </span>
+        </div>
+        <div className="grn-designer-inspector__metric">
+          <span className="grn-designer-inspector__metric-label">Crops</span>
+          <span className="grn-designer-inspector__metric-value">{cropsForBed.length}</span>
+        </div>
+      </div>
 
       <fieldset className="grn-designer-inspector__fieldset" disabled={!isEditable}>
         <legend>Details</legend>
@@ -86,6 +122,20 @@ export function BedInspector({
             onBlur={() => name.trim() && commit({ name: name.trim() })}
             maxLength={80}
           />
+        </label>
+
+        <label className="grn-designer-inspector__field">
+          <span>Type</span>
+          <select
+            value={bed.bedType}
+            onChange={(e) => commit({ bedType: e.target.value as BedType })}
+          >
+            {BED_TYPES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.emoji} {option.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         {bed.shape !== 'circle' && (
@@ -155,16 +205,26 @@ export function BedInspector({
           </select>
         </label>
 
-        <label className="grn-designer-inspector__field">
-          <span>Soil</span>
-          <input
-            type="text"
-            value={soil}
-            onChange={(e) => setSoil(e.target.value)}
-            onBlur={() => commit({ soilType: soil.trim() || null })}
-            placeholder="e.g. sandy_loam"
-          />
-        </label>
+        <fieldset className="grn-designer-inspector__soil">
+          <legend>Soil</legend>
+          <div className="grn-designer-inspector__soil-grid" role="group" aria-label="Soil types">
+            {SOIL_OPTIONS.map((option) => {
+              const selected = soils.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`grn-designer-inspector__soil-chip ${selected ? 'is-selected' : ''}`}
+                  onClick={() => toggleSoil(option.value)}
+                  aria-pressed={selected}
+                  disabled={!isEditable}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
 
         <label className="grn-designer-inspector__field">
           <span>Location notes</span>

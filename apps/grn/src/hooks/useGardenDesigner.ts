@@ -14,14 +14,14 @@ import {
 } from '../services/api';
 import type {
   BedPolygonPoint,
-  BedType,
+  BedShape,
   GardenBed,
   GardenCanvas,
   GrowerCropItem,
 } from '../types/listing';
 import {
   defaultRectPolygonPoints,
-  defaultsFor,
+  shapeDefaults,
 } from '../components/GardenDesigner/bedDefaults';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
 
@@ -48,9 +48,20 @@ export interface UseGardenDesignerResult {
   toggleEditUnlocked: () => void;
   isEditable: boolean;
   isSaving: boolean;
-  addBed: (type: BedType) => Promise<void>;
+  addBed: (shape: BedShape) => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
+  resizeBed: (
+    bedId: string,
+    next: {
+      positionX: number;
+      positionY: number;
+      lengthInches: number;
+      widthInches: number;
+      rotationDeg: number;
+      points: BedPolygonPoint[] | null;
+    }
+  ) => void;
   patchBed: (bedId: string, patch: Partial<GardenBed>) => void;
   deleteBed: (bedId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
@@ -272,9 +283,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const toggleEditUnlocked = useCallback(() => setEditUnlocked((v) => !v), []);
 
   const addBed = useCallback(
-    async (type: BedType) => {
+    async (shape: BedShape) => {
       if (!isEditable) return;
-      const defaults = defaultsFor(type);
+      const defaults = shapeDefaults(shape);
       const canvas = canvasQuery.data;
       const positionX = canvas
         ? Math.max(0, Math.round((canvas.widthInches - defaults.lengthInches) / 2))
@@ -282,9 +293,11 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       const positionY = canvas
         ? Math.max(0, Math.round((canvas.heightInches - defaults.widthInches) / 2))
         : 12;
+      // New beds default to bed_type='raised' since "raised" is the most
+      // common starting point. Users change it via the inspector.
       const created = await createBedMutation.mutateAsync({
-        name: `${defaults.label} ${beds.length + 1}`,
-        bedType: defaults.bedType,
+        name: `Bed ${beds.length + 1}`,
+        bedType: 'raised',
         shape: defaults.shape,
         lengthInches: defaults.lengthInches,
         widthInches: defaults.widthInches,
@@ -333,6 +346,34 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       const bed = beds.find((b) => b.id === bedId);
       if (!bed) return;
       const payload = bedToUpsertPayload({ ...bed, positionX, positionY });
+      updateBedMutation.mutate({ bedId, payload });
+    },
+    [beds, updateBedMutation]
+  );
+
+  const resizeBed = useCallback(
+    (
+      bedId: string,
+      next: {
+        positionX: number;
+        positionY: number;
+        lengthInches: number;
+        widthInches: number;
+        rotationDeg: number;
+        points: BedPolygonPoint[] | null;
+      }
+    ) => {
+      const bed = beds.find((b) => b.id === bedId);
+      if (!bed) return;
+      const payload = bedToUpsertPayload({
+        ...bed,
+        positionX: next.positionX,
+        positionY: next.positionY,
+        lengthInches: next.lengthInches,
+        widthInches: next.widthInches,
+        rotationDeg: next.rotationDeg,
+        points: next.points,
+      });
       updateBedMutation.mutate({ bedId, payload });
     },
     [beds, updateBedMutation]
@@ -425,6 +466,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     addBed,
     commitPolygon,
     moveBed,
+    resizeBed,
     patchBed,
     deleteBed,
     patchCanvas,
