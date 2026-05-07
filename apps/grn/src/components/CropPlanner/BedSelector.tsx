@@ -110,10 +110,10 @@ export function BedSelector({ beds, isLoading, value, onChange }: BedSelectorPro
             onClick={() => onChange(null)}
             aria-pressed={value === null}
           >
-            <span className="grn-bed-card__emoji" aria-hidden="true">📍</span>
+            <span className="grn-bed-card__emoji" aria-hidden="true">🤔</span>
             <span className="grn-bed-card__body">
-              <strong>No bed yet</strong>
-              <span>Decide later — just track the crop for now</span>
+              <strong>Undecided</strong>
+              <span>I&apos;ll figure out where it&apos;s going later</span>
             </span>
           </button>
           {beds.map((bed) => (
