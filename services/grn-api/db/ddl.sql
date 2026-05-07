@@ -397,6 +397,33 @@ create unique index if not exists idx_crop_zone_suitability_crop_system_null_var
   where variety_id is null;
 
 -- ============================
+-- GARDEN BEDS
+-- ============================
+create table if not exists garden_beds (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  description text,
+  sun_exposure text,
+  soil_type text,
+  length_inches integer,
+  width_inches integer,
+  location_notes text,
+  sort_order integer not null default 0,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint garden_beds_name_not_empty check (length(trim(name)) > 0),
+  constraint garden_beds_length_nonnegative check (length_inches is null or length_inches >= 0),
+  constraint garden_beds_width_nonnegative check (width_inches is null or width_inches >= 0)
+);
+
+create index if not exists idx_garden_beds_user
+  on garden_beds(user_id)
+  where archived_at is null;
+
+-- ============================
 -- GROWER CROP LIBRARY
 -- ============================
 create table if not exists grower_crop_library (
@@ -415,6 +442,13 @@ create table if not exists grower_crop_library (
   default_unit text, -- e.g. "lb", "bunch", "bag", "each"
   notes text,
 
+  -- Planting details (all optional)
+  bed_id uuid references garden_beds(id) on delete set null,
+  planting_date date,
+  expected_harvest_date date,
+  plant_count integer,
+  spacing_inches integer,
+
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
@@ -422,11 +456,22 @@ create table if not exists grower_crop_library (
   constraint grower_crop_library_crop_link_check check (
     (canonical_id is null and crop_name is not null) or  -- user-defined crop
     (canonical_id is not null)                           -- catalog crop (crop_name will be populated from catalog)
-  )
+  ),
+  constraint grower_crop_library_plant_count_positive
+    check (plant_count is null or plant_count > 0),
+  constraint grower_crop_library_spacing_nonnegative
+    check (spacing_inches is null or spacing_inches >= 0),
+  constraint grower_crop_library_harvest_after_planting
+    check (
+      planting_date is null
+      or expected_harvest_date is null
+      or expected_harvest_date >= planting_date
+    )
 );
 
 create index if not exists idx_grower_crop_library_user on grower_crop_library(user_id);
 create index if not exists idx_grower_crop_library_canonical on grower_crop_library(canonical_id) where canonical_id is not null;
+create index if not exists idx_grower_crop_library_bed on grower_crop_library(bed_id) where bed_id is not null;
 
 -- ============================
 -- SURPLUS LISTINGS

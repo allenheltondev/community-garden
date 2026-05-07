@@ -1,6 +1,6 @@
 use crate::handlers::{
-    agent_task, ai_copilot, analytics, billing, catalog, claim, claim_read, crop, feed, listing,
-    listing_discovery, reminder, request, user,
+    agent_task, ai_copilot, analytics, bed, billing, catalog, claim, claim_read, crop, feed,
+    listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -160,6 +160,24 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
+    if request_path == "/beds" {
+        let result = match event.method().as_str() {
+            "GET" => bed::list_my_beds(event, correlation_id).await,
+            "POST" => bed::create_my_bed(event, correlation_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
+    if let Some(bed_id) = request_path.strip_prefix("/beds/") {
+        let result = match event.method().as_str() {
+            "PUT" => bed::update_my_bed(event, correlation_id, bed_id).await,
+            "DELETE" => bed::delete_my_bed(event, correlation_id, bed_id).await,
+            _ => method_not_allowed(),
+        };
+        return handle(result);
+    }
+
     if let Some(listing_id) = request_path.strip_prefix("/my/listings/") {
         let result = match event.method().as_str() {
             "GET" => listing::get_listing(event, correlation_id, listing_id).await,
@@ -278,6 +296,15 @@ fn map_api_error_to_response(
         || message.contains("title is required")
         || message.contains("unit is required")
         || message.contains("crop_name is required")
+        || message.contains("bed name is required")
+        || message.contains("bed name must be")
+        || message.contains("Invalid sunExposure")
+        || message.contains("bed dimensions must be non-negative")
+        || message.contains("bed_id does not reference one of your garden beds")
+        || message.contains("plantingDate must be")
+        || message.contains("expectedHarvestDate must be")
+        || message.contains("plantCount must be")
+        || message.contains("spacingInches must be")
         || message.contains("does not reference an existing catalog crop")
         || message.contains("does not reference an existing grower crop")
         || message.contains("does not match the canonical crop linked to grower_crop_id")

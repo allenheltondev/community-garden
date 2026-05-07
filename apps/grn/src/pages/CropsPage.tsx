@@ -16,7 +16,7 @@ export function CropsPage() {
   if (isLoading) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Grower tools" title="Crop library" />
+        <SectionHeading eyebrow="Grower tools" title="My garden" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading…</p>
@@ -33,8 +33,8 @@ export function CropsPage() {
     <section className="grn-section">
       <SectionHeading
         eyebrow="Grower tools"
-        title="Crop library"
-        body="Track what you grow and prep listings from your library."
+        title="My garden"
+        body="Track what you grow, when it goes in the ground, and where it lives."
       />
       <CropLibraryPanel viewerUserId={profile.id} />
     </section>

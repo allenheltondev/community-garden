@@ -1,6 +1,7 @@
 pub mod agent_task;
 pub mod ai_copilot;
 pub mod analytics;
+pub mod bed;
 pub mod billing;
 pub mod catalog;
 pub mod claim;

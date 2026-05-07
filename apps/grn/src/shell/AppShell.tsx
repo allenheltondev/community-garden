@@ -43,7 +43,7 @@ const growerNavItems: NavItem[] = [
   {
     id: 'crops',
     path: '/crops',
-    label: 'Crop library',
+    label: 'My garden',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path
