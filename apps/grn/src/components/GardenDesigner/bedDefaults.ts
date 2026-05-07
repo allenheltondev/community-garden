@@ -47,10 +47,14 @@ export interface BedShapeMeta {
 
 // Bed *shape* is geometry. Each toolbar button picks a shape and
 // drops a default-sized bed of that geometry onto the canvas.
+//
+// Only Rectangle and Circle are presets — a "polygon preset" would be
+// indistinguishable from a rectangle until per-vertex editing lands.
+// Custom polygons come from the "Draw shape" tool, which is wired up
+// separately in the toolbar.
 export const BED_SHAPES: BedShapeMeta[] = [
   { value: 'rect', label: 'Rectangle', emoji: '▭', hint: 'Add a rectangular bed' },
   { value: 'circle', label: 'Circle', emoji: '◯', hint: 'Add a circular bed' },
-  { value: 'polygon', label: 'Polygon', emoji: '⬟', hint: 'Add a 4-corner polygon bed' },
 ];
 
 export function bedShapeMeta(value: BedShape): BedShapeMeta {

@@ -407,6 +407,50 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [updateCanvasMutation]
   );
 
+  // Keyboard shortcuts:
+  //   Esc           - deselect (when not in drawing-polygon mode; the
+  //                   Canvas owns Esc-to-cancel for that mode)
+  //   Delete /
+  //   Backspace     - prompt for confirmation, then delete the selected
+  //                   bed. Skipped when focus is in a text input/editor
+  //                   so it doesn't fight normal text editing.
+  useEffect(() => {
+    function isEditingText(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      return target.isContentEditable;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (mode === 'drawing-polygon') return;
+      if (isEditingText(event.target)) return;
+
+      if (event.key === 'Escape') {
+        if (selectedBedId !== null) {
+          event.preventDefault();
+          setSelectedBedId(null);
+        }
+        return;
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (!selectedBed || !isEditable) return;
+        event.preventDefault();
+        const label = selectedBed.name.trim() || 'this bed';
+        const confirmed = window.confirm(
+          `Delete "${label}"? This can't be undone.`
+        );
+        if (confirmed) {
+          void deleteBed(selectedBed.id);
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode, selectedBedId, selectedBed, isEditable, deleteBed]);
+
   const uploadBackgroundImage = useCallback(
     async (file: File) => {
       if (!isEditable) return;

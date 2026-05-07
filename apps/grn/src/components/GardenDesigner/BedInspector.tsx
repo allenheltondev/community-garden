@@ -323,6 +323,7 @@ export function BedInspector({
           className="grn-designer-inspector__delete"
           onClick={onDelete}
           disabled={!isEditable}
+          title="Delete bed (Del or Backspace)"
         >
           Delete bed
         </button>
