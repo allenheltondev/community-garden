@@ -7,6 +7,7 @@ pub struct GardenCanvas {
     pub width_inches: i32,
     pub height_inches: i32,
     pub background_image_key: Option<String>,
+    pub background_image_url: Option<String>,
     pub background_opacity: i16,
     pub north_offset_deg: i16,
     pub created_at: String,

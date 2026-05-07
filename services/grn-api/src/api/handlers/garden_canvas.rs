@@ -265,12 +265,17 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
 }
 
 fn row_to_canvas(row: &Row) -> GardenCanvas {
+    let background_image_key: Option<String> = row.get("background_image_key");
+    let background_image_url = background_image_key
+        .as_deref()
+        .and_then(build_background_image_url);
     GardenCanvas {
         id: row.get::<_, Uuid>("id").to_string(),
         user_id: row.get::<_, Uuid>("user_id").to_string(),
         width_inches: row.get("width_inches"),
         height_inches: row.get("height_inches"),
-        background_image_key: row.get("background_image_key"),
+        background_image_key,
+        background_image_url,
         background_opacity: row.get("background_opacity"),
         north_offset_deg: row.get("north_offset_deg"),
         created_at: row
@@ -280,6 +285,16 @@ fn row_to_canvas(row: &Row) -> GardenCanvas {
             .get::<_, chrono::DateTime<chrono::Utc>>("updated_at")
             .to_rfc3339(),
     }
+}
+
+fn build_background_image_url(key: &str) -> Option<String> {
+    let domain = env::var("MEDIA_CDN_DOMAIN").ok()?;
+    let trimmed_domain = domain.trim_end_matches('/');
+    let trimmed_key = key.trim_start_matches('/');
+    if trimmed_domain.is_empty() || trimmed_key.is_empty() {
+        return None;
+    }
+    Some(format!("https://{trimmed_domain}/{trimmed_key}"))
 }
 
 fn json_response<T: Serialize>(

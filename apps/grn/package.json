@@ -15,14 +15,16 @@
     "perf:budget": "node scripts/check-performance-budget.mjs"
   },
   "dependencies": {
-    "@olivias/ui": "file:../../packages/ui",
     "@aws-amplify/ui-react": "^6.15.0",
+    "@olivias/ui": "file:../../packages/ui",
     "@tanstack/react-query": "^5.90.21",
     "@types/uuid": "^10.0.0",
     "aws-amplify": "^6.16.2",
+    "konva": "^9.3.22",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.1",
+    "react-konva": "^19.2.3",
     "react-router-dom": "^7.14.2",
     "uuid": "^13.0.0"
   },
