@@ -1,0 +1,273 @@
+GardenBed:
+  type: object
+  description: |
+    A user-owned garden bed. Includes the descriptive metadata used in the
+    crop-library flow plus geometry/positioning fields used by the garden
+    designer canvas.
+  required:
+    - id
+    - user_id
+    - name
+    - sort_order
+    - bed_type
+    - shape
+    - rotation_deg
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    user_id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    description:
+      type: string
+      nullable: true
+    sun_exposure:
+      type: string
+      nullable: true
+      enum: [full_sun, partial_sun, partial_shade, full_shade, mixed, null]
+    soil_type:
+      type: string
+      nullable: true
+    length_inches:
+      type: integer
+      nullable: true
+    width_inches:
+      type: integer
+      nullable: true
+    location_notes:
+      type: string
+      nullable: true
+    sort_order:
+      type: integer
+    bed_type:
+      type: string
+      enum: [in_ground, raised, mound]
+    shape:
+      type: string
+      enum: [rect, circle, polygon]
+    position_x:
+      type: integer
+      nullable: true
+      description: "Top-left X position on the garden canvas, in inches"
+    position_y:
+      type: integer
+      nullable: true
+      description: "Top-left Y position on the garden canvas, in inches"
+    rotation_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+    points:
+      nullable: true
+      description: |
+        Polygon vertices, required when `shape == "polygon"`. Up to 64
+        entries, each `{ "x": <int>, "y": <int> }` in canvas inches.
+      type: array
+      items:
+        type: object
+        required: [x, y]
+        properties:
+          x:
+            type: integer
+          y:
+            type: integer
+    color:
+      type: string
+      nullable: true
+      pattern: '^#[0-9a-fA-F]{6}$'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+UpsertGardenBedRequest:
+  type: object
+  description: |
+    Create or update a garden bed. Accepts both snake_case and camelCase
+    aliases for compatibility with existing clients (sunExposure, soilType,
+    lengthInches, widthInches, locationNotes, sortOrder, bedType,
+    positionX, positionY, rotationDeg).
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 80
+    description:
+      type: string
+      nullable: true
+    sun_exposure:
+      type: string
+      nullable: true
+      enum: [full_sun, partial_sun, partial_shade, full_shade, mixed, null]
+    soil_type:
+      type: string
+      nullable: true
+    length_inches:
+      type: integer
+      minimum: 0
+      nullable: true
+    width_inches:
+      type: integer
+      minimum: 0
+      nullable: true
+    location_notes:
+      type: string
+      nullable: true
+    sort_order:
+      type: integer
+      nullable: true
+    bed_type:
+      type: string
+      enum: [in_ground, raised, mound]
+      nullable: true
+    shape:
+      type: string
+      enum: [rect, circle, polygon]
+      nullable: true
+    position_x:
+      type: integer
+      nullable: true
+    position_y:
+      type: integer
+      nullable: true
+    rotation_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+      nullable: true
+    points:
+      nullable: true
+      type: array
+      maxItems: 64
+      items:
+        type: object
+        required: [x, y]
+        properties:
+          x:
+            type: integer
+          y:
+            type: integer
+    color:
+      type: string
+      nullable: true
+      pattern: '^#[0-9a-fA-F]{6}$'
+
+GardenCanvas:
+  type: object
+  description: "Per-user designer canvas (single canvas per user in v1)."
+  required:
+    - id
+    - user_id
+    - width_inches
+    - height_inches
+    - background_opacity
+    - north_offset_deg
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    user_id:
+      type: string
+      format: uuid
+    width_inches:
+      type: integer
+      minimum: 12
+      maximum: 12000
+    height_inches:
+      type: integer
+      minimum: 12
+      maximum: 12000
+    background_image_key:
+      type: string
+      nullable: true
+      description: "S3 object key under garden-backgrounds/, or null."
+    background_opacity:
+      type: integer
+      minimum: 0
+      maximum: 100
+    north_offset_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+UpsertGardenCanvasRequest:
+  type: object
+  description: |
+    Update the user's canvas. Any field omitted is left unchanged, except
+    `background_image_key` which is treated as a write-through value:
+    sending null clears the background, sending a valid key sets it.
+  properties:
+    width_inches:
+      type: integer
+      minimum: 12
+      maximum: 12000
+      nullable: true
+    height_inches:
+      type: integer
+      minimum: 12
+      maximum: 12000
+      nullable: true
+    background_image_key:
+      type: string
+      nullable: true
+      description: "S3 object key under garden-backgrounds/, or null to clear."
+    background_opacity:
+      type: integer
+      minimum: 0
+      maximum: 100
+      nullable: true
+    north_offset_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+      nullable: true
+
+BackgroundUploadIntentRequest:
+  type: object
+  required: [contentType, contentLength]
+  properties:
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    contentLength:
+      type: integer
+      minimum: 1
+      maximum: 8388608
+      description: "Size of the file in bytes (max 8 MB)."
+
+BackgroundUploadIntentResponse:
+  type: object
+  required: [upload_url, method, headers, s3_key, expires_in_seconds]
+  properties:
+    upload_url:
+      type: string
+      format: uri
+    method:
+      type: string
+      enum: [PUT]
+    headers:
+      type: object
+      required: [Content-Type]
+      properties:
+        Content-Type:
+          type: string
+    s3_key:
+      type: string
+      description: "Persist this on the canvas via PUT /garden once the upload completes."
+    expires_in_seconds:
+      type: integer

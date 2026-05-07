@@ -1,6 +1,6 @@
 use crate::handlers::{
     agent_task, ai_copilot, analytics, bed, billing, catalog, claim, claim_read, crop, feed,
-    listing, listing_discovery, reminder, request, user,
+    garden_canvas, listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -160,21 +160,7 @@ async fn route_dynamic_routes(
         return handle(result);
     }
 
-    if request_path == "/beds" {
-        let result = match event.method().as_str() {
-            "GET" => bed::list_my_beds(event, correlation_id).await,
-            "POST" => bed::create_my_bed(event, correlation_id).await,
-            _ => method_not_allowed(),
-        };
-        return handle(result);
-    }
-
-    if let Some(bed_id) = request_path.strip_prefix("/beds/") {
-        let result = match event.method().as_str() {
-            "PUT" => bed::update_my_bed(event, correlation_id, bed_id).await,
-            "DELETE" => bed::delete_my_bed(event, correlation_id, bed_id).await,
-            _ => method_not_allowed(),
-        };
+    if let Some(result) = route_garden_designer_request(event, correlation_id, request_path).await {
         return handle(result);
     }
 
@@ -251,6 +237,41 @@ async fn route_dynamic_routes(
         .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
+async fn route_garden_designer_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if request_path == "/garden" {
+        return Some(match event.method().as_str() {
+            "GET" => garden_canvas::get_my_canvas(event, correlation_id).await,
+            "PUT" => garden_canvas::update_my_canvas(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if request_path == "/garden/background-upload-url" {
+        return Some(match event.method().as_str() {
+            "POST" => garden_canvas::create_background_upload_url(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if request_path == "/beds" {
+        return Some(match event.method().as_str() {
+            "GET" => bed::list_my_beds(event, correlation_id).await,
+            "POST" => bed::create_my_bed(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if let Some(bed_id) = request_path.strip_prefix("/beds/") {
+        return Some(match event.method().as_str() {
+            "PUT" => bed::update_my_bed(event, correlation_id, bed_id).await,
+            "DELETE" => bed::delete_my_bed(event, correlation_id, bed_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    None
+}
+
 fn method_not_allowed() -> Result<Response<Body>, lambda_http::Error> {
     Response::builder()
         .status(405)
@@ -269,6 +290,30 @@ fn handle(
             map_api_error_to_response(&error)
         }
     }
+}
+
+fn is_garden_designer_validation_message(message: &str) -> bool {
+    // Bed shape/type/geometry + canvas + presigned-upload validation messages.
+    // Kept here so map_api_error_to_response stays under the clippy
+    // too_many_lines threshold; each contains() check is one phrase that
+    // must round-trip from a handler validation Err to a 400 response.
+    message.contains("Invalid bedType")
+        || message.contains("Invalid bed shape")
+        || message.contains("rotationDeg must be")
+        || message.contains("points is required when shape is polygon")
+        || message.contains("points must be an array")
+        || message.contains("points must contain at least 3 entries")
+        || message.contains("points must contain")
+        || message.contains("each point must")
+        || message.contains("point coordinates must fit")
+        || message.contains("color must be a 7-character hex string")
+        || message.contains("widthInches must be between")
+        || message.contains("heightInches must be between")
+        || message.contains("backgroundOpacity must be")
+        || message.contains("northOffsetDeg must be")
+        || message.contains("backgroundImageKey must")
+        || message.contains("contentType must be one of")
+        || message.contains("contentLength must be")
 }
 
 fn map_api_error_to_response(
@@ -301,6 +346,7 @@ fn map_api_error_to_response(
         || message.contains("Invalid sunExposure")
         || message.contains("bed dimensions must be non-negative")
         || message.contains("bed_id does not reference one of your garden beds")
+        || is_garden_designer_validation_message(&message)
         || message.contains("plantingDate must be")
         || message.contains("expectedHarvestDate must be")
         || message.contains("plantCount must be")
@@ -349,6 +395,7 @@ fn map_api_error_to_response(
         || message.contains("STRIPE_SECRET_KEY")
         || message.contains("STRIPE_PRO_PRICE_ID")
         || message.contains("STRIPE_WEBHOOK_SECRET")
+        || message.contains("MEDIA_BUCKET_NAME")
     {
         return crop::error_response(503, "Service not configured in this environment");
     }

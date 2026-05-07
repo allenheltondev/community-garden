@@ -1,0 +1,175 @@
+/beds:
+  get:
+    tags: [Crop Library, Grower Only, Idempotent]
+    summary: List the current grower's garden beds
+    operationId: listMyBeds
+    responses:
+      '200':
+        description: Garden beds owned by the caller
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/garden.yaml#/GardenBed'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [Crop Library, Grower Only]
+    summary: Create a garden bed
+    operationId: createMyBed
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/UpsertGardenBedRequest'
+    responses:
+      '201':
+        description: Created garden bed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenBed'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/beds/{bedId}:
+  parameters:
+    - in: path
+      name: bedId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  put:
+    tags: [Crop Library, Grower Only]
+    summary: Update a garden bed
+    operationId: updateMyBed
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/UpsertGardenBedRequest'
+    responses:
+      '200':
+        description: Updated garden bed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenBed'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  delete:
+    tags: [Crop Library, Grower Only]
+    summary: Archive (soft-delete) a garden bed
+    operationId: deleteMyBed
+    responses:
+      '204':
+        description: Archived
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/garden:
+  get:
+    tags: [Crop Library, Grower Only, Idempotent]
+    summary: Get the current grower's garden canvas
+    description: |
+      Auto-creates a default canvas (360 in × 240 in, opacity 60) on first
+      access so the designer UI can render immediately without a separate
+      provisioning call.
+    operationId: getMyGardenCanvas
+    responses:
+      '200':
+        description: Canvas
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenCanvas'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  put:
+    tags: [Crop Library, Grower Only]
+    summary: Update the current grower's garden canvas
+    operationId: updateMyGardenCanvas
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/UpsertGardenCanvasRequest'
+    responses:
+      '200':
+        description: Updated canvas
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenCanvas'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/garden/background-upload-url:
+  post:
+    tags: [Crop Library, Grower Only]
+    summary: Issue a presigned PUT URL for a garden background image
+    description: |
+      Returns a 15-minute presigned URL the browser can PUT the image to.
+      The caller persists the returned `s3_key` on the canvas via
+      `PUT /garden` once the upload completes.
+    operationId: createGardenBackgroundUploadUrl
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/BackgroundUploadIntentRequest'
+    responses:
+      '201':
+        description: Presigned upload intent
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/BackgroundUploadIntentResponse'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '503':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
