@@ -27,6 +27,34 @@ export interface GrowerCropItem {
   nickname: string | null;
   defaultUnit: string | null;
   notes: string | null;
+  bedId: string | null;
+  bedName: string | null;
+  plantingDate: string | null;
+  expectedHarvestDate: string | null;
+  plantCount: number | null;
+  spacingInches: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SunExposure =
+  | 'full_sun'
+  | 'partial_sun'
+  | 'partial_shade'
+  | 'full_shade'
+  | 'mixed';
+
+export interface GardenBed {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  sunExposure: SunExposure | null;
+  soilType: string | null;
+  lengthInches: number | null;
+  widthInches: number | null;
+  locationNotes: string | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

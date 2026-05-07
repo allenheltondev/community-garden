@@ -1,17 +1,11 @@
-import { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  listMyCrops,
-  createMyCrop,
-  updateMyCrop,
-  deleteMyCrop,
-  listCatalogCrops,
-} from '../../services/api';
-import type { UpsertGrowerCropRequest } from '../../services/api';
+import { listMyCrops, deleteMyCrop, listMyBeds } from '../../services/api';
 import type { GrowerCropItem } from '../../types/listing';
-import { Button, Card, Input, Select } from '@olivias/ui';
+import { Button, Card } from '@olivias/ui';
 import { createLogger } from '../../utils/logging';
+import { visualForCrop } from '../CropPlanner/cropVisuals';
 
 const logger = createLogger('crop-library');
 
@@ -19,58 +13,58 @@ interface CropLibraryPanelProps {
   viewerUserId?: string;
 }
 
-export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
-  const [isAddingCrop, setIsAddingCrop] = useState(false);
-  const [editingCrop, setEditingCrop] = useState<GrowerCropItem | null>(null);
-  const [formData, setFormData] = useState({
-    cropName: '',
-    canonicalId: '',
-    status: 'interested',
-    visibility: 'local',
-    surplusEnabled: false,
-    nickname: '',
-    defaultUnit: '',
-    notes: '',
-  });
-  void viewerUserId;
+const STATUS_LABELS: Record<string, { label: string; emoji: string; tone: string }> = {
+  interested: { label: 'Interested', emoji: '💭', tone: 'neutral' },
+  planning: { label: 'Planning', emoji: '📋', tone: 'info' },
+  growing: { label: 'Growing', emoji: '🌱', tone: 'success' },
+  paused: { label: 'Paused', emoji: '⏸️', tone: 'muted' },
+};
 
+function formatDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const parsed = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const target = new Date(`${iso}T00:00:00Z`).getTime();
+  if (Number.isNaN(target)) return null;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return Math.round((target - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function harvestProgress(plantingDate: string | null, harvestDate: string | null): number | null {
+  if (!plantingDate || !harvestDate) return null;
+  const start = new Date(`${plantingDate}T00:00:00Z`).getTime();
+  const end = new Date(`${harvestDate}T00:00:00Z`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+  const now = Date.now();
+  if (now <= start) return 0;
+  if (now >= end) return 100;
+  return Math.round(((now - start) / (end - start)) * 100);
+}
+
+export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
+  void viewerUserId;
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<'all' | 'growing' | 'planning' | 'interested'>('all');
 
   const { data: myCrops, isLoading: isLoadingCrops } = useQuery({
     queryKey: ['myCrops'],
     queryFn: listMyCrops,
   });
 
-  const { data: catalogCrops, isLoading: isLoadingCatalog } = useQuery({
-    queryKey: ['catalogCrops'],
-    queryFn: listCatalogCrops,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createMyCrop,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['myCrops'] });
-      resetForm();
-      setIsAddingCrop(false);
-      logger.info('Crop added to library');
-    },
-    onError: (error) => {
-      logger.error('Failed to add crop', error instanceof Error ? error : undefined);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpsertGrowerCropRequest }) =>
-      updateMyCrop(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['myCrops'] });
-      resetForm();
-      setEditingCrop(null);
-      logger.info('Crop updated');
-    },
-    onError: (error) => {
-      logger.error('Failed to update crop', error instanceof Error ? error : undefined);
-    },
+  const { data: beds = [] } = useQuery({
+    queryKey: ['myBeds'],
+    queryFn: listMyBeds,
   });
 
   const deleteMutation = useMutation({
@@ -84,265 +78,215 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      cropName: '',
-      canonicalId: '',
-      status: 'interested',
-      visibility: 'local',
-      surplusEnabled: false,
-      nickname: '',
-      defaultUnit: '',
-      notes: '',
-    });
-  };
+  const filteredCrops = useMemo(() => {
+    if (!myCrops) return [];
+    if (filter === 'all') return myCrops;
+    return myCrops.filter((crop) => crop.status === filter);
+  }, [myCrops, filter]);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-
-    const data: UpsertGrowerCropRequest = {
-      cropName: formData.cropName,
-      canonicalId: formData.canonicalId || undefined,
-      status: formData.status,
-      visibility: formData.visibility,
-      surplusEnabled: formData.surplusEnabled,
-      nickname: formData.nickname || undefined,
-      defaultUnit: formData.defaultUnit || undefined,
-      notes: formData.notes || undefined,
-    };
-
-    if (editingCrop) {
-      updateMutation.mutate({ id: editingCrop.id, data });
-    } else {
-      createMutation.mutate(data);
+  const handleDelete = (crop: GrowerCropItem) => {
+    if (
+      confirm(
+        `Remove "${crop.nickname || crop.cropName}" from your garden? This won't delete any listings already created.`
+      )
+    ) {
+      deleteMutation.mutate(crop.id);
     }
   };
-
-  const handleEdit = (crop: GrowerCropItem) => {
-    setEditingCrop(crop);
-    setFormData({
-      cropName: crop.cropName,
-      canonicalId: crop.canonicalId || '',
-      status: crop.status,
-      visibility: crop.visibility,
-      surplusEnabled: crop.surplusEnabled,
-      nickname: crop.nickname || '',
-      defaultUnit: crop.defaultUnit || '',
-      notes: crop.notes || '',
-    });
-  };
-
-  const handleDelete = (cropId: string) => {
-    if (confirm('Are you sure you want to remove this crop from your library?')) {
-      deleteMutation.mutate(cropId);
-    }
-  };
-
-  const handleCancel = () => {
-    resetForm();
-    setIsAddingCrop(false);
-    setEditingCrop(null);
-  };
-
-  const catalogOptions = catalogCrops?.map(crop => ({
-    value: crop.id,
-    label: crop.commonName,
-  })) || [];
-
-  const getInputValue = (event: ChangeEvent<HTMLInputElement>) => event.target.value;
-
-  const statusOptions = [
-    { value: 'interested', label: 'Interested' },
-    { value: 'planning', label: 'Planning' },
-    { value: 'growing', label: 'Growing' },
-    { value: 'paused', label: 'Paused' },
-  ];
-
-  const visibilityOptions = [
-    { value: 'private', label: 'Private' },
-    { value: 'local', label: 'Local' },
-    { value: 'public', label: 'Public' },
-  ];
 
   if (isLoadingCrops) {
     return (
       <Card>
-        <div className="p-4 text-center">
-          <p className="text-gray-600">Loading your crop library...</p>
+        <div className="grn-page-status">
+          <p>Loading your garden…</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const counts = {
+    all: myCrops?.length ?? 0,
+    growing: myCrops?.filter((c) => c.status === 'growing').length ?? 0,
+    planning: myCrops?.filter((c) => c.status === 'planning').length ?? 0,
+    interested: myCrops?.filter((c) => c.status === 'interested').length ?? 0,
+  };
+
+  if (!myCrops || myCrops.length === 0) {
+    return (
+      <Card padding="6">
+        <div className="grn-crop-empty">
+          <span className="grn-crop-empty__emoji" aria-hidden="true">🌱</span>
+          <h3>Your garden is a blank slate</h3>
+          <p>
+            Add your first crop and start mapping out beds, planting dates, and what you&apos;d like to grow.
+          </p>
+          <Button variant="primary" size="md" onClick={() => navigate('/crops/new')}>
+            Add a crop
+          </Button>
+          {beds.length === 0 ? (
+            <p className="grn-crop-empty__hint">
+              You can also set up garden beds while adding your first crop.
+            </p>
+          ) : null}
         </div>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">My Crop Library</h3>
-          <Button
-            onClick={() => setIsAddingCrop(true)}
-            variant="primary"
-            size="sm"
-            disabled={isAddingCrop || !!editingCrop}
-          >
-            Add Crop
+    <div className="grn-crop-library">
+      <Card padding="6">
+        <div className="grn-crop-library__head">
+          <div>
+            <h3 className="grn-crop-library__title">My garden</h3>
+            <p className="grn-crop-library__subtitle">
+              {counts.all} crop{counts.all === 1 ? '' : 's'} tracked
+              {beds.length ? ` · ${beds.length} bed${beds.length === 1 ? '' : 's'}` : ''}
+            </p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => navigate('/crops/new')}>
+            + Add crop
           </Button>
         </div>
 
-        {(isAddingCrop || editingCrop) && (
-          <form onSubmit={handleSubmit} className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-md font-medium mb-3">
-              {editingCrop ? 'Edit Crop' : 'Add New Crop'}
-            </h4>
+        <div className="grn-crop-library__filters" role="tablist" aria-label="Filter crops by status">
+          {([
+            { id: 'all', label: 'All', count: counts.all },
+            { id: 'growing', label: 'Growing', count: counts.growing },
+            { id: 'planning', label: 'Planning', count: counts.planning },
+            { id: 'interested', label: 'Interested', count: counts.interested },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === tab.id}
+              className={`grn-crop-library__tab ${filter === tab.id ? 'is-active' : ''}`.trim()}
+              onClick={() => setFilter(tab.id)}
+            >
+              <span>{tab.label}</span>
+              <span className="grn-crop-library__tab-count">{tab.count}</span>
+            </button>
+          ))}
+        </div>
 
-            <div className="space-y-4">
-              <Input
-                label="Crop Name"
-                value={formData.cropName}
-                onChange={(event) => setFormData(prev => ({ ...prev, cropName: getInputValue(event) }))}
-                placeholder="e.g., Heirloom Tomatoes, Mystery Squash"
-                required
-              />
+        <div className="grn-crop-grid">
+          {filteredCrops.map((crop) => {
+            const visual = visualForCrop(crop.cropName, null);
+            const status = STATUS_LABELS[crop.status] ?? STATUS_LABELS.interested;
+            const planted = formatDate(crop.plantingDate);
+            const harvest = formatDate(crop.expectedHarvestDate);
+            const harvestIn = daysUntil(crop.expectedHarvestDate);
+            const progress = harvestProgress(crop.plantingDate, crop.expectedHarvestDate);
 
-              <Select
-                label="Link to Catalog Crop (Optional)"
-                value={formData.canonicalId}
-                onChange={(value) => setFormData(prev => ({ ...prev, canonicalId: value }))}
-                options={[
-                  { value: '', label: 'No catalog link (custom crop)' },
-                  ...catalogOptions,
-                ]}
-                disabled={isLoadingCatalog}
-              />
+            return (
+              <article key={crop.id} className="grn-crop-card">
+                <header
+                  className="grn-crop-card__header"
+                  style={{
+                    background: `linear-gradient(135deg, ${visual.accent}33, ${visual.accent}10)`,
+                  }}
+                >
+                  <span className="grn-crop-card__emoji" aria-hidden="true">
+                    {visual.emoji}
+                  </span>
+                  <span className={`grn-crop-card__status grn-crop-card__status--${status.tone}`}>
+                    <span aria-hidden="true">{status.emoji}</span>
+                    {status.label}
+                  </span>
+                </header>
 
-              <Select
-                label="Status"
-                value={formData.status}
-                onChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-                options={statusOptions}
-                required
-              />
+                <div className="grn-crop-card__body">
+                  <h4 className="grn-crop-card__name">
+                    {crop.nickname || crop.cropName}
+                  </h4>
+                  {crop.nickname ? (
+                    <p className="grn-crop-card__subname">{crop.cropName}</p>
+                  ) : null}
 
-              <Select
-                label="Visibility"
-                value={formData.visibility}
-                onChange={(value) => setFormData(prev => ({ ...prev, visibility: value }))}
-                options={visibilityOptions}
-                required
-              />
+                  <ul className="grn-crop-card__facts">
+                    {crop.bedName ? (
+                      <li>
+                        <span aria-hidden="true">🛏️</span>
+                        <span>{crop.bedName}</span>
+                      </li>
+                    ) : null}
+                    {planted ? (
+                      <li>
+                        <span aria-hidden="true">🌱</span>
+                        <span>Planted {planted}</span>
+                      </li>
+                    ) : null}
+                    {harvest ? (
+                      <li>
+                        <span aria-hidden="true">🌾</span>
+                        <span>
+                          Harvest {harvest}
+                          {harvestIn !== null && harvestIn >= 0
+                            ? ` · in ${harvestIn} day${harvestIn === 1 ? '' : 's'}`
+                            : ''}
+                        </span>
+                      </li>
+                    ) : null}
+                    {crop.plantCount ? (
+                      <li>
+                        <span aria-hidden="true">🔢</span>
+                        <span>
+                          {crop.plantCount} plant{crop.plantCount === 1 ? '' : 's'}
+                          {crop.spacingInches ? ` · ${crop.spacingInches}" apart` : ''}
+                        </span>
+                      </li>
+                    ) : null}
+                    {crop.surplusEnabled ? (
+                      <li>
+                        <span aria-hidden="true">🤝</span>
+                        <span>Surplus sharing on</span>
+                      </li>
+                    ) : null}
+                  </ul>
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="surplusEnabled"
-                  checked={formData.surplusEnabled}
-                  onChange={(e) => setFormData(prev => ({ ...prev, surplusEnabled: e.target.checked }))}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                />
-                <label htmlFor="surplusEnabled" className="ml-2 text-sm text-gray-700">
-                  Enable surplus sharing
-                </label>
-              </div>
-
-              <Input
-                label="Nickname (Optional)"
-                value={formData.nickname}
-                onChange={(event) => setFormData(prev => ({ ...prev, nickname: getInputValue(event) }))}
-                placeholder="e.g., Big Boy, Sweet 100s"
-              />
-
-              <Input
-                label="Default Unit (Optional)"
-                value={formData.defaultUnit}
-                onChange={(event) => setFormData(prev => ({ ...prev, defaultUnit: getInputValue(event) }))}
-                placeholder="e.g., lb, bunch, each"
-              />
-
-              <Input
-                label="Notes (Optional)"
-                value={formData.notes}
-                onChange={(event) => setFormData(prev => ({ ...prev, notes: getInputValue(event) }))}
-                placeholder="Any additional notes about this crop"
-              />
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : 'Save'}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleCancel}
-                variant="secondary"
-                size="sm"
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
-
-        <div className="space-y-2">
-          {myCrops?.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No crops in your library yet. Add your first crop above!
-            </p>
-          ) : (
-            myCrops?.map((crop) => (
-              <div
-                key={crop.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">
-                      {crop.nickname || crop.cropName}
-                    </span>
-                    {crop.canonicalId && (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        Catalog
-                      </span>
-                    )}
-                    {!crop.canonicalId && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                        Custom
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Status: {crop.status} • Visibility: {crop.visibility}
-                    {crop.surplusEnabled && ' • Surplus enabled'}
-                  </div>
+                  {progress !== null ? (
+                    <div
+                      className="grn-crop-card__progress"
+                      role="progressbar"
+                      aria-valuenow={progress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="Days planted vs days to harvest"
+                    >
+                      <span
+                        className="grn-crop-card__progress-bar"
+                        style={{ width: `${progress}%`, background: visual.accent }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-                <div className="flex gap-2">
+
+                <footer className="grn-crop-card__footer">
                   <Button
-                    onClick={() => handleEdit(crop)}
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    disabled={isAddingCrop || !!editingCrop}
+                    onClick={() => navigate(`/crops/new?edit=${crop.id}`)}
+                    disabled
+                    title="Editing comes next — for now, remove and re-add"
                   >
                     Edit
                   </Button>
                   <Button
-                    onClick={() => handleDelete(crop.id)}
                     variant="outline"
                     size="sm"
+                    onClick={() => handleDelete(crop)}
                     disabled={deleteMutation.isPending}
-                    className="!border-red-300 !text-red-600 hover:!bg-red-50"
+                    className="grn-crop-card__remove"
                   >
                     Remove
                   </Button>
-                </div>
-              </div>
-            ))
-          )}
+                </footer>
+              </article>
+            );
+          })}
         </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

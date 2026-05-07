@@ -6,9 +6,11 @@ import type {
   CatalogCrop,
   CatalogVariety,
   DiscoverListingsResponse,
+  GardenBed,
   GrowerCropItem,
   Listing,
   ListMyListingsResponse,
+  SunExposure,
   UpsertListingRequest,
 } from '../types/listing';
 import type { RequestItem, UpsertRequestPayload } from '../types/request';
@@ -230,6 +232,27 @@ interface RawGrowerCropItem {
   nickname: string | null;
   default_unit: string | null;
   notes: string | null;
+  bed_id: string | null;
+  bed_name: string | null;
+  planting_date: string | null;
+  expected_harvest_date: string | null;
+  plant_count: number | null;
+  spacing_inches: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RawGardenBed {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  sun_exposure: SunExposure | null;
+  soil_type: string | null;
+  length_inches: number | null;
+  width_inches: number | null;
+  location_notes: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -406,6 +429,29 @@ function mapGrowerCropItem(raw: RawGrowerCropItem): GrowerCropItem {
     nickname: raw.nickname,
     defaultUnit: raw.default_unit,
     notes: raw.notes,
+    bedId: raw.bed_id ?? null,
+    bedName: raw.bed_name ?? null,
+    plantingDate: raw.planting_date ?? null,
+    expectedHarvestDate: raw.expected_harvest_date ?? null,
+    plantCount: raw.plant_count ?? null,
+    spacingInches: raw.spacing_inches ?? null,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function mapGardenBed(raw: RawGardenBed): GardenBed {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    name: raw.name,
+    description: raw.description,
+    sunExposure: raw.sun_exposure,
+    soilType: raw.soil_type,
+    lengthInches: raw.length_inches,
+    widthInches: raw.width_inches,
+    locationNotes: raw.location_notes,
+    sortOrder: raw.sort_order,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -647,6 +693,11 @@ export interface UpsertGrowerCropRequest {
   nickname?: string;
   defaultUnit?: string;
   notes?: string;
+  bedId?: string | null;
+  plantingDate?: string | null;
+  expectedHarvestDate?: string | null;
+  plantCount?: number | null;
+  spacingInches?: number | null;
 }
 
 export async function createMyCrop(data: UpsertGrowerCropRequest): Promise<GrowerCropItem> {
@@ -667,6 +718,44 @@ export async function updateMyCrop(cropId: string, data: UpsertGrowerCropRequest
 
 export async function deleteMyCrop(cropId: string): Promise<void> {
   await apiFetch(`/crops/${cropId}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface UpsertGardenBedRequest {
+  name: string;
+  description?: string | null;
+  sunExposure?: SunExposure | null;
+  soilType?: string | null;
+  lengthInches?: number | null;
+  widthInches?: number | null;
+  locationNotes?: string | null;
+  sortOrder?: number;
+}
+
+export async function listMyBeds(): Promise<GardenBed[]> {
+  const response = await apiFetch<RawGardenBed[]>('/beds');
+  return response.map(mapGardenBed);
+}
+
+export async function createMyBed(data: UpsertGardenBedRequest): Promise<GardenBed> {
+  const response = await apiFetch<RawGardenBed>('/beds', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return mapGardenBed(response);
+}
+
+export async function updateMyBed(bedId: string, data: UpsertGardenBedRequest): Promise<GardenBed> {
+  const response = await apiFetch<RawGardenBed>(`/beds/${bedId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return mapGardenBed(response);
+}
+
+export async function deleteMyBed(bedId: string): Promise<void> {
+  await apiFetch(`/beds/${bedId}`, {
     method: 'DELETE',
   });
 }

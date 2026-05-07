@@ -14,6 +14,12 @@ pub struct GrowerCropItem {
     pub nickname: Option<String>,
     pub default_unit: Option<String>,
     pub notes: Option<String>,
+    pub bed_id: Option<String>,
+    pub bed_name: Option<String>,
+    pub planting_date: Option<String>,
+    pub expected_harvest_date: Option<String>,
+    pub plant_count: Option<i32>,
+    pub spacing_inches: Option<i32>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -34,6 +40,16 @@ pub struct UpsertGrowerCropRequest {
     #[serde(default, alias = "defaultUnit")]
     pub default_unit: Option<String>,
     pub notes: Option<String>,
+    #[serde(default, alias = "bedId")]
+    pub bed_id: Option<String>,
+    #[serde(default, alias = "plantingDate")]
+    pub planting_date: Option<String>,
+    #[serde(default, alias = "expectedHarvestDate")]
+    pub expected_harvest_date: Option<String>,
+    #[serde(default, alias = "plantCount")]
+    pub plant_count: Option<i32>,
+    #[serde(default, alias = "spacingInches")]
+    pub spacing_inches: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
