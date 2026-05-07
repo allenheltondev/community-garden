@@ -1,4 +1,4 @@
-import type Konva from 'konva';
+import Konva from 'konva';
 import {
   forwardRef,
   useCallback,
@@ -8,7 +8,15 @@ import {
   useState,
 } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Circle, Layer, Line, Stage } from 'react-konva';
+import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
+
+// Tighten Konva's click-vs-drag detection. The default of 0px means any
+// pointer jitter on a draggable Group fires a drag instead of a click,
+// which made bed selection flaky: the inspector would briefly appear
+// then disappear because Konva fired both a drag-end (committing a
+// 1-pixel "move") AND a click on the stage, and the latter target ended
+// up being the stage itself rather than the bed.
+Konva.dragDistance = 4;
 import type {
   BedPolygonPoint,
   GardenBed,
@@ -172,14 +180,17 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       return { x: pos.x, y: pos.y };
     }
 
-    function handleStageClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
+    function handleEmptyClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
+      // Fired only when the user clicks the explicit deselect-target rect
+      // (or empty stage). In drawing-polygon mode we add a point;
+      // otherwise we deselect. We deliberately don't gate this on
+      // event.target === stage anymore — a separate transparent Rect at
+      // the bottom of the layer is the deselect target now, which makes
+      // the behaviour deterministic regardless of bubbling order.
       const stage = event.target.getStage();
       if (!stage) return;
-      // Selection: clicking the bare stage (not a bed) deselects.
       if (!drawing) {
-        if (event.target === stage) {
-          onSelect(null);
-        }
+        onSelect(null);
         return;
       }
       const pointer = relativePointer(stage);
@@ -261,8 +272,17 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
             x={position.x}
             y={position.y}
             draggable={!drawing}
-            onClick={handleStageClick}
-            onTap={handleStageClick}
+            onClick={(event) => {
+              // Fallback for clicks outside the world (the gray area
+              // around the canvas). The transparent Rect handles
+              // clicks inside the world.
+              const stage = event.target.getStage();
+              if (stage && event.target === stage) handleEmptyClick(event);
+            }}
+            onTap={(event) => {
+              const stage = event.target.getStage();
+              if (stage && event.target === stage) handleEmptyClick(event);
+            }}
             onDblClick={handleStageDblClick}
             onDblTap={handleStageDblClick}
             onMouseMove={handleStageMouseMove}
@@ -281,6 +301,15 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                 heightInches={canvas.heightInches}
                 pxPerInch={PX_PER_INCH}
                 opacity={canvas.backgroundOpacity}
+              />
+              <Rect
+                x={0}
+                y={0}
+                width={widthPx}
+                height={heightPx}
+                fill="rgba(0,0,0,0)"
+                onClick={handleEmptyClick}
+                onTap={handleEmptyClick}
               />
             </Layer>
             <Layer>

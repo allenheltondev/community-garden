@@ -154,11 +154,14 @@ export function bedAreaSquareInches(args: {
 }): number {
   const { shape, lengthInches, widthInches, points } = args;
   if (shape === 'circle') {
-    const diameter = lengthInches ?? widthInches ?? 0;
-    const radius = diameter / 2;
-    return Math.PI * radius * radius;
+    // Ellipse area: π · a · b where a, b are the semi-axes. Equals
+    // π · r² when the bed is a perfect circle (length === width).
+    const semiA = (lengthInches ?? 0) / 2;
+    const semiB = (widthInches ?? lengthInches ?? 0) / 2;
+    return Math.PI * semiA * semiB;
   }
   if (shape === 'polygon' && points && points.length >= 3) {
+    // Shoelace formula on the polygon's vertex list.
     let sum = 0;
     for (let i = 0; i < points.length; i += 1) {
       const a = points[i];

@@ -1,7 +1,7 @@
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useEffect, useRef } from 'react';
-import { Circle, Group, Line, Rect, Text, Transformer } from 'react-konva';
+import { Ellipse, Group, Line, Rect, Text, Transformer } from 'react-konva';
 import type { BedType, GardenBed, GrowerCropItem } from '../../types/listing';
 import { bedStyleFor } from './bedDefaults';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
@@ -108,22 +108,16 @@ export function BedShape({
     let nextLength = bed.lengthInches ?? 96;
     let nextWidth = bed.widthInches ?? 48;
     let nextPoints: Array<{ x: number; y: number }> | null = bed.points;
-    if (bed.shape === 'circle') {
-      const uniformScale = (scaleX + scaleY) / 2;
-      nextLength = Math.max(MIN_BED_INCHES, Math.round(nextLength * uniformScale));
-      nextWidth = nextLength;
-    } else {
-      nextLength = Math.max(MIN_BED_INCHES, Math.round(nextLength * scaleX));
-      nextWidth = Math.max(MIN_BED_INCHES, Math.round(nextWidth * scaleY));
-      // Polygons store geometry in the `points` array, so we have to bake
-      // the resize into the points themselves — otherwise the polygon
-      // would still render at its original size despite the new bounds.
-      if (bed.shape === 'polygon' && bed.points) {
-        nextPoints = bed.points.map((p) => ({
-          x: Math.round(p.x * scaleX),
-          y: Math.round(p.y * scaleY),
-        }));
-      }
+    nextLength = Math.max(MIN_BED_INCHES, Math.round(nextLength * scaleX));
+    nextWidth = Math.max(MIN_BED_INCHES, Math.round(nextWidth * scaleY));
+    // Polygons store geometry in the `points` array, so we have to bake
+    // the resize into the points themselves — otherwise the polygon
+    // would still render at its original size despite the new bounds.
+    if (bed.shape === 'polygon' && bed.points) {
+      nextPoints = bed.points.map((p) => ({
+        x: Math.round(p.x * scaleX),
+        y: Math.round(p.y * scaleY),
+      }));
     }
     node.scaleX(1);
     node.scaleY(1);
@@ -143,12 +137,16 @@ export function BedShape({
 
   function renderShape() {
     if (bed.shape === 'circle') {
-      const radius = Math.max(widthPx, heightPx) / 2;
+      // Konva.Ellipse with separate radiusX/radiusY so circles can be
+      // oblong. When length === width the ellipse is a perfect circle.
+      const radiusX = widthPx / 2;
+      const radiusY = heightPx / 2;
       return (
-        <Circle
-          x={radius}
-          y={radius}
-          radius={radius}
+        <Ellipse
+          x={radiusX}
+          y={radiusY}
+          radiusX={radiusX}
+          radiusY={radiusY}
           fill={fill}
           stroke={accent}
           strokeWidth={strokeWidth}
@@ -250,12 +248,17 @@ export function BedShape({
       <Transformer
         ref={transformerRef}
         rotateEnabled
-        keepRatio={bed.shape === 'circle'}
-        enabledAnchors={
-          bed.shape === 'circle'
-            ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-            : ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']
-        }
+        keepRatio={false}
+        enabledAnchors={[
+          'top-left',
+          'top-right',
+          'bottom-left',
+          'bottom-right',
+          'middle-left',
+          'middle-right',
+          'top-center',
+          'bottom-center',
+        ]}
         boundBoxFunc={(oldBox, newBox) => {
           // Don't let users shrink a bed below the minimum visible size.
           const minPx = MIN_BED_INCHES * pxPerInch;

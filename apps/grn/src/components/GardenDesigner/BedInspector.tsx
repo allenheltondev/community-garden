@@ -47,13 +47,37 @@ export function BedInspector({
 }: BedInspectorProps) {
   // The parent re-keys this component on bed.id, so initial state is the
   // right snapshot for the current selection without a syncing effect.
+  // Length/width use a draft-on-focus pattern: while the user is typing,
+  // the local draft wins; otherwise the input reads straight from the
+  // bed prop, which means Transformer-driven resize updates are
+  // reflected immediately in the field values.
   const [name, setName] = useState(bed.name);
-  const [length, setLength] = useState<number | ''>(bed.lengthInches ?? '');
-  const [width, setWidth] = useState<number | ''>(bed.widthInches ?? '');
+  const [draftLength, setDraftLength] = useState<string | null>(null);
+  const [draftWidth, setDraftWidth] = useState<string | null>(null);
   const [sun, setSun] = useState<SunExposure | ''>(bed.sunExposure ?? '');
   const [soils, setSoils] = useState<string[]>(parseSoilField(bed.soilType));
   const [notes, setNotes] = useState(bed.locationNotes ?? '');
   const [color, setColor] = useState<string | null>(bed.color);
+
+  const lengthValue = draftLength !== null
+    ? draftLength
+    : bed.lengthInches !== null
+      ? String(bed.lengthInches)
+      : '';
+  const widthValue = draftWidth !== null
+    ? draftWidth
+    : bed.widthInches !== null
+      ? String(bed.widthInches)
+      : '';
+
+  function commitDimension(field: 'lengthInches' | 'widthInches', raw: string) {
+    const trimmed = raw.trim();
+    if (trimmed === '') return;
+    const next = Number(trimmed);
+    if (!Number.isFinite(next) || next < 0) return;
+    if (bed[field] === next) return;
+    commit({ [field]: next } as Partial<GardenBed>);
+  }
 
   const meta = bedTypeMeta(bed.bedType);
   const areaSquareInches = bedAreaSquareInches({
@@ -138,55 +162,40 @@ export function BedInspector({
           </select>
         </label>
 
-        {bed.shape !== 'circle' && (
-          <div className="grn-designer-inspector__row">
-            <label className="grn-designer-inspector__field">
-              <span>Length (in)</span>
-              <input
-                type="number"
-                min={0}
-                value={length}
-                onChange={(e) => setLength(e.target.value === '' ? '' : Number(e.target.value))}
-                onBlur={() =>
-                  typeof length === 'number' &&
-                  length >= 0 &&
-                  commit({ lengthInches: length })
-                }
-              />
-            </label>
-            <label className="grn-designer-inspector__field">
-              <span>Width (in)</span>
-              <input
-                type="number"
-                min={0}
-                value={width}
-                onChange={(e) => setWidth(e.target.value === '' ? '' : Number(e.target.value))}
-                onBlur={() =>
-                  typeof width === 'number' &&
-                  width >= 0 &&
-                  commit({ widthInches: width })
-                }
-              />
-            </label>
-          </div>
-        )}
-
-        {bed.shape === 'circle' && (
+        <div className="grn-designer-inspector__row">
           <label className="grn-designer-inspector__field">
-            <span>Diameter (in)</span>
+            <span>Length (in)</span>
             <input
               type="number"
               min={0}
-              value={length}
-              onChange={(e) => setLength(e.target.value === '' ? '' : Number(e.target.value))}
-              onBlur={() => {
-                if (typeof length === 'number' && length >= 0) {
-                  commit({ lengthInches: length, widthInches: length });
-                }
+              value={lengthValue}
+              onFocus={() =>
+                setDraftLength(bed.lengthInches !== null ? String(bed.lengthInches) : '')
+              }
+              onChange={(e) => setDraftLength(e.target.value)}
+              onBlur={(e) => {
+                commitDimension('lengthInches', e.target.value);
+                setDraftLength(null);
               }}
             />
           </label>
-        )}
+          <label className="grn-designer-inspector__field">
+            <span>Width (in)</span>
+            <input
+              type="number"
+              min={0}
+              value={widthValue}
+              onFocus={() =>
+                setDraftWidth(bed.widthInches !== null ? String(bed.widthInches) : '')
+              }
+              onChange={(e) => setDraftWidth(e.target.value)}
+              onBlur={(e) => {
+                commitDimension('widthInches', e.target.value);
+                setDraftWidth(null);
+              }}
+            />
+          </label>
+        </div>
 
         <label className="grn-designer-inspector__field">
           <span>Sun exposure</span>
