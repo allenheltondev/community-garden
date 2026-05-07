@@ -422,6 +422,13 @@ body {
   text-decoration: none;
 }
 
+.og-site-footer__link--meta {
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .og-site-footer__links-block--legal {
   border-top: 1px solid rgba(255, 250, 241, 0.14);
   padding-top: 0.7rem;
