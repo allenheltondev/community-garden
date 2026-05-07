@@ -1,20 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  createMyAnnotation,
   createMyBed,
+  deleteMyAnnotation,
   deleteMyBed,
   getMyGardenCanvas,
+  listMyAnnotations,
   listMyBeds,
   listMyCrops,
   requestBackgroundUploadUrl,
+  updateMyAnnotation,
   updateMyBed,
   updateMyGardenCanvas,
+  type UpsertGardenAnnotationRequest,
   type UpsertGardenBedRequest,
   type UpsertGardenCanvasRequest,
 } from '../services/api';
 import type {
   BedPolygonPoint,
   BedShape,
+  GardenAnnotation,
   GardenBed,
   GardenCanvas,
   GrowerCropItem,
@@ -23,22 +29,34 @@ import {
   defaultRectPolygonPoints,
   shapeDefaults,
 } from '../components/GardenDesigner/bedDefaults';
+import {
+  ANNOTATION_PRESETS,
+  presetById,
+} from '../components/GardenDesigner/annotationPresets';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
+const ANNOTATIONS_QUERY_KEY = ['my-garden-annotations'];
 const CROPS_QUERY_KEY = ['my-crops'];
+
+export type SelectedItem =
+  | { kind: 'bed'; id: string }
+  | { kind: 'annotation'; id: string }
+  | null;
 
 export interface UseGardenDesignerResult {
   canvas: GardenCanvas | undefined;
   beds: GardenBed[];
+  annotations: GardenAnnotation[];
   crops: GrowerCropItem[];
   cropsByBedId: Map<string, GrowerCropItem[]>;
   isLoading: boolean;
   loadError: Error | null;
-  selectedBedId: string | null;
-  setSelectedBedId: (id: string | null) => void;
+  selected: SelectedItem;
+  setSelected: (next: SelectedItem) => void;
   selectedBed: GardenBed | undefined;
+  selectedAnnotation: GardenAnnotation | undefined;
   mode: DesignerMode;
   setMode: (mode: DesignerMode) => void;
   snap: GridSnap;
@@ -64,6 +82,21 @@ export interface UseGardenDesignerResult {
   ) => void;
   patchBed: (bedId: string, patch: Partial<GardenBed>) => void;
   deleteBed: (bedId: string) => Promise<void>;
+  addAnnotation: (presetId: string) => Promise<void>;
+  moveAnnotation: (annotationId: string, positionX: number, positionY: number) => void;
+  resizeAnnotation: (
+    annotationId: string,
+    next: {
+      positionX: number;
+      positionY: number;
+      lengthInches: number;
+      widthInches: number;
+      rotationDeg: number;
+      points: BedPolygonPoint[] | null;
+    }
+  ) => void;
+  patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
+  deleteAnnotation: (annotationId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
   uploadBackgroundImage: (file: File) => Promise<void>;
   clearBackgroundImage: () => Promise<void>;
@@ -106,6 +139,22 @@ function bedToUpsertPayload(bed: GardenBed): UpsertGardenBedRequest {
   };
 }
 
+function annotationToUpsertPayload(a: GardenAnnotation): UpsertGardenAnnotationRequest {
+  return {
+    label: a.label,
+    icon: a.icon,
+    shape: a.shape,
+    positionX: a.positionX,
+    positionY: a.positionY,
+    lengthInches: a.lengthInches,
+    widthInches: a.widthInches,
+    rotationDeg: a.rotationDeg,
+    points: a.points,
+    color: a.color,
+    sortOrder: a.sortOrder,
+  };
+}
+
 /**
  * Owns all designer state — selection, mode, snap, edit-lock — and wraps
  * react-query mutations for canvas/bed CRUD with optimistic updates.
@@ -117,7 +166,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [editUnlocked, setEditUnlocked] = useState(false);
-  const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SelectedItem>(null);
   const [mode, setMode] = useState<DesignerMode>('idle');
   const [snap, setSnap] = useState<GridSnap>('12');
 
@@ -129,6 +178,11 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const bedsQuery = useQuery({
     queryKey: BEDS_QUERY_KEY,
     queryFn: listMyBeds,
+    staleTime: 30_000,
+  });
+  const annotationsQuery = useQuery({
+    queryKey: ANNOTATIONS_QUERY_KEY,
+    queryFn: listMyAnnotations,
     staleTime: 30_000,
   });
   const cropsQuery = useQuery({
@@ -225,6 +279,84 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     },
   });
 
+  const createAnnotationMutation = useMutation({
+    mutationFn: createMyAnnotation,
+    onMutate: startMutation,
+    onSettled: () => {
+      endMutation();
+      void queryClient.invalidateQueries({ queryKey: ANNOTATIONS_QUERY_KEY });
+    },
+  });
+
+  const updateAnnotationMutation = useMutation({
+    mutationFn: ({
+      annotationId,
+      payload,
+    }: {
+      annotationId: string;
+      payload: UpsertGardenAnnotationRequest;
+    }) => updateMyAnnotation(annotationId, payload),
+    onMutate: ({ annotationId, payload }) => {
+      startMutation();
+      const previous = queryClient.getQueryData<GardenAnnotation[]>(ANNOTATIONS_QUERY_KEY);
+      if (previous) {
+        const next = previous.map((a) =>
+          a.id === annotationId
+            ? {
+                ...a,
+                label: payload.label,
+                icon: payload.icon ?? null,
+                shape: payload.shape ?? a.shape,
+                positionX: payload.positionX ?? null,
+                positionY: payload.positionY ?? null,
+                lengthInches: payload.lengthInches ?? null,
+                widthInches: payload.widthInches ?? null,
+                rotationDeg: payload.rotationDeg ?? a.rotationDeg,
+                points: payload.points ?? null,
+                color: payload.color ?? null,
+                sortOrder: payload.sortOrder ?? a.sortOrder,
+              }
+            : a
+        );
+        queryClient.setQueryData(ANNOTATIONS_QUERY_KEY, next);
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(ANNOTATIONS_QUERY_KEY, context.previous);
+      }
+    },
+    onSettled: () => {
+      endMutation();
+      void queryClient.invalidateQueries({ queryKey: ANNOTATIONS_QUERY_KEY });
+    },
+  });
+
+  const deleteAnnotationMutation = useMutation({
+    mutationFn: deleteMyAnnotation,
+    onMutate: (annotationId) => {
+      startMutation();
+      const previous = queryClient.getQueryData<GardenAnnotation[]>(ANNOTATIONS_QUERY_KEY);
+      if (previous) {
+        queryClient.setQueryData(
+          ANNOTATIONS_QUERY_KEY,
+          previous.filter((a) => a.id !== annotationId)
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(ANNOTATIONS_QUERY_KEY, context.previous);
+      }
+    },
+    onSettled: () => {
+      endMutation();
+      void queryClient.invalidateQueries({ queryKey: ANNOTATIONS_QUERY_KEY });
+    },
+  });
+
   const updateCanvasMutation = useMutation({
     mutationFn: updateMyGardenCanvas,
     onMutate: (payload) => {
@@ -257,6 +389,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   });
 
   const beds = useMemo(() => bedsQuery.data ?? [], [bedsQuery.data]);
+  const annotations = useMemo(
+    () => annotationsQuery.data ?? [],
+    [annotationsQuery.data]
+  );
   const crops = useMemo(() => cropsQuery.data ?? [], [cropsQuery.data]);
 
   const cropsByBedId = useMemo(() => {
@@ -274,8 +410,17 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   }, [crops]);
 
   const selectedBed = useMemo(
-    () => beds.find((b) => b.id === selectedBedId),
-    [beds, selectedBedId]
+    () =>
+      selected?.kind === 'bed' ? beds.find((b) => b.id === selected.id) : undefined,
+    [beds, selected]
+  );
+
+  const selectedAnnotation = useMemo(
+    () =>
+      selected?.kind === 'annotation'
+        ? annotations.find((a) => a.id === selected.id)
+        : undefined,
+    [annotations, selected]
   );
 
   const isEditable = !isMobile || editUnlocked;
@@ -309,7 +454,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
             ? defaultRectPolygonPoints(defaults.lengthInches, defaults.widthInches)
             : null,
       });
-      setSelectedBedId(created.id);
+      setSelected({ kind: 'bed', id: created.id });
     },
     [beds.length, canvasQuery.data, createBedMutation, isEditable]
   );
@@ -335,7 +480,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         rotationDeg: 0,
         points: normalized,
       });
-      setSelectedBedId(created.id);
+      setSelected({ kind: 'bed', id: created.id });
       setMode('idle');
     },
     [beds.length, createBedMutation, isEditable]
@@ -393,11 +538,105 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     async (bedId: string) => {
       if (!isEditable) return;
       await deleteBedMutation.mutateAsync(bedId);
-      if (selectedBedId === bedId) {
-        setSelectedBedId(null);
+      if (selected?.kind === 'bed' && selected.id === bedId) {
+        setSelected(null);
       }
     },
-    [deleteBedMutation, isEditable, selectedBedId]
+    [deleteBedMutation, isEditable, selected]
+  );
+
+  const addAnnotation = useCallback(
+    async (presetId: string) => {
+      if (!isEditable) return;
+      const preset = presetById(presetId) ?? ANNOTATION_PRESETS[ANNOTATION_PRESETS.length - 1];
+      const canvasData = canvasQuery.data;
+      const positionX = canvasData
+        ? Math.max(0, Math.round((canvasData.widthInches - preset.defaultLength) / 2))
+        : 12;
+      const positionY = canvasData
+        ? Math.max(0, Math.round((canvasData.heightInches - preset.defaultWidth) / 2))
+        : 12;
+      const points = preset.buildPoints
+        ? preset.buildPoints(preset.defaultLength, preset.defaultWidth)
+        : null;
+      const created = await createAnnotationMutation.mutateAsync({
+        label: preset.label,
+        icon: preset.icon,
+        shape: preset.shape,
+        lengthInches: preset.defaultLength,
+        widthInches: preset.defaultWidth,
+        positionX,
+        positionY,
+        rotationDeg: 0,
+        color: preset.defaultColor,
+        points,
+      });
+      setSelected({ kind: 'annotation', id: created.id });
+    },
+    [canvasQuery.data, createAnnotationMutation, isEditable]
+  );
+
+  const moveAnnotation = useCallback(
+    (annotationId: string, positionX: number, positionY: number) => {
+      const annotation = annotations.find((a) => a.id === annotationId);
+      if (!annotation) return;
+      const payload = annotationToUpsertPayload({
+        ...annotation,
+        positionX,
+        positionY,
+      });
+      updateAnnotationMutation.mutate({ annotationId, payload });
+    },
+    [annotations, updateAnnotationMutation]
+  );
+
+  const resizeAnnotation = useCallback(
+    (
+      annotationId: string,
+      next: {
+        positionX: number;
+        positionY: number;
+        lengthInches: number;
+        widthInches: number;
+        rotationDeg: number;
+        points: BedPolygonPoint[] | null;
+      }
+    ) => {
+      const annotation = annotations.find((a) => a.id === annotationId);
+      if (!annotation) return;
+      const payload = annotationToUpsertPayload({
+        ...annotation,
+        positionX: next.positionX,
+        positionY: next.positionY,
+        lengthInches: next.lengthInches,
+        widthInches: next.widthInches,
+        rotationDeg: next.rotationDeg,
+        points: next.points,
+      });
+      updateAnnotationMutation.mutate({ annotationId, payload });
+    },
+    [annotations, updateAnnotationMutation]
+  );
+
+  const patchAnnotation = useCallback(
+    (annotationId: string, patch: Partial<GardenAnnotation>) => {
+      const annotation = annotations.find((a) => a.id === annotationId);
+      if (!annotation) return;
+      const payload = annotationToUpsertPayload({ ...annotation, ...patch });
+      updateAnnotationMutation.mutate({ annotationId, payload });
+    },
+    [annotations, updateAnnotationMutation]
+  );
+
+  const deleteAnnotation = useCallback(
+    async (annotationId: string) => {
+      if (!isEditable) return;
+      await deleteAnnotationMutation.mutateAsync(annotationId);
+      if (selected?.kind === 'annotation' && selected.id === annotationId) {
+        setSelected(null);
+      }
+    },
+    [deleteAnnotationMutation, isEditable, selected]
   );
 
   const patchCanvas = useCallback(
@@ -412,8 +651,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   //                   Canvas owns Esc-to-cancel for that mode)
   //   Delete /
   //   Backspace     - prompt for confirmation, then delete the selected
-  //                   bed. Skipped when focus is in a text input/editor
-  //                   so it doesn't fight normal text editing.
+  //                   bed or annotation. Skipped when focus is in a text
+  //                   input/editor so it doesn't fight normal text editing.
   useEffect(() => {
     function isEditingText(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) return false;
@@ -427,29 +666,34 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       if (isEditingText(event.target)) return;
 
       if (event.key === 'Escape') {
-        if (selectedBedId !== null) {
+        if (selected !== null) {
           event.preventDefault();
-          setSelectedBedId(null);
+          setSelected(null);
         }
         return;
       }
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (!selectedBed || !isEditable) return;
-        event.preventDefault();
-        const label = selectedBed.name.trim() || 'this bed';
-        const confirmed = window.confirm(
-          `Delete "${label}"? This can't be undone.`
-        );
-        if (confirmed) {
-          void deleteBed(selectedBed.id);
+        if (!isEditable || !selected) return;
+        if (selected.kind === 'bed' && selectedBed) {
+          event.preventDefault();
+          const label = selectedBed.name.trim() || 'this bed';
+          if (window.confirm(`Delete "${label}"? This can't be undone.`)) {
+            void deleteBed(selectedBed.id);
+          }
+        } else if (selected.kind === 'annotation' && selectedAnnotation) {
+          event.preventDefault();
+          const label = selectedAnnotation.label.trim() || 'this annotation';
+          if (window.confirm(`Delete "${label}"? This can't be undone.`)) {
+            void deleteAnnotation(selectedAnnotation.id);
+          }
         }
       }
     }
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mode, selectedBedId, selectedBed, isEditable, deleteBed]);
+  }, [mode, selected, selectedBed, selectedAnnotation, isEditable, deleteBed, deleteAnnotation]);
 
   const uploadBackgroundImage = useCallback(
     async (file: File) => {
@@ -488,16 +732,20 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   return {
     canvas: canvasQuery.data,
     beds,
+    annotations,
     crops,
     cropsByBedId,
-    isLoading: canvasQuery.isLoading || bedsQuery.isLoading,
+    isLoading:
+      canvasQuery.isLoading || bedsQuery.isLoading || annotationsQuery.isLoading,
     loadError:
       (canvasQuery.error as Error | null) ??
       (bedsQuery.error as Error | null) ??
+      (annotationsQuery.error as Error | null) ??
       null,
-    selectedBedId,
-    setSelectedBedId,
+    selected,
+    setSelected,
     selectedBed,
+    selectedAnnotation,
     mode,
     setMode,
     snap,
@@ -513,6 +761,11 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     resizeBed,
     patchBed,
     deleteBed,
+    addAnnotation,
+    moveAnnotation,
+    resizeAnnotation,
+    patchAnnotation,
+    deleteAnnotation,
     patchCanvas,
     uploadBackgroundImage,
     clearBackgroundImage,

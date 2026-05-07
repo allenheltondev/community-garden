@@ -143,6 +143,103 @@
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
 
+/annotations:
+  get:
+    tags: [Crop Library, Grower Only, Idempotent]
+    summary: List the current grower's garden annotations
+    operationId: listMyAnnotations
+    responses:
+      '200':
+        description: Garden annotations owned by the caller
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../schemas/garden.yaml#/GardenAnnotation'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [Crop Library, Grower Only]
+    summary: Create a garden annotation
+    operationId: createMyAnnotation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/UpsertGardenAnnotationRequest'
+    responses:
+      '201':
+        description: Created annotation
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenAnnotation'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/annotations/{annotationId}:
+  parameters:
+    - in: path
+      name: annotationId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  put:
+    tags: [Crop Library, Grower Only]
+    summary: Update a garden annotation
+    operationId: updateMyAnnotation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/garden.yaml#/UpsertGardenAnnotationRequest'
+    responses:
+      '200':
+        description: Updated annotation
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenAnnotation'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  delete:
+    tags: [Crop Library, Grower Only]
+    summary: Archive (soft-delete) a garden annotation
+    operationId: deleteMyAnnotation
+    responses:
+      '204':
+        description: Archived
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
 /garden/background-upload-url:
   post:
     tags: [Crop Library, Grower Only]

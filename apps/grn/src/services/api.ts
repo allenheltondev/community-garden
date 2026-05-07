@@ -3,12 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { getApiEndpoint } from '../config/amplify';
 import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../types/user';
 import type {
+  AnnotationShape,
   BedPolygonPoint,
   BedShape,
   BedType,
   CatalogCrop,
   CatalogVariety,
   DiscoverListingsResponse,
+  GardenAnnotation,
   GardenBed,
   GardenCanvas,
   GrowerCropItem,
@@ -289,6 +291,24 @@ interface RawGardenCanvas {
   updated_at: string;
 }
 
+interface RawGardenAnnotation {
+  id: string;
+  user_id: string;
+  label: string;
+  icon: string | null;
+  shape: AnnotationShape;
+  position_x: number | null;
+  position_y: number | null;
+  length_inches: number | null;
+  width_inches: number | null;
+  rotation_deg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 interface RawBackgroundUploadIntentResponse {
   upload_url: string;
   method: string;
@@ -499,6 +519,26 @@ function mapGardenBed(raw: RawGardenBed): GardenBed {
     rotationDeg: raw.rotation_deg,
     points: raw.points,
     color: raw.color,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function mapGardenAnnotation(raw: RawGardenAnnotation): GardenAnnotation {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    label: raw.label,
+    icon: raw.icon,
+    shape: raw.shape,
+    positionX: raw.position_x,
+    positionY: raw.position_y,
+    lengthInches: raw.length_inches,
+    widthInches: raw.width_inches,
+    rotationDeg: raw.rotation_deg,
+    points: raw.points,
+    color: raw.color,
+    sortOrder: raw.sort_order,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -846,6 +886,55 @@ export async function updateMyBed(bedId: string, data: UpsertGardenBedRequest): 
 
 export async function deleteMyBed(bedId: string): Promise<void> {
   await apiFetch(`/beds/${bedId}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface UpsertGardenAnnotationRequest {
+  label: string;
+  icon?: string | null;
+  shape?: AnnotationShape;
+  positionX?: number | null;
+  positionY?: number | null;
+  lengthInches?: number | null;
+  widthInches?: number | null;
+  rotationDeg?: number;
+  points?: BedPolygonPoint[] | null;
+  color?: string | null;
+  sortOrder?: number;
+}
+
+export async function listMyAnnotations(): Promise<GardenAnnotation[]> {
+  const response = await apiFetch<RawGardenAnnotation[]>('/annotations');
+  return response.map(mapGardenAnnotation);
+}
+
+export async function createMyAnnotation(
+  data: UpsertGardenAnnotationRequest
+): Promise<GardenAnnotation> {
+  const response = await apiFetch<RawGardenAnnotation>('/annotations', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return mapGardenAnnotation(response);
+}
+
+export async function updateMyAnnotation(
+  annotationId: string,
+  data: UpsertGardenAnnotationRequest
+): Promise<GardenAnnotation> {
+  const response = await apiFetch<RawGardenAnnotation>(
+    `/annotations/${annotationId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }
+  );
+  return mapGardenAnnotation(response);
+}
+
+export async function deleteMyAnnotation(annotationId: string): Promise<void> {
+  await apiFetch(`/annotations/${annotationId}`, {
     method: 'DELETE',
   });
 }

@@ -1,11 +1,12 @@
 import type { ChangeEvent } from 'react';
 import { useState } from 'react';
-import type { GardenBed, GardenCanvas } from '../../types/listing';
+import type { GardenAnnotation, GardenBed, GardenCanvas } from '../../types/listing';
 import { bedAreaSquareInches, formatArea } from './bedDefaults';
 
 interface GardenPropertiesBarProps {
   canvas: GardenCanvas;
   beds: GardenBed[];
+  annotations: GardenAnnotation[];
   isEditable: boolean;
   isSaving: boolean;
   onCanvasChange: (patch: {
@@ -58,6 +59,7 @@ function formatFeetFromInches(inches: number): string {
 export function GardenPropertiesBar({
   canvas,
   beds,
+  annotations,
   isEditable,
   isSaving,
   onCanvasChange,
@@ -155,6 +157,10 @@ export function GardenPropertiesBar({
         <div className="grn-garden-properties__metric">
           <span className="grn-garden-properties__metric-label">Beds</span>
           <span className="grn-garden-properties__metric-value">{beds.length}</span>
+        </div>
+        <div className="grn-garden-properties__metric">
+          <span className="grn-garden-properties__metric-label">Annotations</span>
+          <span className="grn-garden-properties__metric-value">{annotations.length}</span>
         </div>
         <div className="grn-garden-properties__metric">
           <span className="grn-garden-properties__metric-label">Growable area</span>

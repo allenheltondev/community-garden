@@ -1,4 +1,5 @@
 import type { BedShape } from '../../types/listing';
+import { ANNOTATION_PRESETS } from './annotationPresets';
 import { BED_SHAPES } from './bedDefaults';
 
 export type DesignerMode = 'idle' | 'drawing-polygon';
@@ -10,6 +11,7 @@ interface ToolbarProps {
   onToggleEditUnlocked: () => void;
   mode: DesignerMode;
   onAddBed: (shape: BedShape) => void;
+  onAddAnnotation: (presetId: string) => void;
   onStartDrawingPolygon: () => void;
   onCancelDrawingPolygon: () => void;
   gridSnap: GridSnap;
@@ -28,6 +30,7 @@ export function Toolbar({
   onToggleEditUnlocked,
   mode,
   onAddBed,
+  onAddAnnotation,
   onStartDrawingPolygon,
   onCancelDrawingPolygon,
   gridSnap,
@@ -77,6 +80,27 @@ export function Toolbar({
             {drawing ? 'Drawing…' : 'Draw shape'}
           </span>
         </button>
+      </div>
+
+      <div className="grn-designer-toolbar__divider" aria-hidden="true" />
+
+      <div className="grn-designer-toolbar__group" role="group" aria-label="Add an annotation">
+        {ANNOTATION_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="grn-designer-toolbar__btn"
+            onClick={() => onAddAnnotation(preset.id)}
+            disabled={editingBlocked || drawing}
+            title={preset.description}
+            aria-label={preset.description}
+          >
+            <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
+              {preset.icon}
+            </span>
+            <span className="grn-designer-toolbar__btn-label">{preset.label}</span>
+          </button>
+        ))}
       </div>
 
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />

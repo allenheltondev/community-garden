@@ -258,6 +258,136 @@ BackgroundUploadIntentRequest:
       maximum: 8388608
       description: "Size of the file in bytes (max 8 MB)."
 
+GardenAnnotation:
+  type: object
+  description: |
+    A non-bed object on the garden designer canvas: trees, ponds, sheds,
+    paths, fences, or generic landmarks. Annotations are visual context
+    only — they don't carry soil, crops, or LLM-input data.
+  required:
+    - id
+    - user_id
+    - label
+    - shape
+    - rotation_deg
+    - sort_order
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    user_id:
+      type: string
+      format: uuid
+    label:
+      type: string
+      maxLength: 80
+    icon:
+      type: string
+      nullable: true
+      description: "Emoji or short icon key (≤32 chars)."
+    shape:
+      type: string
+      enum: [rect, circle, polygon, line]
+    position_x:
+      type: integer
+      nullable: true
+    position_y:
+      type: integer
+      nullable: true
+    length_inches:
+      type: integer
+      nullable: true
+      minimum: 0
+    width_inches:
+      type: integer
+      nullable: true
+      minimum: 0
+    rotation_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+    points:
+      nullable: true
+      description: |
+        Vertices in canvas inches relative to (position_x, position_y).
+        Required for shape=polygon (≥3) and shape=line (≥2).
+      type: array
+      items:
+        type: object
+        required: [x, y]
+        properties:
+          x:
+            type: integer
+          y:
+            type: integer
+    color:
+      type: string
+      nullable: true
+      pattern: '^#[0-9a-fA-F]{6}$'
+    sort_order:
+      type: integer
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+UpsertGardenAnnotationRequest:
+  type: object
+  required: [label]
+  properties:
+    label:
+      type: string
+      maxLength: 80
+    icon:
+      type: string
+      nullable: true
+    shape:
+      type: string
+      enum: [rect, circle, polygon, line]
+      nullable: true
+    position_x:
+      type: integer
+      nullable: true
+    position_y:
+      type: integer
+      nullable: true
+    length_inches:
+      type: integer
+      minimum: 0
+      nullable: true
+    width_inches:
+      type: integer
+      minimum: 0
+      nullable: true
+    rotation_deg:
+      type: integer
+      minimum: -360
+      maximum: 360
+      nullable: true
+    points:
+      nullable: true
+      type: array
+      maxItems: 64
+      items:
+        type: object
+        required: [x, y]
+        properties:
+          x:
+            type: integer
+          y:
+            type: integer
+    color:
+      type: string
+      nullable: true
+      pattern: '^#[0-9a-fA-F]{6}$'
+    sort_order:
+      type: integer
+      nullable: true
+
 BackgroundUploadIntentResponse:
   type: object
   required: [upload_url, method, headers, s3_key, expires_in_seconds]

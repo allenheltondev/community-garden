@@ -87,6 +87,26 @@ export interface GardenCanvas {
   updatedAt: string;
 }
 
+export type AnnotationShape = 'rect' | 'circle' | 'polygon' | 'line';
+
+export interface GardenAnnotation {
+  id: string;
+  userId: string;
+  label: string;
+  icon: string | null;
+  shape: AnnotationShape;
+  positionX: number | null;
+  positionY: number | null;
+  lengthInches: number | null;
+  widthInches: number | null;
+  rotationDeg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Listing {
   id: string;
   userId: string;

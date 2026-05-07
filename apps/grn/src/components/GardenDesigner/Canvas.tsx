@@ -19,28 +19,44 @@ import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
 Konva.dragDistance = 4;
 import type {
   BedPolygonPoint,
+  GardenAnnotation,
   GardenBed,
   GardenCanvas,
   GrowerCropItem,
 } from '../../types/listing';
+import { AnnotationShape } from './AnnotationShape';
 import { BackgroundLayer } from './BackgroundLayer';
 import { BedShape } from './BedShape';
 import { Grid } from './Grid';
+import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
 
 interface DesignerCanvasProps {
   canvas: GardenCanvas;
   beds: GardenBed[];
+  annotations: GardenAnnotation[];
   cropsByBedId: Map<string, GrowerCropItem[]>;
-  selectedBedId: string | null;
+  selected: SelectedItem;
   isEditable: boolean;
   mode: DesignerMode;
   snap: GridSnap;
   backgroundImageUrl: string | null;
-  onSelect: (bedId: string | null) => void;
+  onSelect: (next: SelectedItem) => void;
   onMoveBed: (bedId: string, positionX: number, positionY: number) => void;
   onResizeBed: (
     bedId: string,
+    next: {
+      positionX: number;
+      positionY: number;
+      lengthInches: number;
+      widthInches: number;
+      rotationDeg: number;
+      points: BedPolygonPoint[] | null;
+    }
+  ) => void;
+  onMoveAnnotation: (annotationId: string, positionX: number, positionY: number) => void;
+  onResizeAnnotation: (
+    annotationId: string,
     next: {
       positionX: number;
       positionY: number;
@@ -82,8 +98,9 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     {
       canvas,
       beds,
+      annotations,
       cropsByBedId,
-      selectedBedId,
+      selected,
       isEditable,
       mode,
       snap,
@@ -91,6 +108,8 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       onSelect,
       onMoveBed,
       onResizeBed,
+      onMoveAnnotation,
+      onResizeAnnotation,
       onCommitPolygon,
       onCancelPolygon,
     },
@@ -313,15 +332,29 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
               />
             </Layer>
             <Layer>
+              {annotations.map((annotation) => (
+                <AnnotationShape
+                  key={annotation.id}
+                  annotation={annotation}
+                  pxPerInch={PX_PER_INCH}
+                  isSelected={
+                    selected?.kind === 'annotation' && selected.id === annotation.id
+                  }
+                  isEditable={isEditable && !drawing}
+                  onSelect={(id) => onSelect({ kind: 'annotation', id })}
+                  onMove={onMoveAnnotation}
+                  onResize={onResizeAnnotation}
+                />
+              ))}
               {beds.map((bed) => (
                 <BedShape
                   key={bed.id}
                   bed={bed}
                   pxPerInch={PX_PER_INCH}
-                  isSelected={selectedBedId === bed.id}
+                  isSelected={selected?.kind === 'bed' && selected.id === bed.id}
                   isEditable={isEditable && !drawing}
                   crops={cropsByBedId.get(bed.id) ?? []}
-                  onSelect={onSelect}
+                  onSelect={(id) => onSelect({ kind: 'bed', id })}
                   onMove={handleBedMove}
                   onResize={onResizeBed}
                 />
