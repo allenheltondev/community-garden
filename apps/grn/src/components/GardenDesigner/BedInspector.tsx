@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import type { BedType, GardenBed, GrowerCropItem, SunExposure } from '../../types/listing';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { AddCropModal } from './AddCropModal';
 import {
   BED_COLOR_PALETTE,
   BED_TYPES,
@@ -58,6 +58,7 @@ export function BedInspector({
   const [soils, setSoils] = useState<string[]>(parseSoilField(bed.soilType));
   const [notes, setNotes] = useState(bed.locationNotes ?? '');
   const [color, setColor] = useState<string | null>(bed.color);
+  const [addCropOpen, setAddCropOpen] = useState(false);
 
   const lengthValue = draftLength !== null
     ? draftLength
@@ -282,9 +283,14 @@ export function BedInspector({
       <section className="grn-designer-inspector__crops" aria-label="Crops in this bed">
         <header className="grn-designer-inspector__crops-header">
           <h3>Crops</h3>
-          <Link to={`/crops/new?bedId=${bed.id}`} className="grn-designer-inspector__add-crop">
+          <button
+            type="button"
+            className="grn-designer-inspector__add-crop"
+            onClick={() => setAddCropOpen(true)}
+            disabled={!isEditable}
+          >
             + Add crop
-          </Link>
+          </button>
         </header>
         {cropsForBed.length === 0 ? (
           <p className="grn-designer-inspector__empty">
@@ -328,6 +334,7 @@ export function BedInspector({
           Delete bed
         </button>
       </footer>
+      <AddCropModal bed={bed} open={addCropOpen} onClose={() => setAddCropOpen(false)} />
     </aside>
   );
 }

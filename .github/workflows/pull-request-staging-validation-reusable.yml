@@ -421,7 +421,13 @@ jobs:
     name: Deploy GRN Staging Backend
     runs-on: ubuntu-latest
     needs: [deploy-staging-foundation]
-    if: inputs.shared_all == 'true' || inputs.grn_backend == 'true'
+    # Also runs when only the frontend changed: the frontend deploy job
+    # below pulls its target S3 bucket and CloudFront distribution from
+    # this job's outputs, so skipping the backend on a pure-frontend PR
+    # would silently skip the frontend deploy too. The SAM update is a
+    # no-op when no backend artifacts changed, so the cost is small.
+    # (admin/store backends already use the same pattern below.)
+    if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true'
     environment:
       name: staging
     env:

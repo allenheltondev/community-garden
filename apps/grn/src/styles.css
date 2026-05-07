@@ -2099,15 +2099,26 @@ body {
 }
 
 .grn-designer-inspector__add-crop {
+  font: inherit;
   font-size: 0.85rem;
   color: var(--og-color-moss);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   text-decoration: none;
   font-weight: 500;
 }
 
-.grn-designer-inspector__add-crop:hover,
+.grn-designer-inspector__add-crop:hover:not(:disabled),
 .grn-designer-inspector__add-crop:focus-visible {
   text-decoration: underline;
+  outline: none;
+}
+
+.grn-designer-inspector__add-crop:disabled {
+  color: rgba(79, 56, 37, 0.4);
+  cursor: not-allowed;
 }
 
 .grn-designer-inspector__empty {
@@ -2189,4 +2200,104 @@ body {
 
 .grn-page-status__error {
   color: #8b1f1a;
+}
+
+/* ==========================================================================
+   Modal (native <dialog>)
+   ========================================================================== */
+
+.grn-modal {
+  border: none;
+  padding: 0;
+  border-radius: var(--og-radius-md);
+  background: var(--og-color-paper);
+  color: var(--og-color-ink);
+  box-shadow: 0 24px 60px rgba(38, 23, 15, 0.28);
+  width: min(92vw, 720px);
+  max-height: min(88vh, 880px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.grn-modal--md {
+  width: min(88vw, 480px);
+}
+
+.grn-modal::backdrop {
+  background: rgba(38, 23, 15, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.grn-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(91, 58, 28, 0.1);
+}
+
+.grn-modal__title-block {
+  min-width: 0;
+}
+
+.grn-modal__title {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 1.15rem;
+  color: var(--og-color-soil);
+}
+
+.grn-modal__subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.grn-modal__close {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(91, 58, 28, 0.18);
+  background: transparent;
+  color: var(--og-color-soil);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.grn-modal__close:hover,
+.grn-modal__close:focus-visible {
+  background: rgba(91, 58, 28, 0.08);
+  outline: none;
+}
+
+.grn-modal__body {
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* The CropForm uses its own card-stack layout; rein in the outer
+   gap so the form sits naturally inside the modal's body padding. */
+.grn-modal__body .grn-new-crop__form {
+  gap: 1rem;
+}
+
+/* ==========================================================================
+   Locked bed indicator (shown in CropForm when bed selector is hidden)
+   ========================================================================== */
+
+.grn-new-crop__locked-bed {
+  margin: 0.85rem 0 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--og-radius-sm);
+  background: rgba(91, 140, 74, 0.1);
+  color: var(--og-color-moss);
+  font-size: 0.9rem;
+}
+
+.grn-new-crop__locked-bed strong {
+  color: var(--og-color-soil);
 }
