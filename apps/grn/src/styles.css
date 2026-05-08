@@ -314,8 +314,26 @@ body {
 /* ── Mobile: off-canvas drawer (matches admin's 799px breakpoint) ─── */
 
 @media (max-width: 799px) {
+  /* Drop the desktop body-level-scroll model on mobile. With it, the
+     viewport is locked at 100vh and only .grn-shell-main scrolls
+     internally — which means the footer stays glued to the bottom of
+     the screen forever, eating real estate from a small phone display.
+     Natural document flow lets the page scroll normally so the footer
+     drops to the end of the page and scrolls out of view with content. */
+  .grn-app-shell {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .grn-shell-body {
     flex-direction: column;
+    overflow: visible;
+  }
+
+  .grn-shell-main {
+    overflow: visible;
   }
 
   .grn-mobile-nav-trigger {
@@ -1489,12 +1507,40 @@ body {
   min-height: clamp(560px, calc(100vh - 240px), 900px);
 }
 
+@media (max-width: 768px) {
+  .grn-designer-page {
+    /* Make sure the canvas has room above the floating bottom dock and
+       any iOS home indicator, plus a peek of the inspector when it's
+       open in its peek state. */
+    gap: 0.6rem;
+    min-height: calc(100vh - 120px);
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+  .grn-designer-page.has-inspector {
+    /* When the inspector sheet is up at peek (~42vh), make sure the
+       canvas leaves enough room above it. */
+    padding-bottom: calc(46vh + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .grn-designer-page__header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .grn-designer-page__header {
+    /* Hide the header subtitle on mobile; the title stays for context but
+       the rest steals room from the canvas. */
+    gap: 0.4rem;
+  }
+  .grn-designer-page__subtitle,
+  .grn-designer-page__hint {
+    display: none;
+  }
 }
 
 .grn-designer-page__title {
@@ -1504,6 +1550,12 @@ body {
   color: var(--og-color-soil);
   font-weight: 600;
   letter-spacing: 0;
+}
+
+@media (max-width: 768px) {
+  .grn-designer-page__title {
+    font-size: 1.2rem;
+  }
 }
 
 .grn-designer-page__subtitle {
@@ -1547,6 +1599,7 @@ body {
   .grn-designer-page__layout {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: auto;
+    gap: 0.5rem;
   }
   .grn-designer-page.has-inspector .grn-designer-page__layout {
     grid-template-columns: minmax(0, 1fr);
@@ -1569,16 +1622,97 @@ body {
   align-self: stretch;
 }
 
-@media (max-width: 768px) {
-  .grn-designer-toolbar {
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: auto;
+/* Mobile: float a bottom dock instead of stacking inline. The dock sits
+   above the iOS home indicator using safe-area-inset, and the optional
+   "More" sheet pops up from above the dock. */
+.grn-designer-toolbar--mobile {
+  position: fixed;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  width: auto;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.grn-designer-toolbar--mobile > * {
+  pointer-events: auto;
+}
+
+.grn-designer-toolbar__dock {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.4rem;
+  padding: 0.45rem;
+  background: var(--og-color-paper);
+  border: 1px solid rgba(91, 58, 28, 0.14);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(91, 58, 28, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.grn-designer-toolbar__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 0.55rem;
+  padding: 0.95rem 1rem 1.1rem;
+  background: var(--og-color-paper);
+  border: 1px solid rgba(91, 58, 28, 0.14);
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(91, 58, 28, 0.22);
+  animation: grn-toolbar-sheet-in 160ms ease-out;
+}
+
+@keyframes grn-toolbar-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.grn-designer-toolbar.is-locked {
-  opacity: 0.92;
+.grn-designer-toolbar__sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.grn-designer-toolbar__sheet-heading {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(79, 56, 37, 0.6);
+  font-weight: 600;
+}
+
+.grn-designer-toolbar__sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.4rem;
+}
+
+.grn-designer-toolbar__sheet-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.grn-designer-toolbar__sheet-row > * {
+  flex: 1;
+  min-width: 100px;
 }
 
 .grn-designer-toolbar__group {
@@ -1587,25 +1721,10 @@ body {
   gap: 0.35rem;
 }
 
-@media (max-width: 768px) {
-  .grn-designer-toolbar__group {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-}
-
 .grn-designer-toolbar__divider {
   height: 1px;
   background: rgba(91, 58, 28, 0.12);
   margin: 0.25rem 0;
-}
-
-@media (max-width: 768px) {
-  .grn-designer-toolbar__divider {
-    width: 1px;
-    height: auto;
-    margin: 0 0.25rem;
-  }
 }
 
 .grn-designer-toolbar__btn {
@@ -1625,12 +1744,44 @@ body {
   transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
   min-height: 56px;
   text-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .grn-designer-toolbar__btn-label {
   display: block;
   font-size: 0.7rem;
   line-height: 1.1;
+}
+
+/* Inside the mobile dock, buttons stretch and have a slightly bigger
+   icon + smaller label. Inside the More sheet, buttons match desktop. */
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn {
+  border: none;
+  background: transparent;
+  min-height: 56px;
+  padding: 0.45rem 0.25rem;
+  border-radius: 12px;
+  gap: 0.2rem;
+}
+
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn:hover:not(:disabled),
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn:focus-visible {
+  background: rgba(91, 140, 74, 0.12);
+  border-color: transparent;
+}
+
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn.is-active {
+  background: rgba(91, 140, 74, 0.18);
+  color: var(--og-color-moss);
+}
+
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn-emoji {
+  font-size: 1.4rem;
+}
+
+.grn-designer-toolbar__dock .grn-designer-toolbar__btn-label {
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .grn-designer-toolbar__btn:hover:not(:disabled),
@@ -1718,6 +1869,93 @@ body {
   border: 1px solid rgba(91, 58, 28, 0.12);
   border-radius: var(--og-radius-md);
   box-shadow: 0 4px 14px rgba(91, 58, 28, 0.06);
+}
+
+.grn-garden-properties--collapsed {
+  padding: 0;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
+  position: relative;
+}
+
+.grn-garden-properties__summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0.7rem 0.95rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grn-garden-properties__summary:hover,
+.grn-garden-properties__summary:focus-visible {
+  background: rgba(91, 140, 74, 0.06);
+  outline: none;
+}
+
+.grn-garden-properties__summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.grn-garden-properties__summary-value {
+  font-family: var(--og-font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grn-garden-properties__summary-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(79, 56, 37, 0.55);
+}
+
+.grn-garden-properties__summary-chevron {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: rgba(79, 56, 37, 0.5);
+  flex-shrink: 0;
+}
+
+.grn-garden-properties__save-status--inline {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.95rem;
+  font-size: 0.7rem;
+}
+
+.grn-garden-properties__collapse-btn {
+  background: transparent;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--og-color-moss);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grn-garden-properties__collapse-btn:hover,
+.grn-garden-properties__collapse-btn:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
 .grn-garden-properties__group {
@@ -1814,11 +2052,15 @@ body {
   border: 1px solid rgba(91, 58, 28, 0.12);
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(91, 58, 28, 0.04);
+  /* Disable browser-level pan/zoom so our pinch handler owns gestures.
+     Without this, two-finger touches on the canvas zoom the whole page
+     instead of the design. */
+  touch-action: none;
 }
 
 @media (max-width: 768px) {
   .grn-designer-canvas {
-    min-height: 60vh;
+    min-height: 65vh;
   }
 }
 
@@ -1827,12 +2069,85 @@ body {
   bottom: 0.85rem;
   left: 50%;
   transform: translateX(-50%);
-  padding: 0.35rem 0.75rem;
+  padding: 0.45rem 0.85rem;
   background: rgba(58, 43, 26, 0.88);
   color: var(--og-color-cream);
   font-size: 0.8rem;
   border-radius: 999px;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .grn-designer-canvas__draw-hint {
+    bottom: 4.6rem;
+    font-size: 0.78rem;
+  }
+}
+
+/* Floating +/- and fit controls on the canvas. Visible at all screen
+   sizes, but most useful on mobile where pinch-to-zoom is the only
+   alternative. Stacked vertically on the right edge; on mobile we drop
+   them just above the bottom dock. */
+.grn-designer-canvas__zoom {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  z-index: 5;
+}
+
+@media (max-width: 768px) {
+  .grn-designer-canvas__zoom {
+    /* On mobile: bottom-right above the dock so the user can zoom with
+       one thumb without stretching across the screen. */
+    top: auto;
+    right: 0.6rem;
+    bottom: calc(5.4rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.grn-designer-canvas__zoom-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(91, 58, 28, 0.15);
+  background: var(--og-color-paper);
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(91, 58, 28, 0.14);
+  transition: background 120ms ease, transform 80ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grn-designer-canvas__zoom-btn:hover:not(:disabled),
+.grn-designer-canvas__zoom-btn:focus-visible {
+  background: rgba(91, 140, 74, 0.14);
+  outline: none;
+  border-color: var(--og-color-moss);
+}
+
+.grn-designer-canvas__zoom-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.grn-designer-canvas__zoom-btn--fit {
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .grn-designer-canvas__zoom-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
 }
 
 /* --- Inspector ------------------------------------------------------------ */
@@ -1850,15 +2165,66 @@ body {
   min-height: 0;
 }
 
-@media (max-width: 768px) {
-  .grn-designer-inspector {
-    position: fixed;
-    inset: auto 0 0 0;
-    max-height: 70vh;
-    border-radius: var(--og-radius-md) var(--og-radius-md) 0 0;
-    box-shadow: 0 -10px 32px rgba(91, 58, 28, 0.18);
-    z-index: 30;
-  }
+/* Mobile: render the inspector as a draggable bottom sheet. The shell
+   sets --grn-sheet-height and --grn-sheet-offset to drive both the
+   target snap height and the live drag offset, so we can transition
+   smoothly between them when the user lets go. */
+.grn-designer-inspector--sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--grn-sheet-height, 42vh);
+  max-height: 90vh;
+  border-radius: 18px 18px 0 0;
+  border: 1px solid rgba(91, 58, 28, 0.12);
+  box-shadow: 0 -16px 36px rgba(91, 58, 28, 0.22);
+  padding: 0 1rem 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  transform: translateY(var(--grn-sheet-offset, 0px));
+  transition: height 220ms ease, transform 220ms ease;
+  /* The handle owns its own touch behaviour; the body should scroll. */
+  overscroll-behavior: contain;
+}
+
+.grn-designer-inspector--sheet.is-dragging {
+  /* Disable the snap-back transition while the finger is down so the
+     sheet tracks the touch 1:1. */
+  transition: none;
+}
+
+.grn-designer-inspector__handle {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  margin: 0 -1rem;
+  padding-top: 8px;
+  background: linear-gradient(
+    180deg,
+    var(--og-color-paper) 0%,
+    var(--og-color-paper) 60%,
+    transparent 100%
+  );
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 1;
+}
+
+.grn-designer-inspector__handle:active {
+  cursor: grabbing;
+}
+
+.grn-designer-inspector__handle-puck {
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(91, 58, 28, 0.28);
 }
 
 .grn-designer-inspector__header {
@@ -1884,14 +2250,16 @@ body {
 }
 
 .grn-designer-inspector__close {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 1px solid rgba(91, 58, 28, 0.18);
   background: transparent;
   color: var(--og-color-soil);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .grn-designer-inspector__close:hover,
@@ -1943,6 +2311,18 @@ body {
   background: var(--og-color-cream);
 }
 
+@media (max-width: 768px) {
+  .grn-designer-inspector__field input[type="text"],
+  .grn-designer-inspector__field input[type="number"],
+  .grn-designer-inspector__field select,
+  .grn-designer-inspector__field textarea {
+    /* iOS zooms into any input under 16px font-size; keep the input
+       large enough that the page doesn't jolt when focused. */
+    font-size: 16px;
+    padding: 0.55rem 0.65rem;
+  }
+}
+
 .grn-designer-inspector__field input:focus-visible,
 .grn-designer-inspector__field select:focus-visible,
 .grn-designer-inspector__field textarea:focus-visible {
@@ -1955,6 +2335,14 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
+}
+
+@media (max-width: 420px) {
+  /* On the narrowest phones, stack length/width inputs so the labels
+     and values aren't crowded into 130-pixel cells. */
+  .grn-designer-inspector__row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .grn-designer-inspector__metric-row {
@@ -2009,15 +2397,17 @@ body {
 .grn-designer-inspector__soil-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.32rem 0.65rem;
+  padding: 0.45rem 0.85rem;
   border-radius: 999px;
   border: 1px solid rgba(91, 58, 28, 0.18);
   background: var(--og-color-cream);
   color: var(--og-color-soil);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 36px;
 }
 
 .grn-designer-inspector__soil-chip:hover:not(:disabled),
@@ -2059,13 +2449,14 @@ body {
 }
 
 .grn-designer-inspector__color-swatch {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 1px solid rgba(91, 58, 28, 0.2);
   cursor: pointer;
   padding: 0;
   transition: transform 80ms ease, box-shadow 120ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .grn-designer-inspector__color-swatch:hover,
@@ -2166,6 +2557,27 @@ body {
   justify-content: space-between;
   border-top: 1px solid rgba(91, 58, 28, 0.1);
   padding-top: 0.85rem;
+}
+
+/* Pin the footer to the bottom of the sheet so Delete is always within
+   thumb reach without scrolling. */
+.grn-designer-inspector--sheet .grn-designer-inspector__footer {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -1rem -1rem;
+  padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--og-color-paper) 30%,
+    var(--og-color-paper) 100%
+  );
+  border-top: 1px solid rgba(91, 58, 28, 0.1);
+}
+
+.grn-designer-inspector--sheet .grn-designer-inspector__delete {
+  padding: 0.55rem 0.95rem;
+  font-size: 0.95rem;
 }
 
 .grn-designer-inspector__save-status {

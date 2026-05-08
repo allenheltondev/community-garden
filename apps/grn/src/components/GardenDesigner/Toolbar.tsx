@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { BedShape } from '../../types/listing';
 import { ANNOTATION_PRESETS } from './annotationPresets';
 import { BED_SHAPES } from './bedDefaults';
@@ -7,8 +8,6 @@ export type GridSnap = 'off' | '6' | '12';
 
 interface ToolbarProps {
   isMobile: boolean;
-  editUnlocked: boolean;
-  onToggleEditUnlocked: () => void;
   mode: DesignerMode;
   onAddBed: (shape: BedShape) => void;
   onAddAnnotation: (presetId: string) => void;
@@ -20,14 +19,20 @@ interface ToolbarProps {
 }
 
 /**
- * Vertical left-rail toolbar, paint.net style. Each tool is a square
- * icon button with a tooltip; the small select controls are stacked at
- * the bottom. On mobile this collapses into a horizontal strip via CSS.
+ * Designer toolbar.
+ *
+ * Two layouts share the same component:
+ * - Desktop: vertical left-rail with all tools laid out in groups.
+ * - Mobile: floating bottom dock with the most-used actions (rect, circle,
+ *   draw, plus a "More" button that opens a sheet of annotations + view
+ *   controls).
+ *
+ * Bed shape and "draw polygon" are the two primary creation paths so they
+ * stay visible at all times. Annotations and snap settings tuck into the
+ * More sheet on mobile to keep the dock from wrapping into multiple rows.
  */
 export function Toolbar({
   isMobile,
-  editUnlocked,
-  onToggleEditUnlocked,
   mode,
   onAddBed,
   onAddAnnotation,
@@ -37,87 +42,188 @@ export function Toolbar({
   onGridSnapChange,
   onFitToScreen,
 }: ToolbarProps) {
-  const editingBlocked = isMobile && !editUnlocked;
   const drawing = mode === 'drawing-polygon';
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+
+  // Tap outside the More sheet on mobile to dismiss it.
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!moreRef.current) return;
+      if (!moreRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMoreOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [moreOpen]);
+
+  const bedButtons = BED_SHAPES.map((shape) => (
+    <button
+      key={shape.value}
+      type="button"
+      className="grn-designer-toolbar__btn"
+      onClick={() => {
+        onAddBed(shape.value);
+        setMoreOpen(false);
+      }}
+      disabled={drawing}
+      title={shape.hint}
+      aria-label={shape.hint}
+    >
+      <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
+        {shape.emoji}
+      </span>
+      <span className="grn-designer-toolbar__btn-label">{shape.label}</span>
+    </button>
+  ));
+
+  const drawButton = (
+    <button
+      type="button"
+      className={`grn-designer-toolbar__btn ${drawing ? 'is-active' : ''}`}
+      onClick={drawing ? onCancelDrawingPolygon : onStartDrawingPolygon}
+      title={
+        drawing
+          ? 'Tap to add points, double-tap to close. Esc to cancel.'
+          : 'Draw a custom polygon by tapping points'
+      }
+      aria-label={drawing ? 'Cancel drawing' : 'Draw custom shape'}
+    >
+      <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">✏️</span>
+      <span className="grn-designer-toolbar__btn-label">
+        {drawing ? 'Drawing' : 'Draw'}
+      </span>
+    </button>
+  );
+
+  const annotationButtons = ANNOTATION_PRESETS.map((preset) => (
+    <button
+      key={preset.id}
+      type="button"
+      className="grn-designer-toolbar__btn"
+      onClick={() => {
+        onAddAnnotation(preset.id);
+        setMoreOpen(false);
+      }}
+      disabled={drawing}
+      title={preset.description}
+      aria-label={preset.description}
+    >
+      <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
+        {preset.icon}
+      </span>
+      <span className="grn-designer-toolbar__btn-label">{preset.label}</span>
+    </button>
+  ));
+
+  const snapField = (
+    <label className="grn-designer-toolbar__field">
+      <span>Snap</span>
+      <select
+        value={gridSnap}
+        onChange={(e) => onGridSnapChange(e.target.value as GridSnap)}
+      >
+        <option value="off">Off</option>
+        <option value="6">6 in</option>
+        <option value="12">1 ft</option>
+      </select>
+    </label>
+  );
+
+  if (isMobile) {
+    return (
+      <div
+        className="grn-designer-toolbar grn-designer-toolbar--mobile"
+        role="toolbar"
+        aria-label="Garden designer tools"
+        ref={moreRef}
+      >
+        <div className="grn-designer-toolbar__dock">
+          {bedButtons}
+          {drawButton}
+          <button
+            type="button"
+            className={`grn-designer-toolbar__btn ${moreOpen ? 'is-active' : ''}`}
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            aria-controls="grn-designer-toolbar-sheet"
+            title="More tools"
+          >
+            <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">⋯</span>
+            <span className="grn-designer-toolbar__btn-label">More</span>
+          </button>
+        </div>
+
+        {moreOpen && (
+          <div
+            id="grn-designer-toolbar-sheet"
+            className="grn-designer-toolbar__sheet"
+            role="group"
+            aria-label="More tools"
+          >
+            <div className="grn-designer-toolbar__sheet-section">
+              <h3 className="grn-designer-toolbar__sheet-heading">Annotations</h3>
+              <div className="grn-designer-toolbar__sheet-grid">{annotationButtons}</div>
+            </div>
+            <div className="grn-designer-toolbar__sheet-section">
+              <h3 className="grn-designer-toolbar__sheet-heading">View</h3>
+              <div className="grn-designer-toolbar__sheet-row">
+                {snapField}
+                <button
+                  type="button"
+                  className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost"
+                  onClick={() => {
+                    onFitToScreen();
+                    setMoreOpen(false);
+                  }}
+                  title="Fit canvas to viewport"
+                  aria-label="Fit to screen"
+                >
+                  <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">🔍</span>
+                  <span className="grn-designer-toolbar__btn-label">Fit</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`grn-designer-toolbar ${editingBlocked ? 'is-locked' : ''}`}
+      className="grn-designer-toolbar"
       role="toolbar"
       aria-label="Garden designer tools"
     >
       <div className="grn-designer-toolbar__group" role="group" aria-label="Add a bed">
-        {BED_SHAPES.map((shape) => (
-          <button
-            key={shape.value}
-            type="button"
-            className="grn-designer-toolbar__btn"
-            onClick={() => onAddBed(shape.value)}
-            disabled={editingBlocked || drawing}
-            title={shape.hint}
-            aria-label={shape.hint}
-          >
-            <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
-              {shape.emoji}
-            </span>
-            <span className="grn-designer-toolbar__btn-label">{shape.label}</span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className={`grn-designer-toolbar__btn ${drawing ? 'is-active' : ''}`}
-          onClick={drawing ? onCancelDrawingPolygon : onStartDrawingPolygon}
-          disabled={editingBlocked}
-          title={
-            drawing
-              ? 'Click to add points, double-click to close. Esc to cancel.'
-              : 'Draw a custom polygon by clicking points'
-          }
-          aria-label={drawing ? 'Cancel drawing' : 'Draw custom shape'}
-        >
-          <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">✏️</span>
-          <span className="grn-designer-toolbar__btn-label">
-            {drawing ? 'Drawing…' : 'Draw shape'}
-          </span>
-        </button>
+        {bedButtons}
+        {drawButton}
       </div>
 
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />
 
-      <div className="grn-designer-toolbar__group" role="group" aria-label="Add an annotation">
-        {ANNOTATION_PRESETS.map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            className="grn-designer-toolbar__btn"
-            onClick={() => onAddAnnotation(preset.id)}
-            disabled={editingBlocked || drawing}
-            title={preset.description}
-            aria-label={preset.description}
-          >
-            <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
-              {preset.icon}
-            </span>
-            <span className="grn-designer-toolbar__btn-label">{preset.label}</span>
-          </button>
-        ))}
+      <div
+        className="grn-designer-toolbar__group"
+        role="group"
+        aria-label="Add an annotation"
+      >
+        {annotationButtons}
       </div>
 
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />
 
       <div className="grn-designer-toolbar__group" role="group" aria-label="View">
-        <label className="grn-designer-toolbar__field">
-          <span>Snap</span>
-          <select
-            value={gridSnap}
-            onChange={(e) => onGridSnapChange(e.target.value as GridSnap)}
-            disabled={editingBlocked}
-          >
-            <option value="off">Off</option>
-            <option value="6">6 in</option>
-            <option value="12">1 ft</option>
-          </select>
-        </label>
+        {snapField}
         <button
           type="button"
           className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost"
@@ -129,28 +235,6 @@ export function Toolbar({
           <span className="grn-designer-toolbar__btn-label">Fit</span>
         </button>
       </div>
-
-      {isMobile && (
-        <>
-          <div className="grn-designer-toolbar__divider" aria-hidden="true" />
-          <div className="grn-designer-toolbar__group" role="group" aria-label="Edit lock">
-            <button
-              type="button"
-              className={`grn-designer-toolbar__btn ${editUnlocked ? 'is-active' : ''}`}
-              onClick={onToggleEditUnlocked}
-              title={editUnlocked ? 'Lock layout (read-only mode)' : 'Unlock to edit'}
-              aria-pressed={editUnlocked}
-            >
-              <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">
-                {editUnlocked ? '🔓' : '🔒'}
-              </span>
-              <span className="grn-designer-toolbar__btn-label">
-                {editUnlocked ? 'Editing' : 'Locked'}
-              </span>
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

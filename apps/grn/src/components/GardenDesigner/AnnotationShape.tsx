@@ -28,6 +28,14 @@ const MIN_INCHES = 4;
 const FALLBACK_FILL = 'rgba(255, 255, 255, 0.55)';
 const FALLBACK_STROKE = 'rgba(91, 58, 28, 0.55)';
 
+// Bump Transformer anchor size on touch devices so the resize handles
+// are actually reachable with a finger. Mirrors BedShape's logic.
+const TOUCH_DEVICE =
+  typeof window !== 'undefined' &&
+  (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+const ANCHOR_SIZE = TOUCH_DEVICE ? 22 : 12;
+const ANCHOR_STROKE_WIDTH = TOUCH_DEVICE ? 2 : 1;
+
 function applyAlpha(hex: string, alpha: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}${alpha}` : hex;
 }
@@ -224,6 +232,8 @@ export function AnnotationShape({
           }}
           anchorStroke="#3a7e5a"
           anchorFill="#fff"
+          anchorSize={ANCHOR_SIZE}
+          anchorStrokeWidth={ANCHOR_STROKE_WIDTH}
           borderStroke="#3a7e5a"
           borderDash={[4, 4]}
         />

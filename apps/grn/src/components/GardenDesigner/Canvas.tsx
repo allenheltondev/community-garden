@@ -3,10 +3,10 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
+import { useImperativeHandle } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
 
@@ -72,17 +72,24 @@ interface DesignerCanvasProps {
 
 export interface DesignerCanvasHandle {
   fitToScreen: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
 }
 
 const PX_PER_INCH = 4;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
 const ZOOM_STEP = 1.05;
+const BUTTON_ZOOM_STEP = 1.25;
 
 function snapValue(value: number, snap: GridSnap): number {
   if (snap === 'off') return value;
   const step = snap === '6' ? 6 : 12;
   return Math.round(value / step) * step;
+}
+
+function clampScale(scale: number): number {
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
 }
 
 /**
@@ -130,6 +137,14 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     const [draftPoints, setDraftPoints] = useState<BedPolygonPoint[]>([]);
     const [hoverPoint, setHoverPoint] = useState<BedPolygonPoint | null>(null);
 
+    // Refs used during touch gestures so handlers don't need to be
+    // re-bound on every render. The pinch handler in particular runs
+    // many times per second.
+    const scaleRef = useRef(scale);
+    const positionRef = useRef(position);
+    scaleRef.current = scale;
+    positionRef.current = position;
+
     const widthPx = canvas.widthInches * PX_PER_INCH;
     const heightPx = canvas.heightInches * PX_PER_INCH;
 
@@ -139,14 +154,43 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       const availableWidth = viewport.width - padding * 2;
       const availableHeight = viewport.height - padding * 2;
       const fit = Math.min(availableWidth / widthPx, availableHeight / heightPx);
-      const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fit));
+      const nextScale = clampScale(fit);
       const offsetX = (viewport.width - widthPx * nextScale) / 2;
       const offsetY = (viewport.height - heightPx * nextScale) / 2;
       setScale(nextScale);
       setPosition({ x: offsetX, y: offsetY });
     }, [viewport.width, viewport.height, widthPx, heightPx]);
 
-    useImperativeHandle(ref, () => ({ fitToScreen }), [fitToScreen]);
+    // Zoom around the centre of the viewport so on-screen +/- buttons
+    // (especially mobile) keep the user's focus visually anchored.
+    const zoomBy = useCallback(
+      (factor: number) => {
+        if (viewport.width === 0 || viewport.height === 0) return;
+        const currentScale = scaleRef.current;
+        const nextScale = clampScale(currentScale * factor);
+        if (nextScale === currentScale) return;
+        const cx = viewport.width / 2;
+        const cy = viewport.height / 2;
+        const stageX = (cx - positionRef.current.x) / currentScale;
+        const stageY = (cy - positionRef.current.y) / currentScale;
+        setScale(nextScale);
+        setPosition({
+          x: cx - stageX * nextScale,
+          y: cy - stageY * nextScale,
+        });
+      },
+      [viewport.width, viewport.height]
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        fitToScreen,
+        zoomIn: () => zoomBy(BUTTON_ZOOM_STEP),
+        zoomOut: () => zoomBy(1 / BUTTON_ZOOM_STEP),
+      }),
+      [fitToScreen, zoomBy]
+    );
 
     // Track the container size so the stage matches available space.
     useEffect(() => {
@@ -192,6 +236,101 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     }, [mode, onCancelPolygon]);
 
     const drawing = mode === 'drawing-polygon';
+
+    // --- Touch pinch-to-zoom + two-finger pan ------------------------------
+    //
+    // Konva ships single-finger drag, but multi-touch pinch isn't built in.
+    // We wire native touch listeners to the container so we can intercept
+    // two-finger gestures before Konva's internal drag kicks in: a
+    // ref-based snapshot captures the starting distance/midpoint, and each
+    // touchmove updates scale/position around the gesture midpoint.
+    //
+    // While a pinch is active we suspend Konva's stage drag (via
+    // pinchActive) so the canvas doesn't jump when fingers lift one-by-one.
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      let pinchActive = false;
+      let startDistance = 0;
+      let startScale = scaleRef.current;
+      let startMid = { x: 0, y: 0 };
+      let startPosition = { ...positionRef.current };
+
+      function pointFromTouches(touches: TouchList) {
+        const a = touches.item(0);
+        const b = touches.item(1);
+        if (!a || !b) return null;
+        const rect = container?.getBoundingClientRect();
+        if (!rect) return null;
+        const ax = a.clientX - rect.left;
+        const ay = a.clientY - rect.top;
+        const bx = b.clientX - rect.left;
+        const by = b.clientY - rect.top;
+        return {
+          mid: { x: (ax + bx) / 2, y: (ay + by) / 2 },
+          dist: Math.hypot(bx - ax, by - ay),
+        };
+      }
+
+      function onTouchStart(event: TouchEvent) {
+        if (event.touches.length !== 2) return;
+        const point = pointFromTouches(event.touches);
+        if (!point) return;
+        pinchActive = true;
+        startDistance = point.dist;
+        startMid = point.mid;
+        startScale = scaleRef.current;
+        startPosition = { ...positionRef.current };
+        // Cancel Konva's in-progress drag so the second finger doesn't
+        // leave the stage halfway between two states.
+        const stage = stageRef.current;
+        if (stage?.isDragging()) {
+          stage.stopDrag();
+        }
+        event.preventDefault();
+      }
+
+      function onTouchMove(event: TouchEvent) {
+        if (!pinchActive || event.touches.length !== 2) return;
+        const point = pointFromTouches(event.touches);
+        if (!point) return;
+        const ratio = startDistance > 0 ? point.dist / startDistance : 1;
+        const nextScale = clampScale(startScale * ratio);
+
+        // Anchor the zoom on the midpoint where the gesture began so
+        // the world stays under the user's fingers even when the
+        // midpoint drifts (which is also how we get two-finger pan).
+        const stageX = (startMid.x - startPosition.x) / startScale;
+        const stageY = (startMid.y - startPosition.y) / startScale;
+        const nextX = point.mid.x - stageX * nextScale;
+        const nextY = point.mid.y - stageY * nextScale;
+
+        setScale(nextScale);
+        setPosition({ x: nextX, y: nextY });
+        event.preventDefault();
+      }
+
+      function onTouchEnd(event: TouchEvent) {
+        if (!pinchActive) return;
+        if (event.touches.length < 2) {
+          pinchActive = false;
+        }
+      }
+
+      // `passive: false` is required so we can call preventDefault and
+      // stop the browser from triggering page-level zoom.
+      container.addEventListener('touchstart', onTouchStart, { passive: false });
+      container.addEventListener('touchmove', onTouchMove, { passive: false });
+      container.addEventListener('touchend', onTouchEnd, { passive: false });
+      container.addEventListener('touchcancel', onTouchEnd, { passive: false });
+      return () => {
+        container.removeEventListener('touchstart', onTouchStart);
+        container.removeEventListener('touchmove', onTouchMove);
+        container.removeEventListener('touchend', onTouchEnd);
+        container.removeEventListener('touchcancel', onTouchEnd);
+      };
+    }, []);
 
     function relativePointer(stage: Konva.Stage): { x: number; y: number } | null {
       const pos = stage.getRelativePointerPosition();
@@ -247,7 +386,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
       const direction = event.evt.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP;
-      const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * direction));
+      const nextScale = clampScale(scale * direction);
       const stageX = (pointer.x - position.x) / scale;
       const stageY = (pointer.y - position.y) / scale;
       setScale(nextScale);
@@ -392,9 +531,38 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
               )}
             </Layer>
           </Stage>
+        <div className="grn-designer-canvas__zoom" role="group" aria-label="Zoom controls">
+          <button
+            type="button"
+            className="grn-designer-canvas__zoom-btn"
+            onClick={() => zoomBy(BUTTON_ZOOM_STEP)}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="grn-designer-canvas__zoom-btn"
+            onClick={() => zoomBy(1 / BUTTON_ZOOM_STEP)}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="grn-designer-canvas__zoom-btn grn-designer-canvas__zoom-btn--fit"
+            onClick={fitToScreen}
+            aria-label="Fit to screen"
+            title="Fit to screen"
+          >
+            ⊡
+          </button>
+        </div>
         {drawing && (
           <div className="grn-designer-canvas__draw-hint" role="status">
-            Click to add points · double-click to finish · esc to cancel
+            Tap to add points · double-tap to finish · esc to cancel
           </div>
         )}
       </div>

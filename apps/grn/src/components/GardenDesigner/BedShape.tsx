@@ -32,6 +32,15 @@ const MAX_CHIPS = 6;
 const CHIP_SIZE_PX = 22;
 const MIN_BED_INCHES = 6;
 
+// Konva's default Transformer anchor is ~12px wide. That's hard to hit on
+// touch (Apple HIG recommends 44px minimum). When the device looks like
+// it primarily uses touch we bump the anchor up so resize is reliable.
+const TOUCH_DEVICE =
+  typeof window !== 'undefined' &&
+  (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+const ANCHOR_SIZE = TOUCH_DEVICE ? 22 : 12;
+const ANCHOR_STROKE_WIDTH = TOUCH_DEVICE ? 2 : 1;
+
 function fillForBed(bedType: BedType, color: string | null): string {
   if (color) {
     return `${color}33`; // ~20% alpha hex suffix
@@ -282,6 +291,8 @@ export function BedShape({
         }}
         anchorStroke="#3a7e5a"
         anchorFill="#fff"
+        anchorSize={ANCHOR_SIZE}
+        anchorStrokeWidth={ANCHOR_STROKE_WIDTH}
         borderStroke="#3a7e5a"
         borderDash={[4, 4]}
       />
