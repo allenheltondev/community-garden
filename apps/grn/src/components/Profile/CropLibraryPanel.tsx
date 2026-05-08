@@ -6,6 +6,7 @@ import type { GrowerCropItem } from '../../types/listing';
 import { Button, Card } from '@olivias/ui';
 import { createLogger } from '../../utils/logging';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { CropIcon } from '../CropPlanner/cropIcons';
 
 const logger = createLogger('crop-library');
 
@@ -188,7 +189,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                   }}
                 >
                   <span className="grn-crop-card__emoji" aria-hidden="true">
-                    {visual.emoji}
+                    <CropIcon iconKey={visual.iconKey} color={visual.accent} size="2.4rem" />
                   </span>
                   <span className={`grn-crop-card__status grn-crop-card__status--${status.tone}`}>
                     <span aria-hidden="true">{status.emoji}</span>

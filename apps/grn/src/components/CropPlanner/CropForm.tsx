@@ -11,6 +11,7 @@ import type { GardenBed, GrowerCropItem } from '../../types/listing';
 import { BedSelector } from './BedSelector';
 import { CropPicker, type CropPickerSelection } from './CropPicker';
 import { visualForCrop } from './cropVisuals';
+import { CropIcon } from './cropIcons';
 import { createLogger } from '../../utils/logging';
 
 const logger = createLogger('crop-form');
@@ -194,7 +195,9 @@ export function CropForm({
           style={{ background: `linear-gradient(135deg, ${visual.accent}33, ${visual.accent}10)` }}
           aria-hidden="true"
         >
-          <span className="grn-new-crop__hero-emoji">{visual.emoji}</span>
+          <span className="grn-new-crop__hero-emoji">
+            <CropIcon iconKey={visual.iconKey} color={visual.accent} size="3.5rem" />
+          </span>
         </div>
         <div className="grn-new-crop__hero-body">
           <CropPicker
