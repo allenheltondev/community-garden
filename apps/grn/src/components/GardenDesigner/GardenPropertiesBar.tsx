@@ -9,6 +9,7 @@ interface GardenPropertiesBarProps {
   annotations: GardenAnnotation[];
   isEditable: boolean;
   isSaving: boolean;
+  isMobile: boolean;
   onCanvasChange: (patch: {
     widthInches?: number;
     heightInches?: number;
@@ -62,6 +63,7 @@ export function GardenPropertiesBar({
   annotations,
   isEditable,
   isSaving,
+  isMobile,
   onCanvasChange,
   hasBackground,
   onPickBackgroundFile,
@@ -69,6 +71,10 @@ export function GardenPropertiesBar({
 }: GardenPropertiesBarProps) {
   const [widthInput, setWidthInput] = useState(formatFeetFromInches(canvas.widthInches));
   const [heightInput, setHeightInput] = useState(formatFeetFromInches(canvas.heightInches));
+  // Mobile: the bar takes a meaningful chunk of vertical real estate, so
+  // we collapse it to a one-line summary by default and let the user
+  // tap to expand the full controls. Desktop: always show everything.
+  const [expanded, setExpanded] = useState(false);
 
   function commitWidth(raw: string) {
     const next = parseFeetInches(raw);
@@ -114,8 +120,68 @@ export function GardenPropertiesBar({
     0
   );
 
+  if (isMobile && !expanded) {
+    return (
+      <div
+        className="grn-garden-properties grn-garden-properties--collapsed"
+        role="region"
+        aria-label="Garden properties"
+      >
+        <button
+          type="button"
+          className="grn-garden-properties__summary"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          aria-controls="grn-garden-properties-body"
+        >
+          <span className="grn-garden-properties__summary-stat">
+            <span className="grn-garden-properties__summary-value">
+              {formatFeetFromInches(canvas.widthInches)} × {formatFeetFromInches(canvas.heightInches)}
+            </span>
+            <span className="grn-garden-properties__summary-label">Garden</span>
+          </span>
+          <span className="grn-garden-properties__summary-stat">
+            <span className="grn-garden-properties__summary-value">{beds.length}</span>
+            <span className="grn-garden-properties__summary-label">Beds</span>
+          </span>
+          <span className="grn-garden-properties__summary-stat">
+            <span className="grn-garden-properties__summary-value">
+              {formatArea(totalSquareInches)}
+            </span>
+            <span className="grn-garden-properties__summary-label">Area</span>
+          </span>
+          <span className="grn-garden-properties__summary-chevron" aria-hidden="true">▾</span>
+        </button>
+        <span
+          className="grn-designer-toolbar__save-status grn-garden-properties__save-status--inline"
+          aria-live="polite"
+          data-saving={isSaving}
+        >
+          {isSaving ? 'Saving…' : ''}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="grn-garden-properties" role="region" aria-label="Garden properties">
+    <div
+      className="grn-garden-properties"
+      role="region"
+      aria-label="Garden properties"
+      id="grn-garden-properties-body"
+    >
+      {isMobile && (
+        <button
+          type="button"
+          className="grn-garden-properties__collapse-btn"
+          onClick={() => setExpanded(false)}
+          aria-expanded={true}
+          aria-controls="grn-garden-properties-body"
+          aria-label="Hide garden properties"
+        >
+          <span aria-hidden="true">▴ Hide details</span>
+        </button>
+      )}
       <div className="grn-garden-properties__group" role="group" aria-label="Scale">
         <span className="grn-garden-properties__label">Scale</span>
         <div className="grn-garden-properties__scale">

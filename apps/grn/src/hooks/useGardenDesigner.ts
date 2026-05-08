@@ -62,8 +62,6 @@ export interface UseGardenDesignerResult {
   snap: GridSnap;
   setSnap: (snap: GridSnap) => void;
   isMobile: boolean;
-  editUnlocked: boolean;
-  toggleEditUnlocked: () => void;
   isEditable: boolean;
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
@@ -165,7 +163,6 @@ function annotationToUpsertPayload(a: GardenAnnotation): UpsertGardenAnnotationR
 export function useGardenDesigner(): UseGardenDesignerResult {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [editUnlocked, setEditUnlocked] = useState(false);
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [mode, setMode] = useState<DesignerMode>('idle');
   const [snap, setSnap] = useState<GridSnap>('12');
@@ -423,9 +420,12 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [annotations, selected]
   );
 
-  const isEditable = !isMobile || editUnlocked;
-
-  const toggleEditUnlocked = useCallback(() => setEditUnlocked((v) => !v), []);
+  // The designer is always editable — earlier iterations had a mobile-only
+  // "edit lock" that gated drag/resize behind a manual unlock toggle, but
+  // it confused users (the same canvas appeared inert until they spotted
+  // the lock button). Konva.dragDistance and the bottom-sheet inspector
+  // already prevent the accidental-edit cases the lock was guarding.
+  const isEditable = true;
 
   const addBed = useCallback(
     async (shape: BedShape) => {
@@ -751,8 +751,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     snap,
     setSnap,
     isMobile,
-    editUnlocked,
-    toggleEditUnlocked,
     isEditable,
     isSaving,
     addBed,

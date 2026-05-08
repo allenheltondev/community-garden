@@ -3,6 +3,7 @@ import type { BedType, GardenBed, GrowerCropItem, SunExposure } from '../../type
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
 import { AddCropModal } from './AddCropModal';
+import { InspectorShell } from './InspectorShell';
 import {
   BED_COLOR_PALETTE,
   BED_TYPES,
@@ -19,6 +20,7 @@ interface BedInspectorProps {
   cropsForBed: GrowerCropItem[];
   isEditable: boolean;
   isSaving: boolean;
+  isMobile: boolean;
   onChange: (patch: Partial<GardenBed>) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -42,6 +44,7 @@ export function BedInspector({
   cropsForBed,
   isEditable,
   isSaving,
+  isMobile,
   onChange,
   onDelete,
   onClose,
@@ -103,7 +106,11 @@ export function BedInspector({
   }
 
   return (
-    <aside className="grn-designer-inspector" aria-label={`${bed.name} details`}>
+    <InspectorShell
+      ariaLabel={`${bed.name} details`}
+      isMobile={isMobile}
+      onClose={onClose}
+    >
       <header className="grn-designer-inspector__header">
         <div>
           <span className="grn-designer-inspector__eyebrow">{meta.emoji} {meta.label}</span>
@@ -336,6 +343,6 @@ export function BedInspector({
         </button>
       </footer>
       <AddCropModal bed={bed} open={addCropOpen} onClose={() => setAddCropOpen(false)} />
-    </aside>
+    </InspectorShell>
   );
 }

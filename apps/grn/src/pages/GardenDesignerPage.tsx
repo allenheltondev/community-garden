@@ -77,6 +77,7 @@ export function GardenDesignerPage() {
         annotations={designer.annotations}
         isEditable={designer.isEditable}
         isSaving={designer.isSaving}
+        isMobile={designer.isMobile}
         onCanvasChange={designer.patchCanvas}
         hasBackground={Boolean(designer.canvas.backgroundImageKey)}
         onPickBackgroundFile={handlePickBackgroundFile}
@@ -95,8 +96,6 @@ export function GardenDesignerPage() {
       <div className="grn-designer-page__layout">
         <Toolbar
           isMobile={designer.isMobile}
-          editUnlocked={designer.editUnlocked}
-          onToggleEditUnlocked={designer.toggleEditUnlocked}
           mode={designer.mode}
           onAddBed={(shape) => {
             void designer.addBed(shape);
@@ -140,6 +139,7 @@ export function GardenDesignerPage() {
             cropsForBed={designer.cropsByBedId.get(designer.selectedBed.id) ?? []}
             isEditable={designer.isEditable}
             isSaving={designer.isSaving}
+            isMobile={designer.isMobile}
             onChange={(patch) => {
               if (designer.selectedBed) {
                 designer.patchBed(designer.selectedBed.id, patch);
@@ -160,6 +160,7 @@ export function GardenDesignerPage() {
             annotation={designer.selectedAnnotation}
             isEditable={designer.isEditable}
             isSaving={designer.isSaving}
+            isMobile={designer.isMobile}
             onChange={(patch) => {
               if (designer.selectedAnnotation) {
                 designer.patchAnnotation(designer.selectedAnnotation.id, patch);

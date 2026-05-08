@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { GardenAnnotation } from '../../types/listing';
 import { BED_COLOR_PALETTE } from './bedDefaults';
+import { InspectorShell } from './InspectorShell';
 
 interface AnnotationInspectorProps {
   annotation: GardenAnnotation;
   isEditable: boolean;
   isSaving: boolean;
+  isMobile: boolean;
   onChange: (patch: Partial<GardenAnnotation>) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -15,6 +17,7 @@ export function AnnotationInspector({
   annotation,
   isEditable,
   isSaving,
+  isMobile,
   onChange,
   onDelete,
   onClose,
@@ -33,7 +36,11 @@ export function AnnotationInspector({
   }
 
   return (
-    <aside className="grn-designer-inspector" aria-label={`${annotation.label} details`}>
+    <InspectorShell
+      ariaLabel={`${annotation.label} details`}
+      isMobile={isMobile}
+      onClose={onClose}
+    >
       <header className="grn-designer-inspector__header">
         <div>
           <span className="grn-designer-inspector__eyebrow">
@@ -183,6 +190,6 @@ export function AnnotationInspector({
           Delete
         </button>
       </footer>
-    </aside>
+    </InspectorShell>
   );
 }
