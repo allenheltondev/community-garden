@@ -38,3 +38,35 @@ for file in "$MIGRATIONS_DIR"/*.sql; do
 done
 
 echo "Migrations complete."
+
+# ---------------------------------------------------------------------------
+# Catalog seed spot-check.
+# Asserts a handful of curated slugs from 0031/0032 are queryable after
+# migrations apply. This is what GET /catalog/crops reads from, so a missing
+# row here means the API would return an incomplete catalog. Cheap to run,
+# fails the deploy loudly if the seed regressed.
+# ---------------------------------------------------------------------------
+EXPECTED_SLUGS=(
+  tomato
+  strawberry
+  basil
+  sunflower
+  dragon-tongue-bean
+)
+
+echo "Spot-checking catalog seed presence..."
+missing=()
+for slug in "${EXPECTED_SLUGS[@]}"; do
+  found="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc \
+    "select 1 from crops where slug = '$slug' limit 1")"
+  if [[ "$found" != "1" ]]; then
+    missing+=("$slug")
+  fi
+done
+
+if (( ${#missing[@]} > 0 )); then
+  echo "Catalog seed spot-check FAILED. Missing slugs: ${missing[*]}" >&2
+  exit 1
+fi
+
+echo "Catalog seed spot-check passed (${#EXPECTED_SLUGS[@]} slugs verified)."
