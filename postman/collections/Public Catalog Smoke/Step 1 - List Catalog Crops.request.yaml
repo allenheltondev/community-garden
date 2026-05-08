@@ -37,6 +37,25 @@ scripts:
           pm.expect(first.common_name).to.be.a("string").and.not.empty;
       });
 
+      // Spot-check that the curated seed migrations (0031/0032) actually
+      // landed in the deployed environment. Picks one slug per category
+      // plus the explicitly-requested dragon-tongue-bean cultivar.
+      pm.test("Curated seed slugs are present in the catalog", function () {
+          const slugs = new Set(crops.map((c) => c.slug));
+          const expected = [
+              "tomato",            // vegetable
+              "strawberry",        // fruit
+              "basil",             // herb
+              "sunflower",         // flower
+              "dragon-tongue-bean" // Phaseolus vulgaris cultivar
+          ];
+          const missing = expected.filter((slug) => !slugs.has(slug));
+          pm.expect(
+              missing,
+              `expected curated slugs missing from /catalog/crops: ${missing.join(", ")}`
+          ).to.be.empty;
+      });
+
       if (crops.length > 0) {
           pm.collectionVariables.set("catalogCropId", crops[0].id);
       }
