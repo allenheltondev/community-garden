@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { CatalogCrop } from '../../types/listing';
 import { CATEGORY_FILTERS, visualForCrop } from './cropVisuals';
+import { CropIcon } from './cropIcons';
 
 export interface CropPickerSelection {
   catalogCropId: string | null;
@@ -180,7 +181,9 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
               className="grn-crop-picker__leading-emoji"
               style={{ background: `${selectedVisual?.accent ?? '#69874b'}1f` }}
             >
-              {selectedVisual?.emoji}
+              {selectedVisual ? (
+                <CropIcon iconKey={selectedVisual.iconKey} color={selectedVisual.accent} size="1.4rem" />
+              ) : null}
             </span>
           </span>
         ) : (
@@ -275,7 +278,7 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
                   aria-hidden="true"
                   style={{ background: `${visual.accent}1f` }}
                 >
-                  {visual.emoji}
+                  <CropIcon iconKey={visual.iconKey} color={visual.accent} size="1.3rem" />
                 </span>
                 <span className="grn-crop-picker__option-text">
                   <span className="grn-crop-picker__option-name">{crop.commonName}</span>

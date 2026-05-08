@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BedType, GardenBed, GrowerCropItem, SunExposure } from '../../types/listing';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { CropIcon } from '../CropPlanner/cropIcons';
 import { AddCropModal } from './AddCropModal';
 import {
   BED_COLOR_PALETTE,
@@ -303,7 +304,7 @@ export function BedInspector({
               return (
                 <li key={crop.id} className="grn-designer-inspector__crop">
                   <span className="grn-designer-inspector__crop-emoji" aria-hidden="true">
-                    {visual.emoji}
+                    <CropIcon iconKey={visual.iconKey} color={visual.accent} size="1.1rem" />
                   </span>
                   <span className="grn-designer-inspector__crop-name">{crop.cropName}</span>
                   {crop.plantCount && (

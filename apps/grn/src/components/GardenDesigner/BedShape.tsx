@@ -1,10 +1,11 @@
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useEffect, useRef } from 'react';
-import { Ellipse, Group, Line, Rect, Text, Transformer } from 'react-konva';
+import { Ellipse, Group, Line, Path, Rect, Text, Transformer } from 'react-konva';
 import type { BedType, GardenBed, GrowerCropItem } from '../../types/listing';
 import { bedStyleFor } from './bedDefaults';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 
 interface BedShapeProps {
   bed: GardenBed;
@@ -223,16 +224,28 @@ export function BedShape({
         fill="#3a2b1a"
         listening={false}
       />
-      {visibleCrops.map((crop, idx) => (
-        <Text
-          key={crop.id}
-          x={8 + idx * chipSpacing}
-          y={chipY}
-          text={visualForCrop(crop.cropName).emoji}
-          fontSize={CHIP_SIZE_PX}
-          listening={false}
-        />
-      ))}
+      {visibleCrops.map((crop, idx) => {
+        const visual = visualForCrop(crop.cropName);
+        // CROP_ICON_PATHS are authored against a 24-unit viewBox, so scale
+        // them down to the chip size and inset by ~2 units (3px) so the
+        // strokes don't sit flush against the chip's bounding box.
+        const scale = CHIP_SIZE_PX / 24;
+        return (
+          <Path
+            key={crop.id}
+            x={8 + idx * chipSpacing}
+            y={chipY}
+            data={CROP_ICON_PATHS[visual.iconKey]}
+            stroke={visual.accent}
+            strokeWidth={1.5}
+            lineCap="round"
+            lineJoin="round"
+            scaleX={scale}
+            scaleY={scale}
+            listening={false}
+          />
+        );
+      })}
       {overflow > 0 && (
         <Text
           x={8 + visibleCrops.length * chipSpacing}
