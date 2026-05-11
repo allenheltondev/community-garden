@@ -163,6 +163,16 @@ export const routes: AppRoute[] = [
     allowIndex: true,
     prerender: true,
   },
+  {
+    path: '/transparency',
+    label: 'Transparency',
+    showInLegalFooter: true,
+    title: 'Transparency and organization information',
+    description: "Olivia's Garden Foundation organization details: legal name, EIN, mailing address, IRS 501(c)(3) determination, leadership, and financial transparency.",
+    seoImage: socialShareImage,
+    allowIndex: true,
+    prerender: true,
+  },
 ];
 
 export const notFoundRoute: AppRoute = {

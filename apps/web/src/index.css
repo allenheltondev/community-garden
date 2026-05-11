@@ -1139,20 +1139,20 @@ html {
   padding: 0.1rem 0;
 }
 
-.about-candid-seal {
+.candid-seal {
   display: flex;
   justify-content: center;
   padding: 0.25rem 0 0.5rem;
 }
 
-.about-candid-seal__link {
+.candid-seal__link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   max-width: min(100%, 18rem);
 }
 
-.about-candid-seal__link img {
+.candid-seal__link img {
   display: block;
   width: 100%;
   height: auto;
