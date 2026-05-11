@@ -13,7 +13,7 @@ import {
 } from '../chrome';
 import { foundationOrganization } from '../organization';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
-import { candidProfileUrl, candidSealImageUrl, facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
+import { facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
 
 const CONTACT_EMAIL = foundationOrganization.contactEmail;
 
@@ -328,17 +328,6 @@ export function AboutPage() {
         </p>
       </section>
 
-      <section className="about-candid-seal" aria-label="Candid nonprofit transparency profile">
-        <a
-          className="about-candid-seal__link"
-          aria-label="View Olivia's Garden Foundation on Candid"
-          href={candidProfileUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <img alt="" src={candidSealImageUrl} loading="lazy" />
-        </a>
-      </section>
     </div>
   );
 }
@@ -1633,6 +1622,11 @@ export function ContactPage() {
             Legal name: {foundationOrganization.legalName}
             <br />
             EIN: {foundationOrganization.ein}
+            <br />
+            Mailing address: {foundationOrganization.mailingAddress.line1},{' '}
+            {foundationOrganization.mailingAddress.city},{' '}
+            {foundationOrganization.mailingAddress.region}{' '}
+            {foundationOrganization.mailingAddress.postalCode}
           </p>
           <ul className="site-list contact-card__list">
             <li>

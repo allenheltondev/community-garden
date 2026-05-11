@@ -18,6 +18,15 @@ export const siteUrl = (process.env.VITE_SITE_URL ?? 'https://oliviasgarden.org'
 export const instagramUrl = 'https://instagram.com/oliviasgardentx';
 export const facebookUrl = 'https://www.facebook.com/profile.php?id=100087146659606#';
 export const contactEmail = 'allen@oliviasgarden.org';
+export const ein = '33-3101032';
+export const irsDeterminationDate = 'March 5, 2025';
+export const mailingAddress = {
+  streetAddress: '1820 Meadow Ranch Rd',
+  addressLocality: 'McKinney',
+  addressRegion: 'TX',
+  postalCode: '75071',
+  addressCountry: 'US',
+};
 export const defaultImage = '/images/home/og-image.png';
 export const defaultImageAlt = "Olivia's Garden Foundation social sharing image.";
 export const logoImage = '/images/icons/logo.svg';
@@ -38,21 +47,26 @@ export const organizationJsonLd = {
   url: siteUrl,
   logo: `${siteUrl}${logoImage}`,
   email: contactEmail,
+  taxID: ein,
   foundingDate: '2025',
   foundingLocation: {
     '@type': 'Place',
     address: {
       '@type': 'PostalAddress',
-      addressLocality: 'McKinney',
-      addressRegion: 'TX',
-      addressCountry: 'US',
+      streetAddress: mailingAddress.streetAddress,
+      addressLocality: mailingAddress.addressLocality,
+      addressRegion: mailingAddress.addressRegion,
+      postalCode: mailingAddress.postalCode,
+      addressCountry: mailingAddress.addressCountry,
     },
   },
   address: {
     '@type': 'PostalAddress',
-    addressLocality: 'McKinney',
-    addressRegion: 'TX',
-    addressCountry: 'US',
+    streetAddress: mailingAddress.streetAddress,
+    addressLocality: mailingAddress.addressLocality,
+    addressRegion: mailingAddress.addressRegion,
+    postalCode: mailingAddress.postalCode,
+    addressCountry: mailingAddress.addressCountry,
   },
   areaServed: {
     '@type': 'Country',
@@ -346,6 +360,8 @@ export const seoRoutes = [
       </p>
       <ul>
         <li>Email: <a href="mailto:${contactEmail}">${contactEmail}</a></li>
+        <li>Mailing address: ${mailingAddress.streetAddress}, ${mailingAddress.addressLocality}, ${mailingAddress.addressRegion} ${mailingAddress.postalCode}</li>
+        <li>Legal name: Olivia's Garden Foundation &mdash; EIN ${ein}</li>
         <li>Instagram: <a href="${instagramUrl}">@oliviasgardentx</a> &mdash; day-to-day work, harvests, animals.</li>
         <li>Facebook: <a href="${facebookUrl}">Olivia's Garden Foundation on Facebook</a> &mdash; events and community posts.</li>
       </ul>
@@ -447,6 +463,75 @@ export const seoRoutes = [
         donation date, donation amount, and the email used for the donation. We respond within
         5 business days. If a donation is refunded, the refunded amount is no longer a completed
         charitable contribution and any related tax deduction should be reversed or excluded.
+      </p>
+    `,
+  },
+  {
+    path: '/transparency',
+    title: 'Transparency and organization information',
+    description:
+      "Olivia's Garden Foundation organization details: legal name, EIN, mailing address, IRS 501(c)(3) determination, leadership, and financial transparency.",
+    seoImage: defaultImage,
+    prerender: true,
+    sitemap: { changefreq: 'monthly', priority: 0.5 },
+    bodyFallback: `
+      <h1>Transparency</h1>
+      <p>
+        Olivia's Garden Foundation publishes the public information about the organization here:
+        legal status, leadership, mailing address, financial situation, and where to find our
+        public filings.
+      </p>
+      <h2>Organization details</h2>
+      <ul>
+        <li>Legal name: Olivia's Garden Foundation</li>
+        <li>EIN: ${ein}</li>
+        <li>Tax status: 501(c)(3) public charity, recognized by the United States Internal Revenue Service</li>
+        <li>IRS determination date: ${irsDeterminationDate}</li>
+        <li>Year founded: 2025</li>
+        <li>State of incorporation: Texas</li>
+        <li>Mailing address: ${mailingAddress.streetAddress}, ${mailingAddress.addressLocality}, ${mailingAddress.addressRegion} ${mailingAddress.postalCode}, USA</li>
+      </ul>
+      <h2>Leadership</h2>
+      <p>
+        Olivia's Garden Foundation is run by the Helton family of McKinney, Texas: Allen Helton
+        (co-founder, president), Mallory Helton (co-founder), and Isabella Helton (family
+        contributor). The foundation has no paid staff.
+      </p>
+      <h2>Mission and programs</h2>
+      <p>
+        The foundation teaches individuals and families how to grow food, care for animals,
+        preserve what they produce, and build practical self-sufficiency. Programs include The
+        Okra Project (free seeds and a public garden map), hands-on workshops, the Good Roots
+        Network online platform, and community volunteer workdays.
+      </p>
+      <h2>Non-discrimination policy</h2>
+      <p>
+        Olivia's Garden Foundation does not discriminate on the basis of race, color, ethnic or
+        national origin, ancestry, gender, gender identity or expression, sexual orientation, age,
+        disability, religion, marital status, military or veteran status, or any other category
+        protected by applicable law in the administration of our programs, services, volunteer
+        opportunities, or employment. This applies to seed program participants, workshop
+        attendees, volunteers, donors, partners, and anyone else who interacts with the foundation.
+      </p>
+      <h2>Financial information</h2>
+      <p>
+        Olivia's Garden Foundation was founded in 2025 and received IRS 501(c)(3) recognition on
+        ${irsDeterminationDate}. Because we are a new organization, we do not yet have a published
+        annual report or a filed Form 990. Our first IRS filing, covering our initial reporting
+        period, will be made in 2026, and a summary will be posted on this page once filed. We
+        expect to file Form 990-N (e-Postcard) at our current scale.
+      </p>
+      <p>
+        Donations fund seeds and garden materials, lumber and hardware for raised beds and
+        animal enclosures, feed and care for the animals, workshop supplies, seed-program
+        shipping, and the software and hosting costs of the foundation's online tools. The
+        foundation has no paid staff, no office lease, and no fundraising contractors.
+      </p>
+      <h2>Public records and filings</h2>
+      <p>
+        Our 501(c)(3) status can be independently verified through the IRS Tax Exempt
+        Organization Search at <a href="https://apps.irs.gov/app/eos/">apps.irs.gov/app/eos</a>
+        using EIN ${ein}. We also maintain a public profile on Candid.
       </p>
     `,
   },
