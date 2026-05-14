@@ -78,50 +78,70 @@ export function SiteHeader({
   const avatarLabel = authSession
     ? authSession.user.name ?? authSession.user.email ?? 'Signed-in account'
     : 'Go to login page';
-  const headerNavItems = [
-    ...navRoutes.map((route) => ({
-      id: route.path,
-      label: route.label,
-      href: route.path,
-      active: pathname === route.path,
-      accent: route.path === '/donate',
-      onSelect: () => onNavigate(route.path),
-    })),
-    {
-      id: authSession ? 'profile' : 'login',
-      label: authSession ? 'Profile' : 'Log in',
-      href: authSession ? '/profile' : '/login',
-      active: authSession ? pathname === '/profile' : pathname === '/login',
-      mobileOnly: true,
-      onSelect: () => onNavigate(authSession ? '/profile' : '/login'),
-    },
-    ...(authSession
-      ? [
-          {
-            id: 'okra-submissions',
-            label: 'My okra submissions',
-            href: '/okra/submissions',
-            active: pathname === '/okra/submissions',
-            mobileOnly: true,
-            onSelect: () => onNavigate('/okra/submissions'),
-          },
-          {
-            id: 'grn',
-            label: 'Good Roots Network',
-            href: buildCrossAppUrl(goodRootsNetworkUrl, authSession),
-            mobileOnly: true,
-          },
-          ...(authSession.user.isAdmin
-            ? [{
-                id: 'admin',
-                label: 'Admin',
-                href: buildCrossAppUrl(adminUrl, authSession),
-                mobileOnly: true,
-              }]
-            : []),
-        ]
-      : []),
-  ];
+  const marketingNavItems = navRoutes.map((route) => ({
+    id: route.path,
+    label: route.label,
+    href: route.path,
+    active: pathname === route.path,
+    accent: route.path === '/donate',
+    onSelect: () => onNavigate(route.path),
+  }));
+
+  const accountMobileItems = authSession
+    ? [
+        {
+          id: 'profile',
+          label: 'Profile',
+          href: '/profile',
+          active: pathname === '/profile',
+          mobileOnly: true,
+          divider: true,
+          onSelect: () => onNavigate('/profile'),
+        },
+        {
+          id: 'okra-submissions',
+          label: 'My okra submissions',
+          href: '/okra/submissions',
+          active: pathname === '/okra/submissions',
+          mobileOnly: true,
+          onSelect: () => onNavigate('/okra/submissions'),
+        },
+        {
+          id: 'grn-app',
+          label: 'Good Roots Network',
+          href: buildCrossAppUrl(goodRootsNetworkUrl, authSession),
+          mobileOnly: true,
+          sectionLabel: 'Apps',
+        },
+        ...(authSession.user.isAdmin
+          ? [{
+              id: 'admin',
+              label: 'Admin',
+              href: buildCrossAppUrl(adminUrl, authSession),
+              mobileOnly: true,
+            }]
+          : []),
+        ...(onLogout
+          ? [{
+              id: 'logout',
+              label: 'Log out',
+              mobileOnly: true,
+              divider: true,
+              onSelect: onLogout,
+            }]
+          : []),
+      ]
+    : [{
+        id: 'login',
+        label: 'Log in',
+        href: '/login',
+        active: pathname === '/login',
+        mobileOnly: true,
+        divider: true,
+        onSelect: () => onNavigate('/login'),
+      }];
+
+  const headerNavItems = [...marketingNavItems, ...accountMobileItems];
 
   return (
     <>
