@@ -274,4 +274,45 @@ mod tests {
         assert_eq!(response.required_tier, "pro");
         assert_eq!(response.upgrade_hint_key, "upgrade.pro");
     }
+
+    // Lock down LLM-touching entitlements at the config level so a future
+    // edit cannot accidentally hand them to the free tier. Every handler
+    // that invokes an LLM (or schedules one) must key off one of these.
+    const LLM_BACKED_ENTITLEMENTS: &[&str] = &[
+        "ai.copilot.weekly_grow_plan",
+        "ai.feed_insights.read",
+        "agent.tasks.automation",
+    ];
+
+    #[test]
+    fn llm_entitlements_are_denied_to_free_tier() {
+        let Some(config) = config_or_skip() else {
+            return;
+        };
+
+        for key in LLM_BACKED_ENTITLEMENTS {
+            let lookup = tier_has_entitlement(config, "free", key);
+            assert!(lookup.is_ok(), "entitlement lookup failed for {key}");
+            assert!(
+                !lookup.unwrap_or(true),
+                "free tier must not be granted LLM-backed entitlement {key}",
+            );
+        }
+    }
+
+    #[test]
+    fn llm_entitlements_are_granted_to_pro_tier() {
+        let Some(config) = config_or_skip() else {
+            return;
+        };
+
+        for key in LLM_BACKED_ENTITLEMENTS {
+            let lookup = tier_has_entitlement(config, "pro", key);
+            assert!(lookup.is_ok(), "entitlement lookup failed for {key}");
+            assert!(
+                lookup.unwrap_or(false),
+                "pro tier must be granted LLM-backed entitlement {key}",
+            );
+        }
+    }
 }
