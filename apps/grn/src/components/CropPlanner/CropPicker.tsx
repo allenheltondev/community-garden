@@ -16,6 +16,13 @@ interface CropPickerProps {
   onChange: (selection: CropPickerSelection | null) => void;
   /** When true, render a more compact variant (no category chips) */
   compact?: boolean;
+  /**
+   * Catalog crop IDs that local searchers are asking for and growers
+   * are not yet supplying. When provided, these crops are floated to
+   * the top of the list when no query is active and get a "Needed
+   * nearby" badge so growers can see them at the decision moment.
+   */
+  scarceCropIds?: Set<string>;
 }
 
 const MAX_VISIBLE_RESULTS = 8;
@@ -31,7 +38,14 @@ function categoryMatches(filter: string, category: string | null | undefined): b
   return normalized === filter || normalized.startsWith(`${filter}`) || normalized.includes(filter);
 }
 
-export function CropPicker({ catalog, isLoading, value, onChange, compact }: CropPickerProps) {
+export function CropPicker({
+  catalog,
+  isLoading,
+  value,
+  onChange,
+  compact,
+  scarceCropIds,
+}: CropPickerProps) {
   const [query, setQuery] = useState(value?.cropName ?? '');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isOpen, setIsOpen] = useState(false);
@@ -73,9 +87,18 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
         if (aStarts !== bStarts) return aStarts - bStarts;
         return a.commonName.localeCompare(b.commonName);
       });
+    } else if (scarceCropIds && scarceCropIds.size > 0) {
+      // No active query: float locally scarce crops to the top so growers
+      // see what neighbors are asking for at the decision moment.
+      filtered.sort((a, b) => {
+        const aScarce = scarceCropIds.has(a.id) ? 0 : 1;
+        const bScarce = scarceCropIds.has(b.id) ? 0 : 1;
+        if (aScarce !== bScarce) return aScarce - bScarce;
+        return a.commonName.localeCompare(b.commonName);
+      });
     }
     return filtered.slice(0, MAX_VISIBLE_RESULTS);
-  }, [catalog, activeCategory, lowerQuery]);
+  }, [catalog, activeCategory, lowerQuery, scarceCropIds]);
 
   const exactMatch = useMemo(() => {
     if (!trimmedQuery) return null;
@@ -260,6 +283,7 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
           {matches.map((crop, index) => {
             const visual = visualForCrop(crop.commonName, crop.category);
             const isHighlighted = index === highlightIndex;
+            const isScarce = scarceCropIds?.has(crop.id) ?? false;
             return (
               <li
                 key={crop.id}
@@ -281,7 +305,17 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
                   <CropIcon iconKey={visual.iconKey} color={visual.accent} size="1.3rem" />
                 </span>
                 <span className="grn-crop-picker__option-text">
-                  <span className="grn-crop-picker__option-name">{crop.commonName}</span>
+                  <span className="grn-crop-picker__option-name">
+                    {crop.commonName}
+                    {isScarce ? (
+                      <span
+                        className="grn-crop-picker__pill grn-crop-picker__pill--scarce"
+                        data-testid="needed-nearby-badge"
+                      >
+                        Needed nearby
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="grn-crop-picker__option-meta">
                     {crop.category ? <span>{crop.category}</span> : null}
                     {crop.scientificName ? <em>{crop.scientificName}</em> : null}

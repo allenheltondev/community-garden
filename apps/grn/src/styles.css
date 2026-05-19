@@ -852,6 +852,100 @@ body {
   color: #8a5c1d;
 }
 
+.grn-crop-picker__pill--scarce {
+  margin-inline-start: 0.5rem;
+  background: rgba(216, 80, 41, 0.16);
+  color: #8a3517;
+}
+
+.grn-needed-nearby {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--og-radius-md);
+  border: 1px solid rgba(216, 80, 41, 0.28);
+  background: linear-gradient(135deg, rgba(216, 80, 41, 0.08), rgba(216, 167, 65, 0.08));
+}
+
+.grn-needed-nearby__header {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.grn-needed-nearby__eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a3517;
+}
+
+.grn-needed-nearby__hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--og-color-soil);
+}
+
+.grn-needed-nearby__chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.grn-needed-nearby__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.7rem 0.4rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(79, 56, 37, 0.18);
+  background: var(--og-color-paper);
+  color: var(--og-color-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.grn-needed-nearby__chip:hover,
+.grn-needed-nearby__chip:focus-visible {
+  border-color: var(--og-color-moss);
+  box-shadow: 0 6px 16px rgba(38, 23, 15, 0.12);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.grn-needed-nearby__chip.is-selected {
+  border-color: var(--og-color-moss);
+  box-shadow: 0 0 0 2px rgba(66, 107, 63, 0.25);
+}
+
+.grn-needed-nearby__chip-emoji {
+  display: inline-grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+}
+
+.grn-needed-nearby__chip-text {
+  display: grid;
+  text-align: start;
+}
+
+.grn-needed-nearby__chip-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
+.grn-needed-nearby__chip-meta {
+  font-size: 0.75rem;
+  color: var(--og-color-soil);
+}
+
 .grn-crop-picker__listbox {
   list-style: none;
   margin: 0.35rem 0 0;

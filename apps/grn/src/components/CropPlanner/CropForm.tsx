@@ -13,6 +13,8 @@ import { CropPicker, type CropPickerSelection } from './CropPicker';
 import { visualForCrop } from './cropVisuals';
 import { CropIcon } from './cropIcons';
 import { createLogger } from '../../utils/logging';
+import { useGrowerCropSignals } from '../../hooks/useGrowerCropSignals';
+import { NeededNearbyStrip } from '../Recommendations/NeededNearbyStrip';
 
 const logger = createLogger('crop-form');
 
@@ -108,6 +110,8 @@ export function CropForm({
     enabled: lockedBed === null,
   });
 
+  const growerSignals = useGrowerCropSignals();
+
   const [selection, setSelection] = useState<CropPickerSelection | null>(null);
   const [planting, setPlanting] = useState<PlantingDetails>({
     bedId: lockedBed?.id ?? initialBedId,
@@ -189,6 +193,13 @@ export function CropForm({
 
   return (
     <form onSubmit={handleSubmit} className="grn-new-crop__form">
+      <NeededNearbyStrip
+        topScarce={growerSignals.topScarce}
+        catalog={catalog}
+        isLoading={isLoadingCatalog || growerSignals.isLoading}
+        onSelect={setSelection}
+        selectedCatalogCropId={selection?.catalogCropId ?? null}
+      />
       <Card className="grn-new-crop__hero" padding="6">
         <div
           className="grn-new-crop__hero-visual"
@@ -205,6 +216,7 @@ export function CropForm({
             isLoading={isLoadingCatalog}
             value={selection}
             onChange={setSelection}
+            scarceCropIds={growerSignals.scarceCropIds}
           />
         </div>
       </Card>
