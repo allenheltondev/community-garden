@@ -54,6 +54,19 @@ const growerNavItems: NavItem[] = [
     ),
   },
   {
+    id: 'recommendations',
+    path: '/recommendations',
+    label: 'Recommendations',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M12 2a1 1 0 0 1 .9.56l2.18 4.42 4.88.71a1 1 0 0 1 .55 1.71l-3.53 3.44.83 4.86a1 1 0 0 1-1.45 1.05L12 16.77l-4.36 2.29A1 1 0 0 1 6.19 18l.83-4.86L3.49 9.7a1 1 0 0 1 .55-1.71l4.88-.71L11.1 2.56A1 1 0 0 1 12 2Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
     id: 'garden',
     path: '/garden',
     label: 'Designer',
