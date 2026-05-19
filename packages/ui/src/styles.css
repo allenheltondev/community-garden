@@ -141,6 +141,20 @@ body {
   display: inline-flex;
 }
 
+.og-site-header__divider {
+  height: 1px;
+  margin: 0.35rem 0.4rem;
+  background: rgba(79, 56, 37, 0.12);
+}
+
+.og-site-header__section-label {
+  padding: 0.5rem 0.85rem 0.15rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(79, 56, 37, 0.6);
+}
+
 .og-site-header__link {
   border: 0;
   border-radius: var(--og-radius-pill);
@@ -1030,7 +1044,9 @@ body {
     order: 2;
   }
 
-  .og-site-header__link--mobile-only {
+  .og-site-header__link--mobile-only,
+  .og-site-header__divider,
+  .og-site-header__section-label {
     display: none;
   }
 

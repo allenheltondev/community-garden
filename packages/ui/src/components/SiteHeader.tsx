@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface SiteHeaderNavItem {
   id: string;
@@ -8,6 +8,10 @@ export interface SiteHeaderNavItem {
   active?: boolean;
   accent?: boolean;
   mobileOnly?: boolean;
+  /** Render a divider line before this item. Only visible in the mobile drawer. */
+  divider?: boolean;
+  /** Render an uppercase section label before this item. Only visible in the mobile drawer. */
+  sectionLabel?: string;
 }
 
 export interface SiteHeaderProps {
@@ -130,36 +134,43 @@ export function SiteHeader({
               className={`og-site-header__nav ${menuOpen ? 'is-open' : ''}`.trim()}
               aria-label="Primary"
             >
-              {navItems.map((item) => (
-                item.href ? (
-                  <a
-                    key={item.id}
-                    href={item.href}
-                    className={`og-site-header__link ${item.active ? 'is-active' : ''} ${item.accent ? 'og-site-header__link--accent' : ''} ${item.mobileOnly ? 'og-site-header__link--mobile-only' : ''}`.trim()}
-                    onClick={(event) => {
-                      setMenuOpen(false);
-                      if (item.onSelect) {
-                        event.preventDefault();
-                        item.onSelect();
-                      }
-                    }}
-                  >
-                    {item.label}
-                  </a>
-                ) : (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`og-site-header__link ${item.active ? 'is-active' : ''} ${item.accent ? 'og-site-header__link--accent' : ''} ${item.mobileOnly ? 'og-site-header__link--mobile-only' : ''}`.trim()}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      item.onSelect?.();
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                )
-              ))}
+              {navItems.map((item) => {
+                const linkClass = `og-site-header__link ${item.active ? 'is-active' : ''} ${item.accent ? 'og-site-header__link--accent' : ''} ${item.mobileOnly ? 'og-site-header__link--mobile-only' : ''}`.trim();
+                return (
+                  <Fragment key={item.id}>
+                    {item.divider ? <div className="og-site-header__divider" role="separator" aria-hidden="true" /> : null}
+                    {item.sectionLabel ? (
+                      <div className="og-site-header__section-label" role="presentation">{item.sectionLabel}</div>
+                    ) : null}
+                    {item.href ? (
+                      <a
+                        href={item.href}
+                        className={linkClass}
+                        onClick={(event) => {
+                          setMenuOpen(false);
+                          if (item.onSelect) {
+                            event.preventDefault();
+                            item.onSelect();
+                          }
+                        }}
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className={linkClass}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          item.onSelect?.();
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    )}
+                  </Fragment>
+                );
+              })}
             </nav>
           ) : null}
         </div>
