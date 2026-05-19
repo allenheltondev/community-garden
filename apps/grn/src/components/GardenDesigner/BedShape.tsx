@@ -236,8 +236,7 @@ export function BedShape({
       {visibleCrops.map((crop, idx) => {
         const visual = visualForCrop(crop.cropName);
         // CROP_ICON_PATHS are authored against a 24-unit viewBox, so scale
-        // them down to the chip size and inset by ~2 units (3px) so the
-        // strokes don't sit flush against the chip's bounding box.
+        // them down to the chip size. Icons are filled silhouettes.
         const scale = CHIP_SIZE_PX / 24;
         return (
           <Path
@@ -245,10 +244,7 @@ export function BedShape({
             x={8 + idx * chipSpacing}
             y={chipY}
             data={CROP_ICON_PATHS[visual.iconKey]}
-            stroke={visual.accent}
-            strokeWidth={1.5}
-            lineCap="round"
-            lineJoin="round"
+            fill={visual.accent}
             scaleX={scale}
             scaleY={scale}
             listening={false}

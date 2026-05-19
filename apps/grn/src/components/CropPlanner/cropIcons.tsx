@@ -27,11 +27,8 @@ export function CropIcon({
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      fill="none"
-      stroke={color}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill={color}
+      stroke="none"
       className={className}
       style={style}
       role={title ? 'img' : undefined}
