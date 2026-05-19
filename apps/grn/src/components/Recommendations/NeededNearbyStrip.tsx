@@ -11,10 +11,18 @@ interface NeededNearbyStripProps {
   isLoading: boolean;
   onSelect: (selection: CropPickerSelection) => void;
   selectedCatalogCropId?: string | null;
+  /**
+   * Catalog crop IDs the grower already has in their garden. These
+   * still appear (because neighbors may still want more), but are
+   * sorted after new opportunities and stamped with "Already growing"
+   * so the chip doesn't read as a fresh suggestion.
+   */
+  growingCropIds?: Set<string>;
 }
 
 interface ResolvedScarceCrop extends ScarceCropEntry {
   crop: CatalogCrop;
+  alreadyGrowing: boolean;
 }
 
 /**
@@ -29,17 +37,32 @@ export function NeededNearbyStrip({
   isLoading,
   onSelect,
   selectedCatalogCropId,
+  growingCropIds,
 }: NeededNearbyStripProps) {
   const resolved = useMemo<ResolvedScarceCrop[]>(() => {
     if (catalog.length === 0) return [];
     const byId = new Map(catalog.map((crop) => [crop.id, crop]));
-    return topScarce
+    const list = topScarce
       .map((entry) => {
         const crop = byId.get(entry.cropId);
-        return crop ? { ...entry, crop } : null;
+        if (!crop) return null;
+        return {
+          ...entry,
+          crop,
+          alreadyGrowing: growingCropIds?.has(entry.cropId) ?? false,
+        };
       })
       .filter((entry): entry is ResolvedScarceCrop => entry !== null);
-  }, [topScarce, catalog]);
+    // Surface fresh opportunities first; keep already-growing chips visible
+    // so growers know neighbors still want more, but de-prioritized.
+    list.sort((left, right) => {
+      if (left.alreadyGrowing !== right.alreadyGrowing) {
+        return left.alreadyGrowing ? 1 : -1;
+      }
+      return right.scarcityScore - left.scarcityScore;
+    });
+    return list;
+  }, [topScarce, catalog, growingCropIds]);
 
   if (isLoading) {
     return null;
@@ -65,7 +88,7 @@ export function NeededNearbyStrip({
             <li key={entry.cropId}>
               <button
                 type="button"
-                className={`grn-needed-nearby__chip ${isSelected ? 'is-selected' : ''}`.trim()}
+                className={`grn-needed-nearby__chip ${isSelected ? 'is-selected' : ''} ${entry.alreadyGrowing ? 'is-already-growing' : ''}`.trim()}
                 aria-pressed={isSelected}
                 data-testid={`needed-nearby-chip-${entry.crop.slug}`}
                 onClick={() =>
@@ -84,7 +107,17 @@ export function NeededNearbyStrip({
                   <CropIcon iconKey={visual.iconKey} color={visual.accent} size="1.1rem" />
                 </span>
                 <span className="grn-needed-nearby__chip-text">
-                  <span className="grn-needed-nearby__chip-name">{entry.crop.commonName}</span>
+                  <span className="grn-needed-nearby__chip-name">
+                    {entry.crop.commonName}
+                    {entry.alreadyGrowing ? (
+                      <span
+                        className="grn-needed-nearby__chip-flag"
+                        data-testid="already-growing-flag"
+                      >
+                        Already growing
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="grn-needed-nearby__chip-meta">
                     {entry.requestCount} request{entry.requestCount === 1 ? '' : 's'}
                   </span>

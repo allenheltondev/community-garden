@@ -199,6 +199,7 @@ export function CropForm({
         isLoading={isLoadingCatalog || growerSignals.isLoading}
         onSelect={setSelection}
         selectedCatalogCropId={selection?.catalogCropId ?? null}
+        growingCropIds={growerSignals.growingCatalogCropIds}
       />
       <Card className="grn-new-crop__hero" padding="6">
         <div
@@ -217,6 +218,7 @@ export function CropForm({
             value={selection}
             onChange={setSelection}
             scarceCropIds={growerSignals.scarceCropIds}
+            growingCropIds={growerSignals.growingCatalogCropIds}
           />
         </div>
       </Card>

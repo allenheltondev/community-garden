@@ -106,4 +106,36 @@ describe('CropPicker with grower scarcity signals', () => {
     expect(await screen.findByRole('listbox')).toBeInTheDocument();
     expect(screen.queryByTestId('needed-nearby-badge')).not.toBeInTheDocument();
   });
+
+  it('badges crops the grower already has and ranks them below fresh scarce options', async () => {
+    const user = userEvent.setup();
+    render(
+      <CropPicker
+        catalog={baseCatalog}
+        isLoading={false}
+        value={null}
+        onChange={() => {}}
+        scarceCropIds={new Set(['crop-zucchini', 'crop-apple'])}
+        growingCropIds={new Set(['crop-zucchini'])}
+      />
+    );
+
+    const input = screen.getByRole('combobox');
+    await user.click(input);
+
+    const listbox = await screen.findByRole('listbox');
+    const options = within(listbox).getAllByRole('option');
+    // Fresh scarce (Apple) above already-growing scarce (Zucchini)
+    expect(options[0]).toHaveTextContent('Apple');
+    expect(options[1]).toHaveTextContent('Zucchini');
+
+    const zucchiniOption = within(listbox).getByText('Zucchini').closest('li');
+    expect(zucchiniOption).not.toBeNull();
+    expect(
+      within(zucchiniOption as HTMLElement).getByTestId('already-growing-badge')
+    ).toBeInTheDocument();
+    expect(
+      within(zucchiniOption as HTMLElement).getByTestId('needed-nearby-badge')
+    ).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NeededNearbyStrip } from './NeededNearbyStrip';
 import type { CatalogCrop } from '../../types/listing';
@@ -116,5 +116,27 @@ describe('NeededNearbyStrip', () => {
 
     expect(screen.getByTestId('needed-nearby-chip-kale')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('needed-nearby-chip-tomato')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('flags already-growing crops and pushes them after fresh opportunities', () => {
+    render(
+      <NeededNearbyStrip
+        topScarce={topScarce}
+        catalog={catalog}
+        isLoading={false}
+        onSelect={() => {}}
+        growingCropIds={new Set(['crop-1'])}
+      />
+    );
+
+    const tomatoChip = screen.getByTestId('needed-nearby-chip-tomato');
+    expect(within(tomatoChip).getByTestId('already-growing-flag')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('needed-nearby-chip-kale')).queryByTestId('already-growing-flag')
+    ).not.toBeInTheDocument();
+
+    const chips = screen.getAllByRole('button');
+    expect(chips[0]).toBe(screen.getByTestId('needed-nearby-chip-kale'));
+    expect(chips[1]).toBe(tomatoChip);
   });
 });

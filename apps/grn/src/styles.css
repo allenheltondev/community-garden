@@ -858,6 +858,12 @@ body {
   color: #8a3517;
 }
 
+.grn-crop-picker__pill--growing {
+  margin-inline-start: 0.5rem;
+  background: rgba(66, 107, 63, 0.16);
+  color: var(--og-color-moss);
+}
+
 .grn-needed-nearby {
   display: grid;
   gap: 0.75rem;
@@ -920,6 +926,23 @@ body {
 .grn-needed-nearby__chip.is-selected {
   border-color: var(--og-color-moss);
   box-shadow: 0 0 0 2px rgba(66, 107, 63, 0.25);
+}
+
+.grn-needed-nearby__chip.is-already-growing {
+  background: rgba(66, 107, 63, 0.06);
+}
+
+.grn-needed-nearby__chip-flag {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(66, 107, 63, 0.16);
+  color: var(--og-color-moss);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .grn-needed-nearby__chip-emoji {

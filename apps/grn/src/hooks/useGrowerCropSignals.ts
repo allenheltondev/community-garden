@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getDerivedFeed, getMe } from '../services/api';
+import { getDerivedFeed, getMe, listMyCrops } from '../services/api';
 import type { DerivedFeedSignal } from '../types/feed';
 
 const TOP_SCARCE_LIMIT = 4;
@@ -18,6 +18,7 @@ export interface GrowerCropSignals {
   scarcityByCropId: Map<string, number>;
   scarceCropIds: Set<string>;
   topScarce: ScarceCropEntry[];
+  growingCatalogCropIds: Set<string>;
   isLoading: boolean;
   isError: boolean;
 }
@@ -30,16 +31,21 @@ export function useGrowerCropSignals(): GrowerCropSignals {
     retry: 2,
   });
 
-  const geoKey =
-    profileQuery.data?.userType === 'grower'
-      ? profileQuery.data.growerProfile?.geoKey ?? null
-      : null;
+  const isGrower = profileQuery.data?.userType === 'grower';
+  const geoKey = isGrower ? profileQuery.data?.growerProfile?.geoKey ?? null : null;
 
   const feedQuery = useQuery({
     queryKey: ['growerDerivedFeed', geoKey, 7],
     queryFn: () =>
       getDerivedFeed({ geoKey: geoKey ?? '', windowDays: 7, limit: 1, offset: 0 }),
     enabled: Boolean(geoKey),
+    staleTime: 60 * 1000,
+  });
+
+  const myCropsQuery = useQuery({
+    queryKey: ['myCrops'],
+    queryFn: listMyCrops,
+    enabled: isGrower,
     staleTime: 60 * 1000,
   });
 
@@ -85,11 +91,22 @@ export function useGrowerCropSignals(): GrowerCropSignals {
     [topScarce]
   );
 
+  const growingCatalogCropIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const crop of myCropsQuery.data ?? []) {
+      if (crop.canonicalId) {
+        ids.add(crop.canonicalId);
+      }
+    }
+    return ids;
+  }, [myCropsQuery.data]);
+
   return {
     geoKey,
     scarcityByCropId,
     scarceCropIds,
     topScarce,
+    growingCatalogCropIds,
     isLoading: profileQuery.isLoading || feedQuery.isLoading,
     isError: feedQuery.isError,
   };
