@@ -1,7 +1,8 @@
+import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CropPicker } from './CropPicker';
+import { CropPicker, type CropPickerSelection } from './CropPicker';
 import type { CatalogCrop } from '../../types/listing';
 
 const baseCatalog: CatalogCrop[] = [
@@ -105,6 +106,46 @@ describe('CropPicker with grower scarcity signals', () => {
 
     expect(await screen.findByRole('listbox')).toBeInTheDocument();
     expect(screen.queryByTestId('needed-nearby-badge')).not.toBeInTheDocument();
+  });
+
+  it('syncs the input text when the parent sets the selection externally', async () => {
+    const tomato = baseCatalog[0];
+
+    function Harness() {
+      const [value, setValue] = React.useState<CropPickerSelection | null>(null);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() =>
+              setValue({
+                catalogCropId: tomato.id,
+                cropName: tomato.commonName,
+                category: tomato.category,
+              })
+            }
+          >
+            choose-apple
+          </button>
+          <CropPicker
+            catalog={baseCatalog}
+            isLoading={false}
+            value={value}
+            onChange={setValue}
+          />
+        </>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    expect(input.value).toBe('');
+
+    await user.click(screen.getByRole('button', { name: 'choose-apple' }));
+
+    expect(input.value).toBe(tomato.commonName);
   });
 
   it('badges crops the grower already has and ranks them below fresh scarce options', async () => {

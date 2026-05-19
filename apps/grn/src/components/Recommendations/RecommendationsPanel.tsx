@@ -105,9 +105,13 @@ export function RecommendationsPanel({
     retry: 1,
   });
 
-  const hasProAiInsights =
-    entitlementsQuery.data?.entitlements?.includes('ai.feed_insights.read') ?? false;
-  const aiInsightsActive = hasProAiInsights && !aiInsightsOptOut;
+  // Match the entitlement the backend handler requires
+  // (services/grn-api/src/api/handlers/ai_copilot.rs). Gating on
+  // ai.feed_insights.read would show the UI for tiers that have the
+  // summary entitlement but not the copilot one, then 403 on call.
+  const hasWeeklyPlanAccess =
+    entitlementsQuery.data?.entitlements?.includes('ai.copilot.weekly_grow_plan') ?? false;
+  const weeklyPlanActive = hasWeeklyPlanAccess && !aiInsightsOptOut;
 
   const derivedFeedQuery = useQuery({
     queryKey: ['growerDerivedFeed', growerGeoKey, windowDays],
@@ -125,7 +129,7 @@ export function RecommendationsPanel({
   const weeklyPlanQuery = useQuery({
     queryKey: ['growerWeeklyPlan', growerGeoKey, windowDays],
     queryFn: () => getWeeklyGrowPlan(growerGeoKey ?? '', windowDays),
-    enabled: Boolean(growerGeoKey) && !isOffline && aiInsightsActive,
+    enabled: Boolean(growerGeoKey) && !isOffline && weeklyPlanActive,
     staleTime: 60 * 1000,
   });
 
@@ -336,7 +340,7 @@ export function RecommendationsPanel({
             </p>
           </div>
 
-          {hasProAiInsights ? (
+          {hasWeeklyPlanAccess ? (
             <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
               <input
                 type="checkbox"
@@ -357,7 +361,7 @@ export function RecommendationsPanel({
           )}
         </div>
 
-        {!hasProAiInsights && (
+        {!hasWeeklyPlanAccess && (
           <p
             className="rounded-base border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700"
             role="status"
@@ -366,7 +370,7 @@ export function RecommendationsPanel({
           </p>
         )}
 
-        {hasProAiInsights && aiInsightsOptOut && (
+        {hasWeeklyPlanAccess && aiInsightsOptOut && (
           <p
             className="rounded-base border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700"
             role="status"
@@ -375,11 +379,11 @@ export function RecommendationsPanel({
           </p>
         )}
 
-        {aiInsightsActive && weeklyPlanQuery.isLoading && (
+        {weeklyPlanActive && weeklyPlanQuery.isLoading && (
           <p className="text-sm text-neutral-600" role="status">Loading AI grow plan...</p>
         )}
 
-        {aiInsightsActive && weeklyPlanQuery.isError && (
+        {weeklyPlanActive && weeklyPlanQuery.isError && (
           <p
             className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800"
             role="status"
@@ -388,7 +392,7 @@ export function RecommendationsPanel({
           </p>
         )}
 
-        {aiInsightsActive && weeklyPlanQuery.data?.recommendations?.length ? (
+        {weeklyPlanActive && weeklyPlanQuery.data?.recommendations?.length ? (
           <div
             className="rounded-base border border-primary-300 bg-white px-3 py-3"
             data-testid="weekly-grow-plan-card"

@@ -128,7 +128,7 @@ describe('RecommendationsPanel', () => {
     mockGetEntitlements.mockResolvedValue({
       tier: 'pro',
       entitlementsVersion: 'v1',
-      entitlements: ['ai.feed_insights.read'],
+      entitlements: ['ai.copilot.weekly_grow_plan'],
       policy: { aiIsProOnly: true, freeRemindersDeterministicOnly: true },
     });
 
@@ -188,6 +188,25 @@ describe('RecommendationsPanel', () => {
     ).toBeInTheDocument();
     expect(within(planCard).getByText(/confidence 82%/i)).toBeInTheDocument();
     expect(within(planCard).getByText(/ai-assisted/i)).toBeInTheDocument();
+  });
+
+  it('keeps the weekly plan locked when the user only has the feed-insights entitlement', async () => {
+    mockGetEntitlements.mockResolvedValueOnce({
+      tier: 'supporter',
+      entitlementsVersion: 'v1',
+      entitlements: ['ai.feed_insights.read'],
+      policy: { aiIsProOnly: true, freeRemindersDeterministicOnly: true },
+    });
+
+    renderPanel();
+
+    expect(
+      await screen.findByText(/ai grow plans are a pro feature/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /unlock pro ai/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockGetWeeklyGrowPlan).not.toHaveBeenCalled();
+    });
   });
 
   it('hides the AI plan and shows an upgrade CTA when the user is not Pro', async () => {

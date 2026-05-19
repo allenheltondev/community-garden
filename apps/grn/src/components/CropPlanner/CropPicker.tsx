@@ -74,6 +74,23 @@ export function CropPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen]);
 
+  // Sync the visible input when the selection is set externally — e.g.
+  // when a grower taps a "Needed nearby" chip and the parent calls
+  // onChange with a new selection. Uses the React-recommended
+  // "adjust state during render" pattern so we run before the next
+  // paint without scheduling an effect. value=null is intentionally
+  // ignored so typing that clears the selection doesn't wipe the input
+  // mid-edit.
+  const [lastSyncedCropName, setLastSyncedCropName] = useState<string | null>(
+    value?.cropName ?? null
+  );
+  if (value && value.cropName !== lastSyncedCropName) {
+    setLastSyncedCropName(value.cropName);
+    if (value.cropName !== query) {
+      setQuery(value.cropName);
+    }
+  }
+
   const trimmedQuery = query.trim();
   const lowerQuery = trimmedQuery.toLowerCase();
 
