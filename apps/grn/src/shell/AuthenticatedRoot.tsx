@@ -11,6 +11,9 @@ const DashboardPage = lazy(() =>
 const CropsPage = lazy(() =>
   import('../pages/CropsPage').then((m) => ({ default: m.CropsPage }))
 );
+const RecommendationsPage = lazy(() =>
+  import('../pages/RecommendationsPage').then((m) => ({ default: m.RecommendationsPage }))
+);
 const NewCropPage = lazy(() =>
   import('../pages/NewCropPage').then((m) => ({ default: m.NewCropPage }))
 );
@@ -57,6 +60,7 @@ export function AuthenticatedRoot() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/crops" element={<CropsPage />} />
               <Route path="/crops/new" element={<NewCropPage />} />
+              <Route path="/recommendations" element={<RecommendationsPage />} />
               <Route path="/garden" element={<GardenDesignerPage />} />
               <Route path="/listings" element={<ListingsPage />} />
               <Route path="/requests" element={<RequestsPage />} />

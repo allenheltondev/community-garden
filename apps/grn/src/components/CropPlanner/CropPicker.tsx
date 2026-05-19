@@ -16,6 +16,20 @@ interface CropPickerProps {
   onChange: (selection: CropPickerSelection | null) => void;
   /** When true, render a more compact variant (no category chips) */
   compact?: boolean;
+  /**
+   * Catalog crop IDs that local searchers are asking for and growers
+   * are not yet supplying. When provided, these crops are floated to
+   * the top of the list when no query is active and get a "Needed
+   * nearby" badge so growers can see them at the decision moment.
+   */
+  scarceCropIds?: Set<string>;
+  /**
+   * Catalog crop IDs the viewer already has in their garden. When
+   * provided, these options carry an "Already growing" badge so the
+   * grower can tell at a glance whether a suggestion would be a new
+   * addition or a duplicate of something they already track.
+   */
+  growingCropIds?: Set<string>;
 }
 
 const MAX_VISIBLE_RESULTS = 8;
@@ -31,7 +45,15 @@ function categoryMatches(filter: string, category: string | null | undefined): b
   return normalized === filter || normalized.startsWith(`${filter}`) || normalized.includes(filter);
 }
 
-export function CropPicker({ catalog, isLoading, value, onChange, compact }: CropPickerProps) {
+export function CropPicker({
+  catalog,
+  isLoading,
+  value,
+  onChange,
+  compact,
+  scarceCropIds,
+  growingCropIds,
+}: CropPickerProps) {
   const [query, setQuery] = useState(value?.cropName ?? '');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +73,23 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen]);
+
+  // Sync the visible input when the selection is set externally — e.g.
+  // when a grower taps a "Needed nearby" chip and the parent calls
+  // onChange with a new selection. Uses the React-recommended
+  // "adjust state during render" pattern so we run before the next
+  // paint without scheduling an effect. value=null is intentionally
+  // ignored so typing that clears the selection doesn't wipe the input
+  // mid-edit.
+  const [lastSyncedCropName, setLastSyncedCropName] = useState<string | null>(
+    value?.cropName ?? null
+  );
+  if (value && value.cropName !== lastSyncedCropName) {
+    setLastSyncedCropName(value.cropName);
+    if (value.cropName !== query) {
+      setQuery(value.cropName);
+    }
+  }
 
   const trimmedQuery = query.trim();
   const lowerQuery = trimmedQuery.toLowerCase();
@@ -73,9 +112,26 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
         if (aStarts !== bStarts) return aStarts - bStarts;
         return a.commonName.localeCompare(b.commonName);
       });
+    } else if (scarceCropIds && scarceCropIds.size > 0) {
+      // No active query: float locally scarce crops the grower does NOT
+      // already have to the very top, then other scarce crops, then the
+      // rest. Already-growing scarce crops still appear above ordinary
+      // catalog entries but below fresh opportunities.
+      const rank = (id: string): number => {
+        const isScarce = scarceCropIds.has(id);
+        const isGrowing = growingCropIds?.has(id) ?? false;
+        if (isScarce && !isGrowing) return 0;
+        if (isScarce && isGrowing) return 1;
+        return 2;
+      };
+      filtered.sort((a, b) => {
+        const diff = rank(a.id) - rank(b.id);
+        if (diff !== 0) return diff;
+        return a.commonName.localeCompare(b.commonName);
+      });
     }
     return filtered.slice(0, MAX_VISIBLE_RESULTS);
-  }, [catalog, activeCategory, lowerQuery]);
+  }, [catalog, activeCategory, lowerQuery, scarceCropIds, growingCropIds]);
 
   const exactMatch = useMemo(() => {
     if (!trimmedQuery) return null;
@@ -260,6 +316,8 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
           {matches.map((crop, index) => {
             const visual = visualForCrop(crop.commonName, crop.category);
             const isHighlighted = index === highlightIndex;
+            const isScarce = scarceCropIds?.has(crop.id) ?? false;
+            const isAlreadyGrowing = growingCropIds?.has(crop.id) ?? false;
             return (
               <li
                 key={crop.id}
@@ -281,7 +339,25 @@ export function CropPicker({ catalog, isLoading, value, onChange, compact }: Cro
                   <CropIcon iconKey={visual.iconKey} color={visual.accent} size="1.3rem" />
                 </span>
                 <span className="grn-crop-picker__option-text">
-                  <span className="grn-crop-picker__option-name">{crop.commonName}</span>
+                  <span className="grn-crop-picker__option-name">
+                    {crop.commonName}
+                    {isScarce ? (
+                      <span
+                        className="grn-crop-picker__pill grn-crop-picker__pill--scarce"
+                        data-testid="needed-nearby-badge"
+                      >
+                        Needed nearby
+                      </span>
+                    ) : null}
+                    {isAlreadyGrowing ? (
+                      <span
+                        className="grn-crop-picker__pill grn-crop-picker__pill--growing"
+                        data-testid="already-growing-badge"
+                      >
+                        Already growing
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="grn-crop-picker__option-meta">
                     {crop.category ? <span>{crop.category}</span> : null}
                     {crop.scientificName ? <em>{crop.scientificName}</em> : null}
