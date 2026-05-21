@@ -1,0 +1,36 @@
+$kind: http-request
+name: 'Free - GET /feed/derived → aiSummary is null'
+description: |-
+  Verifies that a free-tier token can read the derived feed (200) but
+  the LLM-backed aiSummary field is null because the user lacks the
+  ai.feed_insights.read entitlement.
+method: GET
+url: '{{baseUrl}}/feed/derived'
+order: 5500
+headers:
+  - key: Authorization
+    value: 'Bearer {{freeAuthToken}}'
+queryParams:
+  - key: geoKey
+    value: '9v6kn7'
+  - key: windowDays
+    value: '7'
+  - key: limit
+    value: '5'
+  - key: offset
+    value: '0'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Free tier never receives an aiSummary", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("items");
+          pm.expect(body).to.have.property("signals");
+          pm.expect(body).to.have.property("aiSummary");
+          pm.expect(body.aiSummary, "free tier must not receive AI-generated summary").to.equal(null);
+      });

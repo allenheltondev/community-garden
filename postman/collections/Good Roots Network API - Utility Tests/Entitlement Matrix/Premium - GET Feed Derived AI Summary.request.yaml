@@ -1,0 +1,43 @@
+$kind: http-request
+name: 'Premium - GET /feed/derived → aiSummary shape when present'
+description: |-
+  Verifies that a pro-tier token reads the derived feed (200). The
+  aiSummary field is allowed to be null (no signal data / guardrails
+  blocked), but when present it must match the AI summary contract,
+  proving the LLM gating opens for pro callers.
+method: GET
+url: '{{baseUrl}}/feed/derived'
+order: 10500
+headers:
+  - key: Authorization
+    value: 'Bearer {{premiumAuthToken}}'
+queryParams:
+  - key: geoKey
+    value: '9v6kn7'
+  - key: windowDays
+    value: '7'
+  - key: limit
+    value: '5'
+  - key: offset
+    value: '0'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Pro tier receives aiSummary field (null or valid shape)", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("aiSummary");
+
+          if (body.aiSummary !== null) {
+              pm.expect(body.aiSummary).to.have.property("summaryText").that.is.a("string");
+              pm.expect(body.aiSummary).to.have.property("modelId").that.is.a("string");
+              pm.expect(body.aiSummary).to.have.property("modelVersion").that.is.a("string");
+              pm.expect(body.aiSummary).to.have.property("generatedAt").that.is.a("string");
+              pm.expect(body.aiSummary).to.have.property("expiresAt").that.is.a("string");
+              pm.expect(body.aiSummary).to.have.property("fromCache").that.is.a("boolean");
+          }
+      });

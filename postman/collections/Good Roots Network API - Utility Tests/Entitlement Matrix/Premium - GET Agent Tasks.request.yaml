@@ -1,0 +1,18 @@
+$kind: http-request
+name: 'Premium - GET /agent-tasks → non-403'
+description: |-
+  Verifies that a pro-tier token is NOT rejected with 403
+  when listing agent tasks.
+method: GET
+url: '{{baseUrl}}/agent-tasks'
+order: 7500
+headers:
+  - key: Authorization
+    value: 'Bearer {{premiumAuthToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is not 403", function () {
+          pm.expect(pm.response.code).to.not.equal(403);
+      });
