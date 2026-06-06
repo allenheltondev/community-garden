@@ -54,6 +54,19 @@ const growerNavItems: NavItem[] = [
     ),
   },
   {
+    id: 'planner',
+    path: '/planner',
+    label: 'Planner',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M12 3 2 20h20L12 3Zm0 4.6 2.1 3.6H9.9L12 7.6ZM8.7 13.2h6.6l1.5 2.6H7.2l1.5-2.6ZM5.6 18.6 6.6 17h10.8l1 1.6H5.6Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
     id: 'recommendations',
     path: '/recommendations',
     label: 'Recommendations',

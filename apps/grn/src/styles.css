@@ -1610,6 +1610,260 @@ body {
 }
 
 /* ==========================================================================
+   Garden Pyramid planner
+   ========================================================================== */
+
+.grn-planner__progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.grn-planner__progress-stat {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--og-color-soil);
+}
+
+.grn-planner__progress-stat strong {
+  font-family: var(--og-font-display);
+  font-size: 1.4rem;
+  color: var(--og-color-moss);
+}
+
+.grn-planner__progress-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(79, 56, 37, 0.7);
+  max-width: 30rem;
+}
+
+.grn-planner__progress-track {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.grn-planner__progress-pip {
+  width: 1.4rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(79, 56, 37, 0.14);
+}
+
+/* ── The pyramid ─────────────────────────────────────────────────── */
+
+.grn-pyramid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.grn-pyramid__band {
+  --tier-accent: var(--og-color-moss);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--og-radius-md);
+  background: linear-gradient(135deg, var(--tier-accent), color-mix(in srgb, var(--tier-accent) 78%, #000));
+  color: #fff7ec;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(38, 23, 15, 0.12);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.grn-pyramid__band.is-empty {
+  background: rgba(79, 56, 37, 0.08);
+  color: rgba(79, 56, 37, 0.7);
+  box-shadow: none;
+  border-color: rgba(79, 56, 37, 0.16);
+  border-style: dashed;
+}
+
+.grn-pyramid__band:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 8px 18px rgba(38, 23, 15, 0.18);
+}
+
+.grn-pyramid__band.is-active {
+  outline: 3px solid var(--tier-accent);
+  outline-offset: 2px;
+}
+
+.grn-pyramid__band:focus-visible {
+  outline: 3px solid var(--og-color-soil);
+  outline-offset: 2px;
+}
+
+.grn-pyramid__level {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  font-family: var(--og-font-display);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.grn-pyramid__band.is-empty .grn-pyramid__level {
+  background: rgba(79, 56, 37, 0.12);
+}
+
+.grn-pyramid__band-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.grn-pyramid__band-name {
+  font-family: var(--og-font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.grn-pyramid__band-tagline {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grn-pyramid__band-count {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.grn-pyramid__band-count.is-empty {
+  background: rgba(79, 56, 37, 0.12);
+  color: rgba(79, 56, 37, 0.7);
+}
+
+/* ── Tier detail panel ───────────────────────────────────────────── */
+
+.grn-planner__detail {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.grn-planner__detail-head {
+  --tier-accent: var(--og-color-moss);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.grn-planner__detail-level {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: var(--tier-accent);
+  color: #fff7ec;
+  font-family: var(--og-font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.grn-planner__detail-name {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 1.3rem;
+  color: var(--og-color-soil);
+}
+
+.grn-planner__detail-tagline {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(79, 56, 37, 0.75);
+}
+
+.grn-planner__detail-desc {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.85);
+  max-width: 44rem;
+}
+
+.grn-planner__detail-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.grn-planner__detail-subhead {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(79, 56, 37, 0.6);
+}
+
+.grn-planner__detail-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(79, 56, 37, 0.55);
+  font-style: italic;
+}
+
+.grn-planner__crop-list,
+.grn-planner__suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.grn-planner__crop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(79, 56, 37, 0.2);
+  border-radius: var(--og-radius-pill);
+  background: var(--og-color-paper);
+  font-size: 0.85rem;
+  color: var(--og-color-soil);
+}
+
+.grn-planner__suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px dashed currentColor;
+  border-radius: var(--og-radius-pill);
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.grn-planner__detail-actions {
+  margin-top: 0.25rem;
+}
+
+/* ==========================================================================
    Garden Designer
    ========================================================================== */
 
