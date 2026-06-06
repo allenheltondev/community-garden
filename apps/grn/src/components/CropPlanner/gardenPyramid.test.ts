@@ -62,6 +62,8 @@ describe('classifyCropToTier', () => {
     it('treats dry beans as Foundation but fresh/plain beans as Workhorse', () => {
       expect(classifyCropToTier('Dry beans')).toBe(1);
       expect(classifyCropToTier('Kidney bean')).toBe(1);
+      expect(classifyCropToTier('Fava bean')).toBe(1);
+      expect(classifyCropToTier('Edamame')).toBe(1);
       expect(classifyCropToTier('Green beans')).toBe(2);
       expect(classifyCropToTier('Beans')).toBe(2); // bare name → fresh
     });

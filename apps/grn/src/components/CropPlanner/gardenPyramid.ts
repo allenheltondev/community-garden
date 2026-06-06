@@ -140,7 +140,7 @@ const nameRules: ReadonlyArray<{ match: RegExp; tier: PyramidTier }> = [
   { match: /winter squash|butternut|acorn squash|spaghetti squash|kabocha|delicata|hubbard/i, tier: 1 },
   { match: /\bpumpkin\b/i, tier: 1 },
   { match: /dry bean|dried bean|kidney bean|pinto|black bean|navy bean|cannellini|cowpea|black[- ]?eyed pea/i, tier: 1 },
-  { match: /lentil|chickpea|garbanzo|soybean|soy bean/i, tier: 1 },
+  { match: /lentil|chickpea|garbanzo|soybean|soy bean|edamame|fava bean|broad bean/i, tier: 1 },
   { match: /\bgarlic\b/i, tier: 1 },
   { match: /\bshallot/i, tier: 1 },
 
@@ -153,7 +153,7 @@ const nameRules: ReadonlyArray<{ match: RegExp; tier: PyramidTier }> = [
   // --- Workhorse: everyday vegetables ---
   { match: /summer squash|yellow squash|pattypan|crookneck|zucchini|courgette/i, tier: 2 },
   { match: /\bsquash\b|\bgourd\b/i, tier: 1 }, // bare "squash" defaults to winter squash
-  { match: /green bean|snap bean|string bean|pole bean|bush bean|wax bean|fava|lima|fresh bean/i, tier: 2 },
+  { match: /green bean|snap bean|string bean|pole bean|bush bean|wax bean|lima|fresh bean/i, tier: 2 },
   { match: /\bbean(s)?\b/i, tier: 2 }, // bare "beans" defaults to fresh
   { match: /tomato/i, tier: 2 },
   { match: /pepper|capsicum|chili|chile|jalape|cayenne|habanero|serrano|poblano/i, tier: 2 },
