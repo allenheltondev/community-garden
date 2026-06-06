@@ -21,7 +21,7 @@ const growerProfile = {
   userType: 'grower',
 } as unknown as UserProfile;
 
-function crop(id: string, cropName: string): GrowerCropItem {
+function crop(id: string, cropName: string, pyramidTier?: number | null): GrowerCropItem {
   return {
     id,
     userId: 'grower-1',
@@ -40,6 +40,7 @@ function crop(id: string, cropName: string): GrowerCropItem {
     expectedHarvestDate: null,
     plantCount: null,
     spacingInches: null,
+    pyramidTier: pyramidTier ?? null,
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
   };
@@ -104,6 +105,25 @@ describe('PlannerPage', () => {
 
     expect(screen.getByText(/of 5 layers started/i)).toHaveTextContent(
       '2 of 5 layers started'
+    );
+  });
+
+  it('sorts a crop by its catalog pyramidTier even when the name says otherwise', async () => {
+    // "Tomato" classifies to Workhorse by name, but the catalog tier (Joy) wins.
+    mockListMyCrops.mockResolvedValue([crop('c1', 'Tomato', 5)]);
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('pyramid-count-joy')).toHaveTextContent('1')
+    );
+    expect(screen.getByTestId('pyramid-count-workhorse')).toHaveTextContent('+');
+  });
+
+  it('shows a plan score gauge', async () => {
+    mockListMyCrops.mockResolvedValue([crop('c1', 'Potato'), crop('c2', 'Tomato')]);
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: /plan score \d+ out of 100/i })).toBeInTheDocument()
     );
   });
 

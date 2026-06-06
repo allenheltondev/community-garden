@@ -254,17 +254,37 @@ export function classifyCropToTier(
   return null;
 }
 
+function asPyramidTier(value: number | null | undefined): PyramidTier | null {
+  if (value == null) return null;
+  if (Number.isInteger(value) && value >= 1 && value <= 5) {
+    return value as PyramidTier;
+  }
+  return null;
+}
+
+/**
+ * Resolve the pyramid layer for a single crop. The authoritative source is the
+ * `pyramidTier` carried from the catalog; only when that is absent (e.g. a
+ * free-text crop with no catalog link) do we fall back to classifying the name.
+ */
+export function resolveCropTier(crop: {
+  cropName: string;
+  pyramidTier?: number | null;
+}): PyramidTier | null {
+  return asPyramidTier(crop.pyramidTier) ?? classifyCropToTier(crop.cropName, null);
+}
+
 /**
  * Bucket a list of crops into pyramid layers. Returns a record keyed by tier
  * level plus an `unsorted` list for crops that couldn't be placed.
  */
-export function bucketCropsByTier<T extends { cropName: string }>(
+export function bucketCropsByTier<T extends { cropName: string; pyramidTier?: number | null }>(
   crops: readonly T[]
 ): { tiers: Record<PyramidTier, T[]>; unsorted: T[] } {
   const tiers: Record<PyramidTier, T[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   const unsorted: T[] = [];
   for (const crop of crops) {
-    const tier = classifyCropToTier(crop.cropName, null);
+    const tier = resolveCropTier(crop);
     if (tier === null) {
       unsorted.push(crop);
     } else {
@@ -272,4 +292,100 @@ export function bucketCropsByTier<T extends { cropName: string }>(
     }
   }
   return { tiers, unsorted };
+}
+
+// ---------------------------------------------------------------------------
+// Plan evaluation
+// ---------------------------------------------------------------------------
+
+const ALL_TIERS: readonly PyramidTier[] = [1, 2, 3, 4, 5];
+
+// Lower layers carry more weight: a strong plan is built from the Foundation
+// up. Weights sum to 1 so full coverage maps to a coverage score of 1.
+const TIER_WEIGHTS: Record<PyramidTier, number> = {
+  1: 0.3,
+  2: 0.25,
+  3: 0.2,
+  4: 0.15,
+  5: 0.1,
+};
+
+export interface PlanEvaluation {
+  /** 0–100 overall plan health. */
+  score: number;
+  /** Friendly label for the score band. */
+  label: string;
+  /** Number of layers with at least one crop. */
+  coveredCount: number;
+  /** Lowest layer still empty (the recommended place to grow next), or null. */
+  nextFocusTier: PyramidTier | null;
+  /** True when an upper layer holds more crops than a layer beneath it. */
+  topHeavy: boolean;
+}
+
+function scoreLabel(score: number): string {
+  if (score <= 0) return 'Empty plot';
+  if (score < 25) return 'Seedling plan';
+  if (score < 50) return 'Taking root';
+  if (score < 75) return 'Well-rooted';
+  return 'Thriving garden';
+}
+
+/**
+ * Evaluate how well a garden is planned using the pyramid philosophy:
+ * reward covering the lower (foundational) layers, and reward a true pyramid
+ * shape where each layer is no smaller than the one above it.
+ */
+export function evaluatePlan(counts: Record<PyramidTier, number>): PlanEvaluation {
+  const total = ALL_TIERS.reduce((sum, t) => sum + (counts[t] || 0), 0);
+  const coveredCount = ALL_TIERS.filter((t) => (counts[t] || 0) > 0).length;
+  const nextFocusTier = ALL_TIERS.find((t) => (counts[t] || 0) === 0) ?? null;
+
+  if (total === 0) {
+    return { score: 0, label: scoreLabel(0), coveredCount: 0, nextFocusTier: 1, topHeavy: false };
+  }
+
+  // Coverage: weighted credit for each layer that has at least one crop.
+  const coverage = ALL_TIERS.reduce(
+    (sum, t) => sum + ((counts[t] || 0) > 0 ? TIER_WEIGHTS[t] : 0),
+    0
+  );
+
+  // Shape: a violation is an upper layer holding more crops than the layer
+  // directly beneath it (a top-heavy plan). Four adjacent pairs in total.
+  let violations = 0;
+  for (let t = 1 as PyramidTier; t < 5; t = (t + 1) as PyramidTier) {
+    const lower = counts[t] || 0;
+    const upper = counts[(t + 1) as PyramidTier] || 0;
+    if (upper > lower) violations += 1;
+  }
+  const shape = 1 - violations / 4;
+
+  const score = Math.round(100 * (0.7 * coverage + 0.3 * shape));
+
+  return {
+    score,
+    label: scoreLabel(score),
+    coveredCount,
+    nextFocusTier,
+    topHeavy: violations > 0,
+  };
+}
+
+/**
+ * Short, actionable guidance derived from an evaluation: what to grow next, or
+ * a nudge to rebalance a top-heavy plan.
+ */
+export function planGuidance(evaluation: PlanEvaluation): string {
+  if (evaluation.score === 0) {
+    return 'Start at the Foundation — add a staple crop like potatoes or onions.';
+  }
+  if (evaluation.nextFocusTier !== null) {
+    const meta = tierMeta(evaluation.nextFocusTier);
+    return `Next up: add a ${meta.name} crop — ${meta.tagline.toLowerCase()}.`;
+  }
+  if (evaluation.topHeavy) {
+    return 'Your plan is a little top-heavy. Add more to the lower layers to balance the pyramid.';
+  }
+  return 'Every layer is covered and well balanced — a beautifully planned garden!';
 }

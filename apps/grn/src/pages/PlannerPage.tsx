@@ -4,11 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Panel, SectionHeading } from '@olivias/ui';
 import { getMe, listMyCrops } from '../services/api';
 import { PlantLoader } from '../components/branding/PlantLoader';
-import { GardenPyramid } from '../components/Planner/GardenPyramid';
+import { GardenPyramid, type PyramidCropVisual } from '../components/Planner/GardenPyramid';
+import { PlanScore } from '../components/Planner/PlanScore';
 import { CropIcon } from '../components/CropPlanner/cropIcons';
 import { visualForCrop } from '../components/CropPlanner/cropVisuals';
 import {
   bucketCropsByTier,
+  evaluatePlan,
+  planGuidance,
   tierMeta,
   type PyramidTier,
 } from '../components/CropPlanner/gardenPyramid';
@@ -50,7 +53,19 @@ export function PlannerPage() {
     [tiers]
   );
 
-  const coveredCount = ALL_TIERS.filter((level) => counts[level] > 0).length;
+  const cropsByTier = useMemo(
+    () =>
+      ALL_TIERS.reduce(
+        (acc, level) => {
+          acc[level] = tiers[level].map(toCropVisual);
+          return acc;
+        },
+        {} as Record<PyramidTier, PyramidCropVisual[]>
+      ),
+    [tiers]
+  );
+
+  const evaluation = useMemo(() => evaluatePlan(counts), [counts]);
 
   if (isLoadingProfile) {
     return (
@@ -75,36 +90,35 @@ export function PlannerPage() {
       <SectionHeading
         eyebrow="Grower tools"
         title="Garden pyramid"
-        body="Plan your garden in five layers — biggest to smallest. Build from the Foundation up: staples first, then the everyday workhorses, fresh greens, flavor, and finally the joy crops."
+        body="Plan your garden in five layers — biggest to smallest. Build from the Foundation up: staples first, then everyday workhorses, fresh greens, flavor, and finally the joy crops."
       />
 
       <Card padding="6">
-        <div className="grn-planner__progress">
-          <div>
+        <div className="grn-planner__health">
+          <PlanScore evaluation={evaluation} />
+          <div className="grn-planner__health-body">
             <p className="grn-planner__progress-stat">
-              <strong>{coveredCount}</strong> of 5 layers started
+              <strong>{evaluation.coveredCount}</strong> of 5 layers started
             </p>
-            <p className="grn-planner__progress-hint">
-              {coveredCount === 0
-                ? 'Your pyramid is empty — start at the Foundation with a staple crop.'
-                : coveredCount === 5
-                  ? 'Every layer has a crop — a wonderfully balanced garden plan!'
-                  : 'Keep building. A strong garden grows from the bottom up.'}
-            </p>
-          </div>
-          <div className="grn-planner__progress-track" aria-hidden="true">
-            {ALL_TIERS.map((level) => (
-              <span
-                key={level}
-                className={`grn-planner__progress-pip ${counts[level] > 0 ? 'is-on' : ''}`.trim()}
-                style={{ background: counts[level] > 0 ? tierMeta(level).accent : undefined }}
-              />
-            ))}
+            <div className="grn-planner__progress-track" aria-hidden="true">
+              {ALL_TIERS.map((level) => (
+                <span
+                  key={level}
+                  className={`grn-planner__progress-pip ${counts[level] > 0 ? 'is-on' : ''}`.trim()}
+                  style={{ background: counts[level] > 0 ? tierMeta(level).accent : undefined }}
+                  title={`${tierMeta(level).name}: ${counts[level]} crop${counts[level] === 1 ? '' : 's'}`}
+                />
+              ))}
+            </div>
+            <p className="grn-planner__guidance">{planGuidance(evaluation)}</p>
           </div>
         </div>
+      </Card>
 
+      <Card padding="6">
+        <h3 className="grn-planner__pyramid-title">Your garden pyramid</h3>
         <GardenPyramid
-          counts={counts}
+          cropsByTier={cropsByTier}
           activeTier={activeTier}
           onSelectTier={setActiveTier}
         />
@@ -123,8 +137,8 @@ export function PlannerPage() {
           <div className="grn-planner__unsorted">
             <h3 className="grn-planner__detail-name">Not yet placed</h3>
             <p className="grn-planner__detail-desc">
-              We couldn&apos;t auto-sort these into a layer — they may be perfect
-              experiments for your Joy tier.
+              We couldn&apos;t sort these into a layer — they may be ornamentals or
+              experiments outside the food pyramid.
             </p>
             <ul className="grn-planner__crop-list">
               {unsorted.map((crop) => (
@@ -136,6 +150,16 @@ export function PlannerPage() {
       ) : null}
     </section>
   );
+}
+
+function toCropVisual(crop: GrowerCropItem): PyramidCropVisual {
+  const visual = visualForCrop(crop.cropName, null);
+  return {
+    id: crop.id,
+    label: crop.nickname || crop.cropName,
+    iconKey: visual.iconKey,
+    accent: visual.accent,
+  };
 }
 
 interface TierDetailProps {

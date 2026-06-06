@@ -1613,13 +1613,64 @@ body {
    Garden Pyramid planner
    ========================================================================== */
 
-.grn-planner__progress {
+/* ── Plan health (score gauge + guidance) ────────────────────────── */
+
+.grn-planner__health {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 1.5rem;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  margin-bottom: 1.5rem;
+}
+
+.grn-planner__health-body {
+  display: grid;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 14rem;
+}
+
+.grn-plan-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.grn-plan-score__dial {
+  width: 8.5rem;
+  height: 8.5rem;
+}
+
+.grn-plan-score__value {
+  font-family: var(--og-font-display);
+  font-weight: 700;
+  font-size: 2.4rem;
+}
+
+.grn-plan-score__max {
+  font-size: 0.85rem;
+  fill: rgba(79, 56, 37, 0.55);
+}
+
+.grn-plan-score__label {
+  font-family: var(--og-font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.grn-planner__guidance {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.85);
+  max-width: 34rem;
+}
+
+.grn-planner__pyramid-title {
+  margin: 0 0 1rem;
+  font-family: var(--og-font-display);
+  font-size: 1.2rem;
+  color: var(--og-color-soil);
+  text-align: center;
 }
 
 .grn-planner__progress-stat {
@@ -1632,13 +1683,6 @@ body {
   font-family: var(--og-font-display);
   font-size: 1.4rem;
   color: var(--og-color-moss);
-}
-
-.grn-planner__progress-hint {
-  margin: 0.15rem 0 0;
-  font-size: 0.85rem;
-  color: rgba(79, 56, 37, 0.7);
-  max-width: 30rem;
 }
 
 .grn-planner__progress-track {
@@ -1667,8 +1711,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  min-height: 3.4rem;
-  padding: 0.5rem 1rem;
+  min-height: 4.1rem;
+  padding: 0.55rem 1rem;
   border: 1px solid transparent;
   border-radius: var(--og-radius-md);
   background: linear-gradient(135deg, var(--tier-accent), color-mix(in srgb, var(--tier-accent) 78%, #000));
@@ -1720,11 +1764,53 @@ body {
   background: rgba(79, 56, 37, 0.12);
 }
 
+.grn-pyramid__band-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1;
+}
+
 .grn-pyramid__band-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  flex: 1;
+}
+
+.grn-pyramid__crops {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.grn-pyramid__crop-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(38, 23, 15, 0.18);
+}
+
+.grn-pyramid__crop-icon.is-ghost {
+  background: rgba(79, 56, 37, 0.06);
+  box-shadow: none;
+  opacity: 0.5;
+}
+
+.grn-pyramid__crop-more {
+  display: inline-flex;
+  align-items: center;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .grn-pyramid__band-name {

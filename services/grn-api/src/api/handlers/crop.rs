@@ -18,9 +18,11 @@ const GROWER_CROP_SELECT: &str = "
            g.bed_id, b.name as bed_name,
            g.planting_date, g.expected_harvest_date,
            g.plant_count, g.spacing_inches,
+           c.pyramid_tier as pyramid_tier,
            g.created_at, g.updated_at
     from grower_crop_library g
     left join garden_beds b on b.id = g.bed_id and b.archived_at is null
+    left join crops c on c.id = g.canonical_id
 ";
 
 pub async fn list_my_crops(
@@ -543,6 +545,7 @@ fn row_to_item(row: &Row) -> GrowerCropItem {
             .map(|d| d.format("%Y-%m-%d").to_string()),
         plant_count: row.get("plant_count"),
         spacing_inches: row.get("spacing_inches"),
+        pyramid_tier: row.get("pyramid_tier"),
         created_at: row
             .get::<_, chrono::DateTime<chrono::Utc>>("created_at")
             .to_rfc3339(),

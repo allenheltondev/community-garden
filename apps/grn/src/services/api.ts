@@ -224,6 +224,7 @@ interface RawCatalogCrop {
   scientific_name: string | null;
   category: string | null;
   description: string | null;
+  pyramid_tier?: number | null;
 }
 
 interface RawCatalogVariety {
@@ -252,6 +253,7 @@ interface RawGrowerCropItem {
   expected_harvest_date: string | null;
   plant_count: number | null;
   spacing_inches: number | null;
+  pyramid_tier?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -463,6 +465,7 @@ function mapCatalogCrop(raw: RawCatalogCrop): CatalogCrop {
     scientificName: raw.scientific_name,
     category: raw.category,
     description: raw.description,
+    pyramidTier: raw.pyramid_tier ?? null,
   };
 }
 
@@ -495,6 +498,7 @@ function mapGrowerCropItem(raw: RawGrowerCropItem): GrowerCropItem {
     expectedHarvestDate: raw.expected_harvest_date ?? null,
     plantCount: raw.plant_count ?? null,
     spacingInches: raw.spacing_inches ?? null,
+    pyramidTier: raw.pyramid_tier ?? null,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };

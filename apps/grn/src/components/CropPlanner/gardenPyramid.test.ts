@@ -3,6 +3,8 @@ import {
   PYRAMID_TIERS,
   bucketCropsByTier,
   classifyCropToTier,
+  evaluatePlan,
+  resolveCropTier,
   tierMeta,
   type PyramidTier,
 } from './gardenPyramid';
@@ -128,5 +130,67 @@ describe('bucketCropsByTier', () => {
     ([1, 2, 3, 4, 5] as PyramidTier[]).forEach((level) => {
       expect(tiers[level]).toEqual([]);
     });
+  });
+
+  it('prefers the catalog pyramidTier over the name-based fallback', () => {
+    // Name says "Tomato" (Workhorse) but the catalog tier wins.
+    const { tiers } = bucketCropsByTier([
+      { cropName: 'Tomato', pyramidTier: 5 },
+      { cropName: 'Totally made up plant', pyramidTier: 1 },
+    ]);
+    expect(tiers[5].map((c) => c.cropName)).toEqual(['Tomato']);
+    expect(tiers[1].map((c) => c.cropName)).toEqual(['Totally made up plant']);
+  });
+
+  it('ignores an out-of-range pyramidTier and falls back to the name', () => {
+    expect(resolveCropTier({ cropName: 'Tomato', pyramidTier: 9 })).toBe(2);
+    expect(resolveCropTier({ cropName: 'Tomato', pyramidTier: 0 })).toBe(2);
+    expect(resolveCropTier({ cropName: 'Tomato', pyramidTier: null })).toBe(2);
+    expect(resolveCropTier({ cropName: 'Tomato' })).toBe(2);
+  });
+});
+
+describe('evaluatePlan', () => {
+  const counts = (c: Partial<Record<PyramidTier, number>>): Record<PyramidTier, number> => ({
+    1: c[1] ?? 0,
+    2: c[2] ?? 0,
+    3: c[3] ?? 0,
+    4: c[4] ?? 0,
+    5: c[5] ?? 0,
+  });
+
+  it('scores an empty plan as zero with an Empty plot label', () => {
+    const result = evaluatePlan(counts({}));
+    expect(result.score).toBe(0);
+    expect(result.label).toBe('Empty plot');
+    expect(result.coveredCount).toBe(0);
+    expect(result.nextFocusTier).toBe(1);
+  });
+
+  it('gives a higher score to a foundation-first plan than a top-heavy one', () => {
+    const foundationFirst = evaluatePlan(counts({ 1: 3, 2: 2, 3: 1 }));
+    const topHeavy = evaluatePlan(counts({ 3: 1, 4: 2, 5: 3 }));
+    expect(foundationFirst.score).toBeGreaterThan(topHeavy.score);
+    expect(foundationFirst.topHeavy).toBe(false);
+    expect(topHeavy.topHeavy).toBe(true);
+  });
+
+  it('awards a full, well-shaped pyramid the top band', () => {
+    const result = evaluatePlan(counts({ 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 }));
+    expect(result.score).toBe(100);
+    expect(result.label).toBe('Thriving garden');
+    expect(result.coveredCount).toBe(5);
+    expect(result.nextFocusTier).toBeNull();
+  });
+
+  it('points to the lowest empty layer as the next focus', () => {
+    const result = evaluatePlan(counts({ 1: 2, 3: 1 }));
+    expect(result.nextFocusTier).toBe(2);
+  });
+
+  it('keeps the score within 0–100', () => {
+    const result = evaluatePlan(counts({ 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 }));
+    expect(result.score).toBeGreaterThanOrEqual(0);
+    expect(result.score).toBeLessThanOrEqual(100);
   });
 });
