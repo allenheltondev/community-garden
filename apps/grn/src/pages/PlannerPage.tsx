@@ -70,7 +70,7 @@ export function PlannerPage() {
   if (isLoadingProfile) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Grower tools" title="Garden pyramid" />
+        <SectionHeading title="Garden pyramid" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading your plan…</p>
@@ -88,9 +88,8 @@ export function PlannerPage() {
   return (
     <section className="grn-section grn-planner">
       <SectionHeading
-        eyebrow="Grower tools"
         title="Garden pyramid"
-        body="Plan your garden in five layers — biggest to smallest. Build from the Foundation up: staples first, then everyday workhorses, fresh greens, flavor, and finally the joy crops."
+        body="Your grower planner, organized in five layers — biggest to smallest. Build from the Foundation up: staples first, then everyday workhorses, fresh greens, flavor, and finally the joy crops."
       />
 
       <Card padding="6">
