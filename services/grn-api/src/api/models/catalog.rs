@@ -20,6 +20,9 @@ pub struct CatalogCrop {
     pub scientific_name: Option<String>,
     pub category: Option<String>,
     pub description: Option<String>,
+    /// Garden pyramid layer (1=Foundation .. 5=Joy); None for crops that are
+    /// not part of the food pyramid (e.g. ornamental flowers).
+    pub pyramid_tier: Option<i16>,
     pub source_attribution: SourceAttribution,
 }
 

@@ -20,6 +20,11 @@ pub struct GrowerCropItem {
     pub expected_harvest_date: Option<String>,
     pub plant_count: Option<i32>,
     pub spacing_inches: Option<i32>,
+    /// Garden pyramid layer (1=Foundation .. 5=Joy) resolved from the linked
+    /// catalog crop. None when the crop has no catalog link or is not part of
+    /// the food pyramid (e.g. ornamentals).
+    #[serde(default)]
+    pub pyramid_tier: Option<i16>,
     pub created_at: String,
     pub updated_at: String,
 }

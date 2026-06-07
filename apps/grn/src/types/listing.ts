@@ -5,6 +5,8 @@ export interface CatalogCrop {
   scientificName: string | null;
   category: string | null;
   description: string | null;
+  /** Garden pyramid layer 1=Foundation..5=Joy; null when not part of the food pyramid. */
+  pyramidTier?: number | null;
 }
 
 export interface CatalogVariety {
@@ -33,6 +35,8 @@ export interface GrowerCropItem {
   expectedHarvestDate: string | null;
   plantCount: number | null;
   spacingInches: number | null;
+  /** Garden pyramid layer resolved from the linked catalog crop; null when unlinked or not in the pyramid. */
+  pyramidTier?: number | null;
   createdAt: string;
   updatedAt: string;
 }

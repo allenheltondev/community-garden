@@ -29,7 +29,21 @@ scripts:
           const crops = jsonData.crops || jsonData.data || jsonData.items || jsonData;
           pm.expect(Array.isArray(crops)).to.be.true;
       });
-      
+
+      pm.test("Catalog crops expose a valid pyramid_tier", function () {
+          const jsonData = pm.response.json();
+          const crops = jsonData.crops || jsonData.data || jsonData.items || jsonData;
+          pm.expect(crops.length, "catalog should not be empty").to.be.above(0);
+          crops.forEach((crop) => {
+              pm.expect(crop, "each catalog crop carries pyramid_tier").to.have.property("pyramid_tier");
+              const tier = crop.pyramid_tier;
+              if (tier !== null) {
+                  pm.expect(tier, "pyramid_tier is an integer 1-5 when set").to.be.a("number");
+                  pm.expect(tier).to.be.within(1, 5);
+              }
+          });
+      });
+
       pm.test("Find and capture matching crop", function () {
           const jsonData = pm.response.json();
           const crops = jsonData.crops || jsonData.data || jsonData.items || jsonData;
@@ -52,7 +66,11 @@ scripts:
           
           pm.collectionVariables.set("catalogCropId", cropId);
           pm.collectionVariables.set("catalogCropName", matchingCrop.common_name || "Unknown Crop");
-          
+          // Capture the catalog tier so later steps can assert it propagates to
+          // the grower crop. Stored as a string ("" when null/absent).
+          const tier = matchingCrop.pyramid_tier;
+          pm.collectionVariables.set("catalogCropPyramidTier", tier === null || tier === undefined ? "" : String(tier));
+
           console.log("Captured catalogCropId: " + cropId);
           console.log("Captured catalogCropName: " + matchingCrop.common_name);
       });

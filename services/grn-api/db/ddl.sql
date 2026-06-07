@@ -286,6 +286,9 @@ create table if not exists crops (
   scientific_name text,
   category text,
   description text,
+  -- Garden pyramid layer: 1=Foundation, 2=Workhorse, 3=Fresh, 4=Flavor,
+  -- 5=Joy. NULL = not part of the food pyramid (e.g. ornamentals).
+  pyramid_tier smallint check (pyramid_tier is null or pyramid_tier between 1 and 5),
   source_provider text not null default 'internal_seed',
   source_record_id text,
   source_url text,
@@ -299,6 +302,7 @@ create table if not exists crops (
 );
 
 create index if not exists idx_crops_source_provider on crops(source_provider);
+create index if not exists idx_crops_pyramid_tier on crops(pyramid_tier);
 create unique index if not exists idx_crops_source_record
   on crops(source_provider, source_record_id)
   where source_record_id is not null;

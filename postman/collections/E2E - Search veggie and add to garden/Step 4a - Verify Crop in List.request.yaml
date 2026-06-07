@@ -46,3 +46,21 @@ scripts:
           pm.expect(foundCrop.status).to.eql("growing");
           console.log("Verified: Crop " + createdCropId + " found in user's crop list");
       });
+
+      pm.test("Grower crop carries the catalog pyramid_tier", function () {
+          const jsonData = pm.response.json();
+          const crops = jsonData.crops || jsonData.data || jsonData.items || jsonData;
+          const createdCropId = pm.collectionVariables.get("createdCropId");
+          const foundCrop = crops.find(crop => crop.id === createdCropId);
+
+          pm.expect(foundCrop, "Created crop should be in the user's crop list").to.not.be.undefined;
+          pm.expect(foundCrop, "grower crop carries pyramid_tier from its catalog crop").to.have.property("pyramid_tier");
+
+          // The crop is linked to a catalog crop, so its tier must match the one
+          // captured from /catalog/crops in Step 1 (proves the join propagates).
+          const expectedTier = pm.collectionVariables.get("catalogCropPyramidTier");
+          const actualTier = foundCrop.pyramid_tier === null || foundCrop.pyramid_tier === undefined
+              ? ""
+              : String(foundCrop.pyramid_tier);
+          pm.expect(actualTier, "grower crop tier should match its catalog crop tier").to.eql(expectedTier);
+      });

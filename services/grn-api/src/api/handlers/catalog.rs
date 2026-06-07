@@ -9,7 +9,7 @@ pub async fn list_catalog_crops() -> Result<Response<Body>, lambda_http::Error> 
     let client = db::connect().await?;
     let rows = client
         .query(
-            "select id, slug, common_name, scientific_name, category, description, source_provider, source_record_id, source_url, source_license, attribution_text, import_batch_id, imported_at::text as imported_at, last_verified_at::text as last_verified_at from crops order by common_name asc",
+            "select id, slug, common_name, scientific_name, category, description, pyramid_tier, source_provider, source_record_id, source_url, source_license, attribution_text, import_batch_id, imported_at::text as imported_at, last_verified_at::text as last_verified_at from crops order by common_name asc",
             &[],
         )
         .await
@@ -24,6 +24,7 @@ pub async fn list_catalog_crops() -> Result<Response<Body>, lambda_http::Error> 
             scientific_name: row.get("scientific_name"),
             category: row.get("category"),
             description: row.get("description"),
+            pyramid_tier: row.get("pyramid_tier"),
             source_attribution: SourceAttribution {
                 source: row.get("source_provider"),
                 source_id: row.get("source_record_id"),
