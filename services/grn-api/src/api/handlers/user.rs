@@ -401,10 +401,7 @@ async fn ensure_user_row(
     // Provision (or reactivate) the profile for the authenticated caller.
     // See ENSURE_USER_SQL for the revive rationale.
     client
-        .execute(
-            ENSURE_USER_SQL,
-            &[&user_id, &email, &display_name],
-        )
+        .execute(ENSURE_USER_SQL, &[&user_id, &email, &display_name])
         .await
         .map_err(|error| db_error(&error))?;
 
