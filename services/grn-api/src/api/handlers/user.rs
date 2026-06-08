@@ -22,6 +22,42 @@ use uuid::Uuid;
 
 const KM_PER_MILE: f64 = 1.609_344;
 
+// Upsert run when a user selects their type / saves their profile (PUT /me).
+// `deleted_at = null` revives a row left in a soft-deleted/hidden state so the
+// caller always ends up with an active profile and the follow-up GET /me does
+// not 404 with "User profile not found".
+const UPSERT_USER_SQL: &str = "
+            insert into users (id, email, display_name, user_type, onboarding_completed)
+            values ($1, $2, $3, $4, $5)
+            on conflict (id) do update
+            set email = coalesce(excluded.email, users.email),
+                display_name = coalesce(excluded.display_name, users.display_name),
+                user_type = coalesce(excluded.user_type, users.user_type),
+                onboarding_completed = case
+                    when excluded.onboarding_completed = true then true
+                    else users.onboarding_completed
+                end,
+                deleted_at = null,
+                updated_at = now()
+            ";
+
+// Lazy provisioning run on GET /me when the caller has no active row. The
+// request already passed the Cognito-backed authorizer, so the user is a
+// legitimate signed-in member and must end up with an active profile.
+// `deleted_at = null` self-heals a row that exists but is soft-deleted:
+// without it `load_user_row` (which filters `deleted_at is null`) keeps
+// returning None and GET /me 404s. grn-api has no self-service deletion path,
+// so this only un-hides rows left in a stale/inconsistent state.
+const ENSURE_USER_SQL: &str = "
+            insert into users (id, email, display_name)
+            values ($1, $2, $3)
+            on conflict (id) do update
+            set email = coalesce(users.email, excluded.email),
+                display_name = coalesce(users.display_name, excluded.display_name),
+                deleted_at = null,
+                updated_at = now()
+            ";
+
 pub async fn get_current_user(
     request: &Request,
     correlation_id: &str,
@@ -70,21 +106,11 @@ pub async fn upsert_current_user(
     let should_complete_onboarding = should_mark_onboarding_complete(&payload);
     let display_name = payload.display_name.or(auth_display_name);
 
+    // Selecting a user type (the first onboarding step) must always leave the
+    // caller with an active profile. See UPSERT_USER_SQL for the revive rationale.
     client
         .execute(
-            "
-            insert into users (id, email, display_name, user_type, onboarding_completed)
-            values ($1, $2, $3, $4, $5)
-            on conflict (id) do update
-            set email = coalesce(excluded.email, users.email),
-                display_name = coalesce(excluded.display_name, users.display_name),
-                user_type = coalesce(excluded.user_type, users.user_type),
-                onboarding_completed = case
-                    when excluded.onboarding_completed = true then true
-                    else users.onboarding_completed
-                end,
-                updated_at = now()
-            ",
+            UPSERT_USER_SQL,
             &[
                 &user_id,
                 &auth_email,
@@ -372,18 +398,10 @@ async fn ensure_user_row(
     email: Option<&str>,
     display_name: Option<&str>,
 ) -> Result<(), lambda_http::Error> {
+    // Provision (or reactivate) the profile for the authenticated caller.
+    // See ENSURE_USER_SQL for the revive rationale.
     client
-        .execute(
-            "
-            insert into users (id, email, display_name)
-            values ($1, $2, $3)
-            on conflict (id) do update
-            set email = coalesce(users.email, excluded.email),
-                display_name = coalesce(users.display_name, excluded.display_name),
-                updated_at = now()
-            ",
-            &[&user_id, &email, &display_name],
-        )
+        .execute(ENSURE_USER_SQL, &[&user_id, &email, &display_name])
         .await
         .map_err(|error| db_error(&error))?;
 
@@ -816,6 +834,35 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Cannot provide both"));
+    }
+
+    /// Regression guard for the onboarding 404: the lazy-provision SQL run on
+    /// GET /me must reactivate a soft-deleted/hidden row so the caller always
+    /// gets an active profile instead of "User profile not found".
+    #[test]
+    fn ensure_user_sql_revives_soft_deleted_rows() {
+        assert!(
+            ENSURE_USER_SQL.contains("on conflict (id) do update"),
+            "ensure SQL must upsert by id so a returning user is not duplicated"
+        );
+        assert!(
+            ENSURE_USER_SQL.contains("deleted_at = null"),
+            "ensure SQL must clear deleted_at so GET /me does not 404 for an authenticated user"
+        );
+    }
+
+    /// Regression guard: selecting a user type (PUT /me) must also leave the
+    /// caller with an active profile, otherwise the follow-up GET /me 404s.
+    #[test]
+    fn upsert_user_sql_revives_soft_deleted_rows() {
+        assert!(
+            UPSERT_USER_SQL.contains("on conflict (id) do update"),
+            "upsert SQL must upsert by id"
+        );
+        assert!(
+            UPSERT_USER_SQL.contains("deleted_at = null"),
+            "upsert SQL must clear deleted_at so onboarding leaves an active profile"
+        );
     }
 
     #[test]
