@@ -3170,3 +3170,531 @@ body {
 .grn-new-crop__locked-bed strong {
   color: var(--og-color-soil);
 }
+
+/* ==========================================================================
+   Garden Masterplan (isometric explorer)
+   ========================================================================== */
+
+/* Segmented view toggle in the garden page header. */
+.grn-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border-radius: var(--og-radius-pill);
+  background: rgba(91, 58, 28, 0.08);
+  border: 1px solid rgba(91, 58, 28, 0.1);
+}
+
+.grn-view-toggle__btn {
+  padding: 0.4rem 0.95rem;
+  border: none;
+  border-radius: var(--og-radius-pill);
+  background: transparent;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms var(--easing-out), color 150ms var(--easing-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grn-view-toggle__btn:hover {
+  color: var(--og-color-soil);
+}
+
+.grn-view-toggle__btn:focus-visible {
+  outline: 2px solid var(--og-color-moss);
+  outline-offset: 1px;
+}
+
+.grn-view-toggle__btn.is-active {
+  background: var(--og-color-paper);
+  color: var(--og-color-soil);
+  box-shadow: 0 2px 8px rgba(91, 58, 28, 0.16);
+}
+
+/* --- Explorer shell -------------------------------------------------------- */
+
+.mp-explorer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.mp-explorer__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: var(--og-radius-md);
+  border: 1px solid rgba(86, 96, 64, 0.16);
+  background:
+    radial-gradient(120% 90% at 50% 8%, rgba(255, 253, 248, 0.85) 0%, transparent 55%),
+    linear-gradient(180deg, #f3eddd 0%, #efe7d4 100%);
+  box-shadow: var(--og-shadow-card), inset 0 0 0 1px rgba(255, 253, 248, 0.5);
+  /* The viewport owns all gestures: block browser pan/zoom + text selection. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.mp-explorer__viewport:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__viewport {
+    min-height: 68vh;
+  }
+}
+
+.mp-explorer__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* transform (translate3d + scale) is applied inline by useMapViewport so
+     pan/zoom stays on the compositor. */
+}
+
+.mp-scene {
+  display: block;
+  overflow: visible;
+}
+
+/* --- Elements: hover, dim, selection ---------------------------------------- */
+
+.mp-el {
+  cursor: pointer;
+  outline: none;
+  transition:
+    opacity 200ms var(--easing-out),
+    filter 200ms var(--easing-out),
+    transform 180ms var(--easing-out);
+}
+
+/* The map is the navigation: hovering (or keyboard-focusing) one element
+   gently lifts and brightens it while the rest of the planting recedes. */
+.mp-scene:has(.mp-el:hover, .mp-el:focus-visible)
+  .mp-el:not(:hover):not(:focus-visible):not(.mp-el--selected) {
+  opacity: 0.45;
+}
+
+.mp-el:hover,
+.mp-el:focus-visible {
+  filter: brightness(1.07) saturate(1.04);
+  transform: translateY(-3px);
+}
+
+.mp-el:focus-visible {
+  filter: brightness(1.07) saturate(1.04)
+    drop-shadow(0 0 5px rgba(168, 99, 47, 0.65));
+}
+
+.mp-el--selected {
+  filter: brightness(1.05);
+  transform: translateY(-3px);
+}
+
+.mp-el__shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 180ms var(--easing-out), opacity 180ms var(--easing-out);
+}
+
+.mp-el:hover .mp-el__shadow,
+.mp-el--selected .mp-el__shadow {
+  /* The element lifts, so its ground shadow spreads slightly and softens. */
+  transform: translateY(4px) scale(1.03);
+  opacity: 0.75;
+}
+
+.mp-el__ring {
+  pointer-events: none;
+  animation: mp-ring-in 220ms var(--easing-out);
+}
+
+@keyframes mp-ring-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- Cartography ------------------------------------------------------------ */
+
+.mp-label {
+  font-family: var(--og-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  fill: #3c3527;
+  paint-order: stroke;
+  stroke: rgba(247, 242, 231, 0.9);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.mp-label--count {
+  font-size: 10px;
+  fill: #6b6049;
+}
+
+.mp-compass__n {
+  font-family: var(--og-font-display);
+  font-size: 11px;
+  fill: #3c3527;
+}
+
+.mp-crop {
+  pointer-events: none;
+}
+
+/* --- Zoom controls + hint ----------------------------------------------------- */
+
+.mp-explorer__zoom {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  z-index: 5;
+}
+
+.mp-explorer__zoom-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(91, 58, 28, 0.15);
+  background: var(--og-color-paper);
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(91, 58, 28, 0.14);
+  transition: background 120ms ease, transform 80ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mp-explorer__zoom-btn:hover,
+.mp-explorer__zoom-btn:focus-visible {
+  background: rgba(91, 140, 74, 0.14);
+  outline: none;
+  border-color: var(--og-color-moss);
+}
+
+.mp-explorer__zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.mp-explorer__zoom-btn--fit {
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__zoom-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+}
+
+.mp-explorer__hint {
+  position: absolute;
+  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  background: rgba(58, 43, 26, 0.78);
+  color: var(--og-color-cream);
+  font-size: 0.78rem;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__hint {
+    display: none;
+  }
+}
+
+/* --- Empty state --------------------------------------------------------------- */
+
+.mp-explorer__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.mp-explorer__empty h2 {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+}
+
+.mp-explorer__empty p {
+  margin: 0 0 0.6rem;
+  max-width: 34ch;
+  color: rgba(79, 56, 37, 0.78);
+  font-size: 0.95rem;
+}
+
+/* --- Floating detail panel ------------------------------------------------------ */
+
+.mp-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: clamp(290px, 26vw, 360px);
+  max-height: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 253, 248, 0.93);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(91, 58, 28, 0.12);
+  box-shadow: var(--og-shadow-card);
+  z-index: 6;
+  animation: mp-panel-in 220ms var(--easing-out);
+}
+
+@keyframes mp-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .mp-panel {
+    top: auto;
+    right: 0.5rem;
+    left: 0.5rem;
+    bottom: 0.5rem;
+    width: auto;
+    max-height: 46vh;
+  }
+}
+
+.mp-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem 0.6rem;
+}
+
+.mp-panel__kicker {
+  margin: 0 0 0.15rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--og-color-sage);
+}
+
+.mp-panel__title {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+  letter-spacing: 0;
+}
+
+.mp-panel__close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(91, 58, 28, 0.08);
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.mp-panel__close:hover,
+.mp-panel__close:focus-visible {
+  background: rgba(91, 58, 28, 0.16);
+  outline: none;
+}
+
+.mp-panel__body {
+  padding: 0 1.1rem 0.85rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mp-panel__description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(79, 56, 37, 0.85);
+}
+
+.mp-panel__meta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mp-panel__meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.mp-panel__meta-row dt {
+  flex: 0 0 3.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(79, 56, 37, 0.55);
+}
+
+.mp-panel__meta-row dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--og-color-ink);
+}
+
+.mp-panel__chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.mp-panel__chip {
+  padding: 0.12rem 0.55rem;
+  border-radius: var(--og-radius-pill);
+  background: rgba(111, 143, 95, 0.14);
+  color: var(--og-color-moss);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.mp-panel__section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(79, 56, 37, 0.55);
+}
+
+.mp-panel__crop-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.mp-panel__crop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mp-panel__crop-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mp-panel__crop-name {
+  font-size: 0.9rem;
+  color: var(--og-color-ink);
+}
+
+.mp-panel__crop-count {
+  font-size: 0.8rem;
+  color: rgba(79, 56, 37, 0.6);
+}
+
+.mp-panel__notes {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--og-radius-sm);
+  background: rgba(216, 167, 65, 0.1);
+  font-size: 0.85rem;
+  color: rgba(79, 56, 37, 0.85);
+}
+
+.mp-panel__footer {
+  padding: 0.75rem 1.1rem 1rem;
+  border-top: 1px solid rgba(91, 58, 28, 0.08);
+}
+
+.mp-panel__action {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: var(--og-radius-pill);
+  background: var(--og-color-moss);
+  color: var(--og-color-paper);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--og-shadow-button);
+  transition: background 150ms var(--easing-out), transform 80ms ease;
+}
+
+.mp-panel__action:hover,
+.mp-panel__action:focus-visible {
+  background: #365733;
+  outline: none;
+}
+
+.mp-panel__action:active {
+  transform: scale(0.98);
+}
+
+/* --- Motion preferences ---------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-el,
+  .mp-el__shadow,
+  .mp-panel,
+  .mp-el__ring {
+    transition: none;
+    animation: none;
+  }
+  .mp-el:hover,
+  .mp-el:focus-visible,
+  .mp-el--selected {
+    transform: none;
+  }
+}

@@ -1,0 +1,184 @@
+import type {
+  GardenAnnotation,
+  GardenBed,
+  GrowerCropItem,
+  SunExposure,
+} from '../../types/listing';
+import {
+  bedAreaSquareInches,
+  bedTypeMeta,
+  formatArea,
+  parseSoilField,
+  soilLabel,
+} from '../GardenDesigner/bedDefaults';
+import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
+import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { KIND_LABELS, annotationKind, mute } from './palette';
+
+const SUN_LABELS: Record<SunExposure, string> = {
+  full_sun: 'Full sun',
+  partial_sun: 'Partial sun',
+  partial_shade: 'Partial shade',
+  full_shade: 'Full shade',
+  mixed: 'Mixed',
+};
+
+function formatFeet(inches: number | null): string {
+  if (!inches) return '—';
+  const feet = inches / 12;
+  return feet >= 1 ? `${Math.round(feet * 10) / 10} ft` : `${Math.round(inches)} in`;
+}
+
+interface MasterplanDetailPanelProps {
+  bed?: GardenBed;
+  annotation?: GardenAnnotation;
+  crops: GrowerCropItem[];
+  onClose: () => void;
+  onOpenLayoutEditor: () => void;
+}
+
+/**
+ * Floating detail card shown over the masterplan when an element is
+ * selected. Read-focused: it surfaces what the element is and what's
+ * growing there, plus a jump into the layout editor for changes. The map
+ * stays visible and navigable behind it.
+ */
+export function MasterplanDetailPanel({
+  bed,
+  annotation,
+  crops,
+  onClose,
+  onOpenLayoutEditor,
+}: MasterplanDetailPanelProps) {
+  if (!bed && !annotation) return null;
+
+  const title = bed ? bed.name : annotation?.label ?? '';
+  const kicker = bed
+    ? `${bedTypeMeta(bed.bedType).label} · ${formatArea(
+        bedAreaSquareInches({
+          shape: bed.shape,
+          lengthInches: bed.lengthInches,
+          widthInches: bed.widthInches,
+          points: bed.points,
+        })
+      )}`
+    : annotation
+      ? KIND_LABELS[annotationKind(annotation)]
+      : '';
+
+  const soils = bed ? parseSoilField(bed.soilType) : [];
+
+  return (
+    <aside
+      className="mp-panel"
+      role="dialog"
+      aria-label={`${title} details`}
+      data-testid="masterplan-detail-panel"
+    >
+      <header className="mp-panel__header">
+        <div>
+          <p className="mp-panel__kicker">{kicker}</p>
+          <h2 className="mp-panel__title">{title}</h2>
+        </div>
+        <button
+          type="button"
+          className="mp-panel__close"
+          onClick={onClose}
+          aria-label="Close details"
+        >
+          ×
+        </button>
+      </header>
+
+      <div className="mp-panel__body">
+        {bed?.description && <p className="mp-panel__description">{bed.description}</p>}
+
+        <dl className="mp-panel__meta">
+          {bed && (
+            <div className="mp-panel__meta-row">
+              <dt>Size</dt>
+              <dd>
+                {formatFeet(bed.lengthInches)} × {formatFeet(bed.widthInches)}
+              </dd>
+            </div>
+          )}
+          {bed?.sunExposure && (
+            <div className="mp-panel__meta-row">
+              <dt>Sun</dt>
+              <dd>{SUN_LABELS[bed.sunExposure]}</dd>
+            </div>
+          )}
+          {soils.length > 0 && (
+            <div className="mp-panel__meta-row">
+              <dt>Soil</dt>
+              <dd>
+                <span className="mp-panel__chips">
+                  {soils.map((soil) => (
+                    <span key={soil} className="mp-panel__chip">
+                      {soilLabel(soil)}
+                    </span>
+                  ))}
+                </span>
+              </dd>
+            </div>
+          )}
+          {annotation && (
+            <div className="mp-panel__meta-row">
+              <dt>Size</dt>
+              <dd>
+                {formatFeet(annotation.lengthInches)} × {formatFeet(annotation.widthInches)}
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        {bed && (
+          <section className="mp-panel__crops" aria-label="Crops in this bed">
+            <h3 className="mp-panel__section-title">
+              {crops.length > 0
+                ? `Growing here (${crops.length})`
+                : 'Nothing planted yet'}
+            </h3>
+            {crops.length > 0 && (
+              <ul className="mp-panel__crop-list">
+                {crops.map((crop) => {
+                  const visual = visualForCrop(crop.cropName);
+                  return (
+                    <li key={crop.id} className="mp-panel__crop">
+                      <svg
+                        className="mp-panel__crop-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d={CROP_ICON_PATHS[visual.iconKey]}
+                          fill={mute(visual.accent, 0.15)}
+                        />
+                      </svg>
+                      <span className="mp-panel__crop-name">
+                        {crop.nickname || crop.cropName}
+                      </span>
+                      {crop.plantCount != null && crop.plantCount > 0 && (
+                        <span className="mp-panel__crop-count">×{crop.plantCount}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {bed?.locationNotes && (
+          <p className="mp-panel__notes">{bed.locationNotes}</p>
+        )}
+      </div>
+
+      <footer className="mp-panel__footer">
+        <button type="button" className="mp-panel__action" onClick={onOpenLayoutEditor}>
+          Edit in layout editor
+        </button>
+      </footer>
+    </aside>
+  );
+}
