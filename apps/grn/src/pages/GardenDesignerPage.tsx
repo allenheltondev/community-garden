@@ -8,12 +8,27 @@ import {
 } from '../components/GardenDesigner/Canvas';
 import { GardenPropertiesBar } from '../components/GardenDesigner/GardenPropertiesBar';
 import { Toolbar } from '../components/GardenDesigner/Toolbar';
+import { GardenMasterplan } from '../components/GardenMasterplan/GardenMasterplan';
 import { useGardenDesigner } from '../hooks/useGardenDesigner';
 
+type GardenView = 'masterplan' | 'layout';
+
+/**
+ * The garden page hosts two complementary views of the same data:
+ *
+ * - Masterplan (default): an illustrated isometric map for exploring the
+ *   property. Clicking an element opens a floating detail card.
+ * - Layout editor: the original top-down canvas for moving, resizing,
+ *   drawing, and editing beds and landmarks.
+ *
+ * Selection is shared, so jumping from the masterplan into the editor
+ * lands with the same element selected and its inspector open.
+ */
 export function GardenDesignerPage() {
   const designer = useGardenDesigner();
   const canvasRef = useRef<DesignerCanvasHandle | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [view, setView] = useState<GardenView>('masterplan');
 
   if (designer.isLoading) {
     return (
@@ -39,7 +54,16 @@ export function GardenDesignerPage() {
   }
 
   const inspectorOpen =
-    designer.selectedBed !== undefined || designer.selectedAnnotation !== undefined;
+    view === 'layout' &&
+    (designer.selectedBed !== undefined || designer.selectedAnnotation !== undefined);
+
+  function switchView(next: GardenView) {
+    if (next === 'masterplan') {
+      // Drawing only exists in the editor; never leave it armed.
+      designer.setMode('idle');
+    }
+    setView(next);
+  }
 
   async function handlePickBackgroundFile(file: File) {
     setUploadError(null);
@@ -59,122 +83,155 @@ export function GardenDesignerPage() {
     >
       <header className="grn-designer-page__header">
         <div className="grn-designer-page__title-block">
-          <h1 className="grn-designer-page__title">Garden designer</h1>
+          <h1 className="grn-designer-page__title">Garden</h1>
           <p className="grn-designer-page__subtitle">
-            Lay out your beds, drop in crops, and watch it come together.
+            {view === 'masterplan'
+              ? 'An illustrated masterplan of your growing space — click anything to explore.'
+              : 'Lay out your beds, drop in crops, and watch it come together.'}
           </p>
         </div>
-        {designer.beds.length === 0 && designer.annotations.length === 0 && (
-          <p className="grn-designer-page__hint">
-            Start by adding a bed or a landmark from the toolbar on the left.
-          </p>
-        )}
+        <div className="grn-view-toggle" role="group" aria-label="Garden view">
+          <button
+            type="button"
+            className={`grn-view-toggle__btn ${
+              view === 'masterplan' ? 'is-active' : ''
+            }`}
+            aria-pressed={view === 'masterplan'}
+            onClick={() => switchView('masterplan')}
+          >
+            Masterplan
+          </button>
+          <button
+            type="button"
+            className={`grn-view-toggle__btn ${view === 'layout' ? 'is-active' : ''}`}
+            aria-pressed={view === 'layout'}
+            onClick={() => switchView('layout')}
+          >
+            Layout editor
+          </button>
+        </div>
       </header>
 
-      <GardenPropertiesBar
-        canvas={designer.canvas}
-        beds={designer.beds}
-        annotations={designer.annotations}
-        isEditable={designer.isEditable}
-        isSaving={designer.isSaving}
-        isMobile={designer.isMobile}
-        onCanvasChange={designer.patchCanvas}
-        hasBackground={Boolean(designer.canvas.backgroundImageKey)}
-        onPickBackgroundFile={handlePickBackgroundFile}
-        onClearBackground={() => {
-          setUploadError(null);
-          void designer.clearBackgroundImage();
-        }}
-      />
-
-      {uploadError && (
-        <div className="grn-designer-page__error" role="alert">
-          {uploadError}
-        </div>
-      )}
-
-      <div className="grn-designer-page__layout">
-        <Toolbar
-          isMobile={designer.isMobile}
-          mode={designer.mode}
-          onAddBed={(shape) => {
-            void designer.addBed(shape);
-          }}
-          onAddAnnotation={(presetId) => {
-            void designer.addAnnotation(presetId);
-          }}
-          onStartDrawingPolygon={() => designer.setMode('drawing-polygon')}
-          onCancelDrawingPolygon={() => designer.setMode('idle')}
-          gridSnap={designer.snap}
-          onGridSnapChange={designer.setSnap}
-          onFitToScreen={() => canvasRef.current?.fitToScreen()}
-        />
-
-        <DesignerCanvas
-          ref={canvasRef}
+      {view === 'masterplan' ? (
+        <GardenMasterplan
           canvas={designer.canvas}
           beds={designer.beds}
           annotations={designer.annotations}
           cropsByBedId={designer.cropsByBedId}
           selected={designer.selected}
-          isEditable={designer.isEditable}
-          mode={designer.mode}
-          snap={designer.snap}
-          backgroundImageUrl={designer.canvas.backgroundImageUrl}
+          selectedBed={designer.selectedBed}
+          selectedAnnotation={designer.selectedAnnotation}
           onSelect={designer.setSelected}
-          onMoveBed={designer.moveBed}
-          onResizeBed={designer.resizeBed}
-          onMoveAnnotation={designer.moveAnnotation}
-          onResizeAnnotation={designer.resizeAnnotation}
-          onCommitPolygon={(points) => {
-            void designer.commitPolygon(points);
-          }}
-          onCancelPolygon={() => designer.setMode('idle')}
+          onOpenLayoutEditor={() => switchView('layout')}
         />
-
-        {designer.selectedBed && (
-          <BedInspector
-            key={designer.selectedBed.id}
-            bed={designer.selectedBed}
-            cropsForBed={designer.cropsByBedId.get(designer.selectedBed.id) ?? []}
+      ) : (
+        <>
+          <GardenPropertiesBar
+            canvas={designer.canvas}
+            beds={designer.beds}
+            annotations={designer.annotations}
             isEditable={designer.isEditable}
             isSaving={designer.isSaving}
             isMobile={designer.isMobile}
-            onChange={(patch) => {
-              if (designer.selectedBed) {
-                designer.patchBed(designer.selectedBed.id, patch);
-              }
+            onCanvasChange={designer.patchCanvas}
+            hasBackground={Boolean(designer.canvas.backgroundImageKey)}
+            onPickBackgroundFile={handlePickBackgroundFile}
+            onClearBackground={() => {
+              setUploadError(null);
+              void designer.clearBackgroundImage();
             }}
-            onDelete={() => {
-              if (designer.selectedBed) {
-                void designer.deleteBed(designer.selectedBed.id);
-              }
-            }}
-            onClose={() => designer.setSelected(null)}
           />
-        )}
 
-        {designer.selectedAnnotation && (
-          <AnnotationInspector
-            key={designer.selectedAnnotation.id}
-            annotation={designer.selectedAnnotation}
-            isEditable={designer.isEditable}
-            isSaving={designer.isSaving}
-            isMobile={designer.isMobile}
-            onChange={(patch) => {
-              if (designer.selectedAnnotation) {
-                designer.patchAnnotation(designer.selectedAnnotation.id, patch);
-              }
-            }}
-            onDelete={() => {
-              if (designer.selectedAnnotation) {
-                void designer.deleteAnnotation(designer.selectedAnnotation.id);
-              }
-            }}
-            onClose={() => designer.setSelected(null)}
-          />
-        )}
-      </div>
+          {uploadError && (
+            <div className="grn-designer-page__error" role="alert">
+              {uploadError}
+            </div>
+          )}
+
+          <div className="grn-designer-page__layout">
+            <Toolbar
+              isMobile={designer.isMobile}
+              mode={designer.mode}
+              onAddBed={(shape) => {
+                void designer.addBed(shape);
+              }}
+              onAddAnnotation={(presetId) => {
+                void designer.addAnnotation(presetId);
+              }}
+              onStartDrawingPolygon={() => designer.setMode('drawing-polygon')}
+              onCancelDrawingPolygon={() => designer.setMode('idle')}
+              gridSnap={designer.snap}
+              onGridSnapChange={designer.setSnap}
+              onFitToScreen={() => canvasRef.current?.fitToScreen()}
+            />
+
+            <DesignerCanvas
+              ref={canvasRef}
+              canvas={designer.canvas}
+              beds={designer.beds}
+              annotations={designer.annotations}
+              cropsByBedId={designer.cropsByBedId}
+              selected={designer.selected}
+              isEditable={designer.isEditable}
+              mode={designer.mode}
+              snap={designer.snap}
+              backgroundImageUrl={designer.canvas.backgroundImageUrl}
+              onSelect={designer.setSelected}
+              onMoveBed={designer.moveBed}
+              onResizeBed={designer.resizeBed}
+              onMoveAnnotation={designer.moveAnnotation}
+              onResizeAnnotation={designer.resizeAnnotation}
+              onCommitPolygon={(points) => {
+                void designer.commitPolygon(points);
+              }}
+              onCancelPolygon={() => designer.setMode('idle')}
+            />
+
+            {designer.selectedBed && (
+              <BedInspector
+                key={designer.selectedBed.id}
+                bed={designer.selectedBed}
+                cropsForBed={designer.cropsByBedId.get(designer.selectedBed.id) ?? []}
+                isEditable={designer.isEditable}
+                isSaving={designer.isSaving}
+                isMobile={designer.isMobile}
+                onChange={(patch) => {
+                  if (designer.selectedBed) {
+                    designer.patchBed(designer.selectedBed.id, patch);
+                  }
+                }}
+                onDelete={() => {
+                  if (designer.selectedBed) {
+                    void designer.deleteBed(designer.selectedBed.id);
+                  }
+                }}
+                onClose={() => designer.setSelected(null)}
+              />
+            )}
+
+            {designer.selectedAnnotation && (
+              <AnnotationInspector
+                key={designer.selectedAnnotation.id}
+                annotation={designer.selectedAnnotation}
+                isEditable={designer.isEditable}
+                isSaving={designer.isSaving}
+                isMobile={designer.isMobile}
+                onChange={(patch) => {
+                  if (designer.selectedAnnotation) {
+                    designer.patchAnnotation(designer.selectedAnnotation.id, patch);
+                  }
+                }}
+                onDelete={() => {
+                  if (designer.selectedAnnotation) {
+                    void designer.deleteAnnotation(designer.selectedAnnotation.id);
+                  }
+                }}
+                onClose={() => designer.setSelected(null)}
+              />
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
