@@ -3,7 +3,7 @@ import type { BedShape } from '../../types/listing';
 import { ANNOTATION_PRESETS } from './annotationPresets';
 import { BED_SHAPES } from './bedDefaults';
 
-export type DesignerMode = 'idle' | 'drawing-polygon';
+export type DesignerMode = 'idle' | 'drawing-polygon' | 'editing-vertices';
 export type GridSnap = 'off' | '6' | '12';
 
 interface ToolbarProps {

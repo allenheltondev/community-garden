@@ -51,8 +51,13 @@ export interface MapViewport {
 
 export function useMapViewport(contentWidth: number, contentHeight: number): MapViewport {
   const [transform, setTransform] = useState<Transform>({ scale: 1, x: 0, y: 0 });
+  // Latest-value mirror for gesture handlers. Synced in an effect (not
+  // during render) per the react-hooks/refs rule; every consumer is an
+  // event handler, which always fires after the commit that updates it.
   const transformRef = useRef(transform);
-  transformRef.current = transform;
+  useEffect(() => {
+    transformRef.current = transform;
+  }, [transform]);
 
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const wheelCleanupRef = useRef<(() => void) | null>(null);

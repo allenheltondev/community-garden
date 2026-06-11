@@ -109,6 +109,8 @@ function renderMasterplan(args?: {
   crops?: GrowerCropItem[];
   selected?: { kind: 'bed' | 'annotation'; id: string } | null;
   onSelect?: (next: unknown) => void;
+  onPatchBed?: (bedId: string, patch: Partial<GardenBed>) => void;
+  onPatchAnnotation?: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor?: () => void;
 }) {
   const beds = args?.beds ?? [makeBed({})];
@@ -136,6 +138,8 @@ function renderMasterplan(args?: {
           : undefined
       }
       onSelect={(args?.onSelect ?? (() => {})) as never}
+      onPatchBed={args?.onPatchBed ?? (() => {})}
+      onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
       onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
     />
   );
@@ -203,6 +207,110 @@ describe('GardenMasterplan', () => {
     const onOpenLayoutEditor = vi.fn();
     renderMasterplan({ beds: [], annotations: [], crops: [], onOpenLayoutEditor });
     expect(screen.getByText(/your property, beautifully mapped/i)).toBeInTheDocument();
+  });
+
+  it('paints elements back-to-front by depth when no layer order is set', () => {
+    const { container } = renderMasterplan({
+      beds: [
+        // South-east bed is "nearer" the camera, so it paints last.
+        makeBed({ id: 'near', name: 'Near bed', positionX: 200, positionY: 160 }),
+        makeBed({ id: 'far', name: 'Far bed', positionX: 24, positionY: 24 }),
+      ],
+      annotations: [],
+      crops: [],
+    });
+    const labels = Array.from(container.querySelectorAll('.mp-el')).map((el) =>
+      el.getAttribute('aria-label')
+    );
+    expect(labels[0]).toMatch(/far bed/i);
+    expect(labels[1]).toMatch(/near bed/i);
+  });
+
+  it('lets sortOrder override the geometric paint order', () => {
+    const { container } = renderMasterplan({
+      beds: [
+        makeBed({ id: 'near', name: 'Near bed', positionX: 200, positionY: 160 }),
+        // Raised a layer, the far bed now paints on top of the near one.
+        makeBed({ id: 'far', name: 'Far bed', positionX: 24, positionY: 24, sortOrder: 1 }),
+      ],
+      annotations: [],
+      crops: [],
+    });
+    const labels = Array.from(container.querySelectorAll('.mp-el')).map((el) =>
+      el.getAttribute('aria-label')
+    );
+    expect(labels[0]).toMatch(/near bed/i);
+    expect(labels[1]).toMatch(/far bed/i);
+  });
+
+  it('lets a raised flat annotation paint above beds', () => {
+    const { container } = renderMasterplan({
+      beds: [makeBed({})],
+      annotations: [
+        makeAnnotation({
+          id: 'path-1',
+          label: 'Gravel path',
+          icon: '🛤️',
+          shape: 'line',
+          points: [
+            { x: 0, y: 0 },
+            { x: 240, y: 0 },
+          ],
+          sortOrder: 1,
+        }),
+      ],
+      crops: [],
+    });
+    const labels = Array.from(container.querySelectorAll('.mp-el')).map((el) =>
+      el.getAttribute('aria-label')
+    );
+    // Paths normally paint first (under everything); sortOrder lifts it above.
+    expect(labels[0]).toMatch(/herb spiral/i);
+    expect(labels[1]).toMatch(/gravel path/i);
+  });
+
+  it('changes stacking order from the detail panel', async () => {
+    const onPatchBed = vi.fn();
+    renderMasterplan({ selected: { kind: 'bed', id: 'bed-1' }, onPatchBed });
+    await userEvent.click(screen.getByRole('button', { name: /bring forward/i }));
+    expect(onPatchBed).toHaveBeenCalledWith('bed-1', { sortOrder: 1 });
+    await userEvent.click(screen.getByRole('button', { name: /send backward/i }));
+    expect(onPatchBed).toHaveBeenCalledWith('bed-1', { sortOrder: -1 });
+  });
+
+  it('changes annotation stacking order from the detail panel', async () => {
+    const onPatchAnnotation = vi.fn();
+    renderMasterplan({
+      selected: { kind: 'annotation', id: 'ann-1' },
+      onPatchAnnotation,
+    });
+    await userEvent.click(screen.getByRole('button', { name: /send backward/i }));
+    expect(onPatchAnnotation).toHaveBeenCalledWith('ann-1', { sortOrder: -1 });
+  });
+
+  it('renders a polygon bed with custom vertices in the scene', () => {
+    renderMasterplan({
+      beds: [
+        makeBed({
+          id: 'poly',
+          name: 'L-shaped bed',
+          shape: 'polygon',
+          points: [
+            { x: 0, y: 0 },
+            { x: 96, y: 0 },
+            { x: 96, y: 24 },
+            { x: 48, y: 24 },
+            { x: 48, y: 48 },
+            { x: 0, y: 48 },
+          ],
+        }),
+      ],
+      annotations: [],
+      crops: [],
+    });
+    expect(
+      screen.getByRole('button', { name: /l-shaped bed \(raised bed\)/i })
+    ).toBeInTheDocument();
   });
 
   it('labels annotation kinds for assistive tech', () => {

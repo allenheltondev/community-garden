@@ -1,5 +1,6 @@
+import 'konva/lib/shapes/Image';
 import { useEffect, useState } from 'react';
-import { Image as KonvaImage } from 'react-konva';
+import { Image as KonvaImage } from 'react-konva/lib/ReactKonvaCore';
 
 interface BackgroundLayerProps {
   src: string | null;

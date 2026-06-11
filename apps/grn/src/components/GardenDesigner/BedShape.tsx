@@ -1,7 +1,21 @@
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
+import 'konva/lib/shapes/Ellipse';
+import 'konva/lib/shapes/Line';
+import 'konva/lib/shapes/Path';
+import 'konva/lib/shapes/Rect';
+import 'konva/lib/shapes/Text';
+import 'konva/lib/shapes/Transformer';
 import { useEffect, useRef } from 'react';
-import { Ellipse, Group, Line, Path, Rect, Text, Transformer } from 'react-konva';
+import {
+  Ellipse,
+  Group,
+  Line,
+  Path,
+  Rect,
+  Text,
+  Transformer,
+} from 'react-konva/lib/ReactKonvaCore';
 import type { BedType, GardenBed, GrowerCropItem } from '../../types/listing';
 import { bedStyleFor } from './bedDefaults';
 import { visualForCrop } from '../CropPlanner/cropVisuals';

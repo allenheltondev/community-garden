@@ -33,6 +33,7 @@ interface MasterplanDetailPanelProps {
   bed?: GardenBed;
   annotation?: GardenAnnotation;
   crops: GrowerCropItem[];
+  onArrange: (direction: 'forward' | 'backward') => void;
   onClose: () => void;
   onOpenLayoutEditor: () => void;
 }
@@ -47,6 +48,7 @@ export function MasterplanDetailPanel({
   bed,
   annotation,
   crops,
+  onArrange,
   onClose,
   onOpenLayoutEditor,
 }: MasterplanDetailPanelProps) {
@@ -175,6 +177,24 @@ export function MasterplanDetailPanel({
       </div>
 
       <footer className="mp-panel__footer">
+        <div className="mp-panel__arrange" role="group" aria-label="Stacking order">
+          <button
+            type="button"
+            className="mp-panel__arrange-btn"
+            onClick={() => onArrange('backward')}
+            title="Draw this element behind overlapping neighbors"
+          >
+            ↓ Send backward
+          </button>
+          <button
+            type="button"
+            className="mp-panel__arrange-btn"
+            onClick={() => onArrange('forward')}
+            title="Draw this element in front of overlapping neighbors"
+          >
+            ↑ Bring forward
+          </button>
+        </div>
         <button type="button" className="mp-panel__action" onClick={onOpenLayoutEditor}>
           Edit in layout editor
         </button>

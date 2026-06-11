@@ -1,4 +1,10 @@
-import Konva from 'konva';
+// The designer imports Konva's core plus only the shapes it renders
+// (react-konva's "minimal bundle" pattern) — the full konva build carries
+// every shape and filter and blows the app's JS performance budget.
+import Konva from 'konva/lib/Core';
+import 'konva/lib/shapes/Circle';
+import 'konva/lib/shapes/Line';
+import 'konva/lib/shapes/Rect';
 import {
   forwardRef,
   useCallback,
@@ -8,7 +14,8 @@ import {
 } from 'react';
 import { useImperativeHandle } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
+import type { Stage as KonvaStage } from 'konva/lib/Stage';
+import { Circle, Layer, Line, Rect, Stage } from 'react-konva/lib/ReactKonvaCore';
 
 // Tighten Konva's click-vs-drag detection. The default of 0px means any
 // pointer jitter on a draggable Group fires a drag instead of a click,
@@ -28,6 +35,7 @@ import { AnnotationShape } from './AnnotationShape';
 import { BackgroundLayer } from './BackgroundLayer';
 import { BedShape } from './BedShape';
 import { Grid } from './Grid';
+import { VertexEditor } from './VertexEditor';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
 
@@ -68,6 +76,7 @@ interface DesignerCanvasProps {
   ) => void;
   onCommitPolygon: (points: BedPolygonPoint[]) => void;
   onCancelPolygon: () => void;
+  onUpdateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
 }
 
 export interface DesignerCanvasHandle {
@@ -119,11 +128,12 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       onResizeAnnotation,
       onCommitPolygon,
       onCancelPolygon,
+      onUpdateBedPoints,
     },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const stageRef = useRef<Konva.Stage | null>(null);
+    const stageRef = useRef<KonvaStage | null>(null);
     // Seed with non-zero defaults so the Konva Stage mounts on first render.
     // The grid + min-height CSS guarantees the container will have at least
     // these dimensions; the ResizeObserver below replaces them with the real
@@ -237,6 +247,48 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
 
     const drawing = mode === 'drawing-polygon';
 
+    // The bed whose vertices are being reshaped, if any. Its own
+    // drag/Transformer interactions are suspended while the handles own
+    // the gesture space.
+    const vertexEditBed =
+      mode === 'editing-vertices' && selected?.kind === 'bed'
+        ? beds.find(
+            (b) =>
+              b.id === selected.id &&
+              b.shape === 'polygon' &&
+              (b.points?.length ?? 0) >= 3
+          )
+        : undefined;
+
+    // Beds and annotations stack by their persisted sortOrder (the same
+    // value the masterplan uses for paint order). At equal sortOrder,
+    // annotations keep their historical place under beds.
+    const stacked: Array<
+      | { kind: 'bed'; sortOrder: number; tier: number; index: number; bed: GardenBed }
+      | {
+          kind: 'annotation';
+          sortOrder: number;
+          tier: number;
+          index: number;
+          annotation: GardenAnnotation;
+        }
+    > = [
+      ...annotations.map((annotation, index) => ({
+        kind: 'annotation' as const,
+        sortOrder: annotation.sortOrder,
+        tier: 0,
+        index,
+        annotation,
+      })),
+      ...beds.map((bed, index) => ({
+        kind: 'bed' as const,
+        sortOrder: bed.sortOrder,
+        tier: 1,
+        index,
+        bed,
+      })),
+    ].sort((a, b) => a.sortOrder - b.sortOrder || a.tier - b.tier || a.index - b.index);
+
     // --- Touch pinch-to-zoom + two-finger pan ------------------------------
     //
     // Konva ships single-finger drag, but multi-touch pinch isn't built in.
@@ -332,7 +384,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       };
     }, []);
 
-    function relativePointer(stage: Konva.Stage): { x: number; y: number } | null {
+    function relativePointer(stage: KonvaStage): { x: number; y: number } | null {
       const pos = stage.getRelativePointerPosition();
       if (!pos) return null;
       return { x: pos.x, y: pos.y };
@@ -399,7 +451,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     function handleStageDragEnd(event: KonvaEventObject<DragEvent>) {
       // Stage-level drag = pan. Sync local state so the controlled
       // x/y/scale values reflect Konva's internal positioning.
-      const target = event.target as Konva.Stage;
+      const target = event.target as KonvaStage;
       if (target === stageRef.current) {
         setPosition({ x: target.x(), y: target.y() });
       }
@@ -471,33 +523,45 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
               />
             </Layer>
             <Layer>
-              {annotations.map((annotation) => (
-                <AnnotationShape
-                  key={annotation.id}
-                  annotation={annotation}
+              {stacked.map((item) =>
+                item.kind === 'annotation' ? (
+                  <AnnotationShape
+                    key={item.annotation.id}
+                    annotation={item.annotation}
+                    pxPerInch={PX_PER_INCH}
+                    isSelected={
+                      selected?.kind === 'annotation' && selected.id === item.annotation.id
+                    }
+                    isEditable={isEditable && !drawing}
+                    onSelect={(id) => onSelect({ kind: 'annotation', id })}
+                    onMove={onMoveAnnotation}
+                    onResize={onResizeAnnotation}
+                  />
+                ) : (
+                  <BedShape
+                    key={item.bed.id}
+                    bed={item.bed}
+                    pxPerInch={PX_PER_INCH}
+                    isSelected={selected?.kind === 'bed' && selected.id === item.bed.id}
+                    isEditable={
+                      isEditable && !drawing && item.bed.id !== vertexEditBed?.id
+                    }
+                    crops={cropsByBedId.get(item.bed.id) ?? []}
+                    onSelect={(id) => onSelect({ kind: 'bed', id })}
+                    onMove={handleBedMove}
+                    onResize={onResizeBed}
+                  />
+                )
+              )}
+              {vertexEditBed && (
+                <VertexEditor
+                  key={vertexEditBed.id}
+                  bed={vertexEditBed}
                   pxPerInch={PX_PER_INCH}
-                  isSelected={
-                    selected?.kind === 'annotation' && selected.id === annotation.id
-                  }
-                  isEditable={isEditable && !drawing}
-                  onSelect={(id) => onSelect({ kind: 'annotation', id })}
-                  onMove={onMoveAnnotation}
-                  onResize={onResizeAnnotation}
+                  snap={snap}
+                  onCommit={(points) => onUpdateBedPoints(vertexEditBed.id, points)}
                 />
-              ))}
-              {beds.map((bed) => (
-                <BedShape
-                  key={bed.id}
-                  bed={bed}
-                  pxPerInch={PX_PER_INCH}
-                  isSelected={selected?.kind === 'bed' && selected.id === bed.id}
-                  isEditable={isEditable && !drawing}
-                  crops={cropsByBedId.get(bed.id) ?? []}
-                  onSelect={(id) => onSelect({ kind: 'bed', id })}
-                  onMove={handleBedMove}
-                  onResize={onResizeBed}
-                />
-              ))}
+              )}
               {drawing && draftLinePoints.length >= 4 && (
                 <Line
                   points={draftLinePoints}
@@ -563,6 +627,12 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
         {drawing && (
           <div className="grn-designer-canvas__draw-hint" role="status">
             Tap to add points · double-tap to finish · esc to cancel
+          </div>
+        )}
+        {vertexEditBed && (
+          <div className="grn-designer-canvas__draw-hint" role="status">
+            Drag points to reshape · tap an edge dot to add · double-tap a point
+            to remove · esc to finish
           </div>
         )}
       </div>

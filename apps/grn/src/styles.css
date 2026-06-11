@@ -2946,6 +2946,38 @@ body {
   color: var(--og-color-soil);
 }
 
+.grn-designer-inspector__shape-btn,
+.grn-designer-inspector__arrange-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--og-color-soil);
+  background: transparent;
+  border: 1px solid rgba(91, 140, 74, 0.45);
+  border-radius: var(--og-radius-sm);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.grn-designer-inspector__shape-btn:hover:not(:disabled),
+.grn-designer-inspector__shape-btn:focus-visible,
+.grn-designer-inspector__arrange-btn:hover:not(:disabled),
+.grn-designer-inspector__arrange-btn:focus-visible {
+  background: rgba(91, 140, 74, 0.1);
+  outline: none;
+}
+
+.grn-designer-inspector__shape-btn.is-active {
+  background: var(--og-color-moss);
+  border-color: var(--og-color-moss);
+  color: var(--og-color-paper);
+}
+
+.grn-designer-inspector__arrange {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
 .grn-designer-inspector__add-crop {
   font: inherit;
   font-size: 0.85rem;
@@ -3656,6 +3688,31 @@ body {
 .mp-panel__footer {
   padding: 0.75rem 1.1rem 1rem;
   border-top: 1px solid rgba(91, 58, 28, 0.08);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.mp-panel__arrange {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.mp-panel__arrange-btn {
+  font: inherit;
+  font-size: 0.84rem;
+  color: var(--og-color-soil);
+  background: transparent;
+  border: 1px solid rgba(91, 140, 74, 0.45);
+  border-radius: var(--og-radius-pill);
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+
+.mp-panel__arrange-btn:hover,
+.mp-panel__arrange-btn:focus-visible {
+  background: rgba(91, 140, 74, 0.1);
+  outline: none;
 }
 
 .mp-panel__action {

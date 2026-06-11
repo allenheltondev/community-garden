@@ -2,16 +2,14 @@ import { memo, type ReactNode } from 'react';
 import type { GardenBed, GrowerCropItem } from '../../types/listing';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { bedFootprint } from './footprints';
 import {
   boundsOf,
-  ellipseFootprint,
   extrude,
   hashSeed,
   insetFootprint,
-  polygonFootprint,
   project,
   projectFootprint,
-  rectFootprint,
   rotateWorld,
   scaleFootprint,
   smoothClosedPath,
@@ -21,24 +19,10 @@ import {
 } from './iso';
 import { SCENE, bedPalette, mute, shade, tint } from './palette';
 
-export const RAISED_BED_HEIGHT = 11;
-export const IN_GROUND_HEIGHT = 2.5;
+const RAISED_BED_HEIGHT = 11;
+const IN_GROUND_HEIGHT = 2.5;
 const MAX_CROPS = 5;
 const CROP_SPACING_INCHES = 15;
-
-export function bedFootprint(bed: GardenBed): WorldPoint[] {
-  const x = bed.positionX ?? 12;
-  const y = bed.positionY ?? 12;
-  const length = bed.lengthInches ?? 96;
-  const width = bed.widthInches ?? 48;
-  if (bed.shape === 'circle') {
-    return ellipseFootprint({ x, y, length, width, rotationDeg: bed.rotationDeg });
-  }
-  if (bed.shape === 'polygon' && bed.points && bed.points.length >= 3) {
-    return polygonFootprint({ x, y, points: bed.points, rotationDeg: bed.rotationDeg });
-  }
-  return rectFootprint({ x, y, length, width, rotationDeg: bed.rotationDeg });
-}
 
 // Evenly spaced world positions along the bed's long axis where crop
 // silhouettes stand. Returned in north-to-south order so the upright

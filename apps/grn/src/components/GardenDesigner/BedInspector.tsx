@@ -9,6 +9,8 @@ import {
   BED_TYPES,
   bedAreaSquareInches,
   bedTypeMeta,
+  defaultRectPolygonPoints,
+  ellipsePolygonPoints,
   formatArea,
   parseSoilField,
   serializeSoilField,
@@ -21,6 +23,8 @@ interface BedInspectorProps {
   isEditable: boolean;
   isSaving: boolean;
   isMobile: boolean;
+  isVertexEditing: boolean;
+  onToggleVertexEditing: () => void;
   onChange: (patch: Partial<GardenBed>) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -45,6 +49,8 @@ export function BedInspector({
   isEditable,
   isSaving,
   isMobile,
+  isVertexEditing,
+  onToggleVertexEditing,
   onChange,
   onDelete,
   onClose,
@@ -95,6 +101,17 @@ export function BedInspector({
   function commit(patch: Partial<GardenBed>) {
     if (!isEditable) return;
     onChange(patch);
+  }
+
+  function convertToPolygon() {
+    const length = bed.lengthInches ?? 96;
+    const width = bed.widthInches ?? 48;
+    const points =
+      bed.shape === 'circle'
+        ? ellipsePolygonPoints(length, width)
+        : defaultRectPolygonPoints(length, width);
+    commit({ shape: 'polygon', points });
+    onToggleVertexEditing();
   }
 
   function toggleSoil(value: string) {
@@ -204,6 +221,57 @@ export function BedInspector({
               }}
             />
           </label>
+        </div>
+
+        <div className="grn-designer-inspector__field">
+          <span>Shape</span>
+          {bed.shape === 'polygon' ? (
+            <button
+              type="button"
+              className={`grn-designer-inspector__shape-btn ${
+                isVertexEditing ? 'is-active' : ''
+              }`}
+              onClick={onToggleVertexEditing}
+              title="Drag, add, or remove the points of this bed's outline on the canvas"
+            >
+              {isVertexEditing ? '✓ Done editing points' : '⬡ Edit shape points'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="grn-designer-inspector__shape-btn"
+              onClick={convertToPolygon}
+              title="Turn this bed into a custom outline with movable points"
+            >
+              ⬡ Convert to custom shape
+            </button>
+          )}
+        </div>
+
+        <div className="grn-designer-inspector__field">
+          <span>Stacking</span>
+          <div
+            className="grn-designer-inspector__arrange"
+            role="group"
+            aria-label="Stacking order"
+          >
+            <button
+              type="button"
+              className="grn-designer-inspector__arrange-btn"
+              onClick={() => commit({ sortOrder: bed.sortOrder - 1 })}
+              title="Draw this bed beneath overlapping elements"
+            >
+              ↓ Send backward
+            </button>
+            <button
+              type="button"
+              className="grn-designer-inspector__arrange-btn"
+              onClick={() => commit({ sortOrder: bed.sortOrder + 1 })}
+              title="Draw this bed above overlapping elements"
+            >
+              ↑ Bring forward
+            </button>
+          </div>
         </div>
 
         <label className="grn-designer-inspector__field">
