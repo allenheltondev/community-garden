@@ -11,6 +11,7 @@ import {
   parseSoilField,
   soilLabel,
 } from '../GardenDesigner/bedDefaults';
+import { bedCapacitySummary, capacityLabel } from '../GardenDesigner/capacity';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { KIND_LABELS, annotationKind, mute } from './palette';
@@ -79,6 +80,7 @@ export function MasterplanDetailPanel({
       : '';
 
   const soils = bed ? parseSoilField(bed.soilType) : [];
+  const capacity = bed ? bedCapacitySummary(bed, crops) : null;
 
   return (
     <aside
@@ -160,6 +162,16 @@ export function MasterplanDetailPanel({
                 ? `Growing here (${crops.length})`
                 : 'Nothing planted yet'}
             </h3>
+            {capacity?.utilization != null && (
+              <p
+                className={`mp-panel__capacity ${
+                  capacity.utilization > 1 ? 'is-over' : ''
+                }`}
+              >
+                Using ~{Math.round(capacity.utilization * 100)}% of this bed ·{' '}
+                {capacityLabel(capacity)}
+              </p>
+            )}
             {seasonMonth != null && harvestCount > 0 && (
               <p className="mp-panel__harvest">
                 {harvestCount} crop{harvestCount === 1 ? '' : 's'} ready to harvest in{' '}
