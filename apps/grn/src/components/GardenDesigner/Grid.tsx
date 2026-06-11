@@ -1,4 +1,6 @@
-import { Group, Line, Rect } from 'react-konva';
+import 'konva/lib/shapes/Line';
+import 'konva/lib/shapes/Rect';
+import { Group, Line, Rect } from 'react-konva/lib/ReactKonvaCore';
 
 interface GridProps {
   widthInches: number;

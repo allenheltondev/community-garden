@@ -7,6 +7,12 @@ import type {
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import {
+  FLAT_KINDS,
+  annotationFootprint,
+  bedFootprint,
+  sceneMetrics,
+} from './footprints';
+import {
   ISO_COS,
   ISO_SIN,
   PX_PER_INCH,
@@ -17,40 +23,9 @@ import {
   smoothClosedPath,
   type WorldPoint,
 } from './iso';
-import { FLAT_KINDS, IsoAnnotation, annotationFootprint } from './IsoAnnotation';
-import { IsoBed, bedFootprint } from './IsoBed';
+import { IsoAnnotation } from './IsoAnnotation';
+import { IsoBed } from './IsoBed';
 import { KIND_LABELS, SCENE, annotationKind } from './palette';
-
-// Extra svg space above the ground plate so tall objects (trees, sheds)
-// and crop silhouettes near the north edge never clip.
-const PAD_X = 80;
-const PAD_TOP = 160;
-const PAD_BOTTOM = 90;
-
-export interface SceneMetrics {
-  width: number;
-  height: number;
-  viewBox: string;
-}
-
-export function sceneMetrics(canvas: GardenCanvas): SceneMetrics {
-  const w = canvas.widthInches;
-  const h = canvas.heightInches;
-  const corners = projectFootprint([
-    { x: 0, y: 0 },
-    { x: w, y: 0 },
-    { x: w, y: h },
-    { x: 0, y: h },
-  ]);
-  const b = boundsOf(corners);
-  const width = b.maxX - b.minX + PAD_X * 2;
-  const height = b.maxY - b.minY + PAD_TOP + PAD_BOTTOM;
-  return {
-    width,
-    height,
-    viewBox: `${b.minX - PAD_X} ${b.minY - PAD_TOP} ${width} ${height}`,
-  };
-}
 
 // Organic ring of world points around the canvas rectangle — the lawn
 // plate is a soft blob, not a hard parallelogram, so the plan reads as an

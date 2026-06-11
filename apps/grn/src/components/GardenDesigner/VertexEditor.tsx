@@ -1,6 +1,8 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
+import 'konva/lib/shapes/Circle';
+import 'konva/lib/shapes/Line';
 import { useState } from 'react';
-import { Circle, Group, Line } from 'react-konva';
+import { Circle, Group, Line } from 'react-konva/lib/ReactKonvaCore';
 import type { BedPolygonPoint, GardenBed } from '../../types/listing';
 import type { GridSnap } from './Toolbar';
 

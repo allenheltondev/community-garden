@@ -1,13 +1,12 @@
 import { memo, type ReactNode } from 'react';
 import type { GardenAnnotation } from '../../types/listing';
+import { annotationFootprint, annotationGeometry } from './footprints';
 import {
   PX_PER_INCH,
   boundsOf,
-  ellipseFootprint,
   extrude,
   hashSeed,
   insetFootprint,
-  polygonFootprint,
   project,
   projectFootprint,
   rectFootprint,
@@ -31,43 +30,13 @@ import {
   mute,
   shade,
   tint,
-  type AnnotationKind,
 } from './palette';
-
-// Kinds that sit flush with the ground; the scene paints these before any
-// extruded volume regardless of depth so beds and structures always sit
-// on top of paths and water.
-export const FLAT_KINDS: ReadonlySet<AnnotationKind> = new Set(['path', 'pond']);
-
-function geometry(a: GardenAnnotation) {
-  return {
-    x: a.positionX ?? 12,
-    y: a.positionY ?? 12,
-    length: a.lengthInches ?? 48,
-    width: a.widthInches ?? 48,
-    rotationDeg: a.rotationDeg,
-  };
-}
-
-export function annotationFootprint(a: GardenAnnotation): WorldPoint[] {
-  const g = geometry(a);
-  if (a.shape === 'line' && a.points && a.points.length >= 2) {
-    return polygonFootprint({ x: g.x, y: g.y, points: a.points, rotationDeg: g.rotationDeg });
-  }
-  if (a.shape === 'circle') {
-    return ellipseFootprint(g);
-  }
-  if (a.shape === 'polygon' && a.points && a.points.length >= 3) {
-    return polygonFootprint({ x: g.x, y: g.y, points: a.points, rotationDeg: g.rotationDeg });
-  }
-  return rectFootprint(g);
-}
 
 // Structures (sheds, greenhouses, bins…) always build from an oriented
 // rectangle so roof/wall construction has four predictable corners, even
 // if the underlying record was created with another shape.
 function structureCorners(a: GardenAnnotation): WorldPoint[] {
-  return rectFootprint(geometry(a));
+  return rectFootprint(annotationGeometry(a));
 }
 
 function avgRadius(footprint: WorldPoint[]): number {
@@ -324,7 +293,7 @@ function renderGabledStructure(
   roof: RoofSpec,
   extras?: (corners: WorldPoint[], eaves: number) => ReactNode
 ): ReactNode {
-  const g = geometry(a);
+  const g = annotationGeometry(a);
   const corners = structureCorners(a);
   const walls = extrude(corners, roof.eaves);
   const material = materialFrom(wallBase);
@@ -462,7 +431,7 @@ function renderGreenhouse(a: GardenAnnotation): ReactNode {
 const TRELLIS_HEIGHT = 66;
 
 function renderTrellis(a: GardenAnnotation): ReactNode {
-  const g = geometry(a);
+  const g = annotationGeometry(a);
   const alongX = g.length >= g.width;
   const ends: WorldPoint[] = alongX
     ? [

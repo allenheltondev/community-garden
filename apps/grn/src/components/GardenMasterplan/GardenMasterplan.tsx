@@ -6,7 +6,8 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
-import { IsoScene, sceneMetrics } from './IsoScene';
+import { sceneMetrics } from './footprints';
+import { IsoScene } from './IsoScene';
 import { MasterplanDetailPanel } from './MasterplanDetailPanel';
 import { useMapViewport } from './useMapViewport';
 
@@ -45,17 +46,28 @@ export function GardenMasterplan({
   onOpenLayoutEditor,
 }: GardenMasterplanProps) {
   const metrics = useMemo(() => sceneMetrics(canvas), [canvas]);
-  const viewport = useMapViewport(metrics.width, metrics.height);
+  // Destructured (rather than kept as one `viewport` object) so the
+  // react-hooks/refs rule can see that only the callback ref goes to the
+  // ref prop and everything else is plain render data.
+  const {
+    containerRef,
+    containerHandlers,
+    contentStyle,
+    zoomIn,
+    zoomOut,
+    fitToScreen,
+    shouldIgnoreClick,
+  } = useMapViewport(metrics.width, metrics.height);
   const isEmpty = beds.length === 0 && annotations.length === 0;
 
   return (
     <div className="mp-explorer">
       <div
-        ref={viewport.containerRef}
+        ref={containerRef}
         className="mp-explorer__viewport"
-        {...viewport.containerHandlers}
+        {...containerHandlers}
       >
-        <div className="mp-explorer__content" style={viewport.contentStyle}>
+        <div className="mp-explorer__content" style={contentStyle}>
           <IsoScene
             canvas={canvas}
             beds={beds}
@@ -63,7 +75,7 @@ export function GardenMasterplan({
             cropsByBedId={cropsByBedId}
             selected={selected}
             onSelect={onSelect}
-            shouldIgnoreClick={viewport.shouldIgnoreClick}
+            shouldIgnoreClick={shouldIgnoreClick}
           />
         </div>
 
@@ -71,7 +83,7 @@ export function GardenMasterplan({
           <button
             type="button"
             className="mp-explorer__zoom-btn"
-            onClick={viewport.zoomIn}
+            onClick={zoomIn}
             aria-label="Zoom in"
             title="Zoom in"
           >
@@ -80,7 +92,7 @@ export function GardenMasterplan({
           <button
             type="button"
             className="mp-explorer__zoom-btn"
-            onClick={viewport.zoomOut}
+            onClick={zoomOut}
             aria-label="Zoom out"
             title="Zoom out"
           >
@@ -89,7 +101,7 @@ export function GardenMasterplan({
           <button
             type="button"
             className="mp-explorer__zoom-btn mp-explorer__zoom-btn--fit"
-            onClick={viewport.fitToScreen}
+            onClick={fitToScreen}
             aria-label="Fit garden to screen"
             title="Fit to screen"
           >

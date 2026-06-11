@@ -1,4 +1,10 @@
-import Konva from 'konva';
+// The designer imports Konva's core plus only the shapes it renders
+// (react-konva's "minimal bundle" pattern) — the full konva build carries
+// every shape and filter and blows the app's JS performance budget.
+import Konva from 'konva/lib/Core';
+import 'konva/lib/shapes/Circle';
+import 'konva/lib/shapes/Line';
+import 'konva/lib/shapes/Rect';
 import {
   forwardRef,
   useCallback,
@@ -8,7 +14,8 @@ import {
 } from 'react';
 import { useImperativeHandle } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
+import type { Stage as KonvaStage } from 'konva/lib/Stage';
+import { Circle, Layer, Line, Rect, Stage } from 'react-konva/lib/ReactKonvaCore';
 
 // Tighten Konva's click-vs-drag detection. The default of 0px means any
 // pointer jitter on a draggable Group fires a drag instead of a click,
@@ -126,7 +133,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     ref
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const stageRef = useRef<Konva.Stage | null>(null);
+    const stageRef = useRef<KonvaStage | null>(null);
     // Seed with non-zero defaults so the Konva Stage mounts on first render.
     // The grid + min-height CSS guarantees the container will have at least
     // these dimensions; the ResizeObserver below replaces them with the real
@@ -377,7 +384,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       };
     }, []);
 
-    function relativePointer(stage: Konva.Stage): { x: number; y: number } | null {
+    function relativePointer(stage: KonvaStage): { x: number; y: number } | null {
       const pos = stage.getRelativePointerPosition();
       if (!pos) return null;
       return { x: pos.x, y: pos.y };
@@ -444,7 +451,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     function handleStageDragEnd(event: KonvaEventObject<DragEvent>) {
       // Stage-level drag = pan. Sync local state so the controlled
       // x/y/scale values reflect Konva's internal positioning.
-      const target = event.target as Konva.Stage;
+      const target = event.target as KonvaStage;
       if (target === stageRef.current) {
         setPosition({ x: target.x(), y: target.y() });
       }
