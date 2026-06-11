@@ -27,6 +27,7 @@ import type {
 } from '../types/listing';
 import {
   defaultRectPolygonPoints,
+  normalizePolygonGeometry,
   shapeDefaults,
 } from '../components/GardenDesigner/bedDefaults';
 import {
@@ -79,6 +80,7 @@ export interface UseGardenDesignerResult {
     }
   ) => void;
   patchBed: (bedId: string, patch: Partial<GardenBed>) => void;
+  updateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
   deleteBed: (bedId: string) => Promise<void>;
   addAnnotation: (presetId: string) => Promise<void>;
   moveAnnotation: (annotationId: string, positionX: number, positionY: number) => void;
@@ -166,6 +168,23 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [mode, setMode] = useState<DesignerMode>('idle');
   const [snap, setSnap] = useState<GridSnap>('12');
+
+  // All selection changes funnel through this wrapper so vertex editing
+  // ends the moment focus moves off the bed being reshaped (deselect,
+  // another element, a freshly created one). Re-clicking the same bed
+  // keeps the handles up.
+  const selectItem = useCallback(
+    (next: SelectedItem) => {
+      setMode((current) => {
+        if (current !== 'editing-vertices') return current;
+        const sameBed =
+          next?.kind === 'bed' && selected?.kind === 'bed' && next.id === selected.id;
+        return sameBed ? current : 'idle';
+      });
+      setSelected(next);
+    },
+    [selected]
+  );
 
   const canvasQuery = useQuery({
     queryKey: CANVAS_QUERY_KEY,
@@ -454,9 +473,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
             ? defaultRectPolygonPoints(defaults.lengthInches, defaults.widthInches)
             : null,
       });
-      setSelected({ kind: 'bed', id: created.id });
+      selectItem({ kind: 'bed', id: created.id });
     },
-    [beds.length, canvasQuery.data, createBedMutation, isEditable]
+    [beds.length, canvasQuery.data, createBedMutation, isEditable, selectItem]
   );
 
   const commitPolygon = useCallback(
@@ -480,10 +499,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         rotationDeg: 0,
         points: normalized,
       });
-      setSelected({ kind: 'bed', id: created.id });
+      selectItem({ kind: 'bed', id: created.id });
       setMode('idle');
     },
-    [beds.length, createBedMutation, isEditable]
+    [beds.length, createBedMutation, isEditable, selectItem]
   );
 
   const moveBed = useCallback(
@@ -534,15 +553,34 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [beds, updateBedMutation]
   );
 
+  // Vertex edits arrive as the full reshaped point list (in the bed's
+  // local frame). Re-anchor it to (0,0) and refresh the bounding box so
+  // the inspector dimensions and iso footprint stay truthful.
+  const updateBedPoints = useCallback(
+    (bedId: string, points: BedPolygonPoint[]) => {
+      const bed = beds.find((b) => b.id === bedId);
+      if (!bed || bed.shape !== 'polygon' || points.length < 3) return;
+      const geometry = normalizePolygonGeometry({
+        positionX: bed.positionX ?? 12,
+        positionY: bed.positionY ?? 12,
+        rotationDeg: bed.rotationDeg,
+        points,
+      });
+      const payload = bedToUpsertPayload({ ...bed, ...geometry });
+      updateBedMutation.mutate({ bedId, payload });
+    },
+    [beds, updateBedMutation]
+  );
+
   const deleteBed = useCallback(
     async (bedId: string) => {
       if (!isEditable) return;
       await deleteBedMutation.mutateAsync(bedId);
       if (selected?.kind === 'bed' && selected.id === bedId) {
-        setSelected(null);
+        selectItem(null);
       }
     },
-    [deleteBedMutation, isEditable, selected]
+    [deleteBedMutation, isEditable, selected, selectItem]
   );
 
   const addAnnotation = useCallback(
@@ -571,9 +609,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         color: preset.defaultColor,
         points,
       });
-      setSelected({ kind: 'annotation', id: created.id });
+      selectItem({ kind: 'annotation', id: created.id });
     },
-    [canvasQuery.data, createAnnotationMutation, isEditable]
+    [canvasQuery.data, createAnnotationMutation, isEditable, selectItem]
   );
 
   const moveAnnotation = useCallback(
@@ -633,10 +671,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       if (!isEditable) return;
       await deleteAnnotationMutation.mutateAsync(annotationId);
       if (selected?.kind === 'annotation' && selected.id === annotationId) {
-        setSelected(null);
+        selectItem(null);
       }
     },
-    [deleteAnnotationMutation, isEditable, selected]
+    [deleteAnnotationMutation, isEditable, selected, selectItem]
   );
 
   const patchCanvas = useCallback(
@@ -666,6 +704,12 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       if (isEditingText(event.target)) return;
 
       if (event.key === 'Escape') {
+        // Step out of vertex editing first; a second Esc deselects.
+        if (mode === 'editing-vertices') {
+          event.preventDefault();
+          setMode('idle');
+          return;
+        }
         if (selected !== null) {
           event.preventDefault();
           setSelected(null);
@@ -674,6 +718,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       }
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
+        // While reshaping, Delete is too close to "remove that vertex" to
+        // risk it nuking the whole bed.
+        if (mode === 'editing-vertices') return;
         if (!isEditable || !selected) return;
         if (selected.kind === 'bed' && selectedBed) {
           event.preventDefault();
@@ -743,7 +790,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       (annotationsQuery.error as Error | null) ??
       null,
     selected,
-    setSelected,
+    setSelected: selectItem,
     selectedBed,
     selectedAnnotation,
     mode,
@@ -758,6 +805,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     moveBed,
     resizeBed,
     patchBed,
+    updateBedPoints,
     deleteBed,
     addAnnotation,
     moveAnnotation,

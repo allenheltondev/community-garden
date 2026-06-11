@@ -19,6 +19,8 @@ interface GardenMasterplanProps {
   selectedBed: GardenBed | undefined;
   selectedAnnotation: GardenAnnotation | undefined;
   onSelect: (next: SelectedItem) => void;
+  onPatchBed: (bedId: string, patch: Partial<GardenBed>) => void;
+  onPatchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor: () => void;
 }
 
@@ -38,6 +40,8 @@ export function GardenMasterplan({
   selectedBed,
   selectedAnnotation,
   onSelect,
+  onPatchBed,
+  onPatchAnnotation,
   onOpenLayoutEditor,
 }: GardenMasterplanProps) {
   const metrics = useMemo(() => sceneMetrics(canvas), [canvas]);
@@ -123,6 +127,16 @@ export function GardenMasterplan({
           bed={selectedBed}
           annotation={selectedAnnotation}
           crops={selectedBed ? cropsByBedId.get(selectedBed.id) ?? [] : []}
+          onArrange={(direction) => {
+            const delta = direction === 'forward' ? 1 : -1;
+            if (selectedBed) {
+              onPatchBed(selectedBed.id, { sortOrder: selectedBed.sortOrder + delta });
+            } else if (selectedAnnotation) {
+              onPatchAnnotation(selectedAnnotation.id, {
+                sortOrder: selectedAnnotation.sortOrder + delta,
+              });
+            }
+          }}
           onClose={() => onSelect(null)}
           onOpenLayoutEditor={onOpenLayoutEditor}
         />

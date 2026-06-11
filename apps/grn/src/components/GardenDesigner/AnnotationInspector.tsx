@@ -139,6 +139,32 @@ export function AnnotationInspector({
           </label>
         )}
 
+        <div className="grn-designer-inspector__field">
+          <span>Stacking</span>
+          <div
+            className="grn-designer-inspector__arrange"
+            role="group"
+            aria-label="Stacking order"
+          >
+            <button
+              type="button"
+              className="grn-designer-inspector__arrange-btn"
+              onClick={() => commit({ sortOrder: annotation.sortOrder - 1 })}
+              title="Draw this annotation beneath overlapping elements"
+            >
+              ↓ Send backward
+            </button>
+            <button
+              type="button"
+              className="grn-designer-inspector__arrange-btn"
+              onClick={() => commit({ sortOrder: annotation.sortOrder + 1 })}
+              title="Draw this annotation above overlapping elements"
+            >
+              ↑ Bring forward
+            </button>
+          </div>
+        </div>
+
         <fieldset className="grn-designer-inspector__color">
           <legend>Color</legend>
           <div className="grn-designer-inspector__color-row" role="radiogroup" aria-label="Annotation color">

@@ -123,6 +123,7 @@ interface IsoSceneProps {
 
 interface RenderItem {
   key: string;
+  layer: number;
   depth: number;
   flat: boolean;
   node: ReactNode;
@@ -168,6 +169,7 @@ export const IsoScene = memo(function IsoScene({
       const kind = annotationKind(annotation);
       list.push({
         key: `annotation-${annotation.id}`,
+        layer: annotation.sortOrder,
         depth: depthOf(annotationFootprint(annotation)),
         flat: FLAT_KINDS.has(kind),
         node: (
@@ -190,6 +192,7 @@ export const IsoScene = memo(function IsoScene({
       const crops = cropsByBedId.get(bed.id) ?? [];
       list.push({
         key: `bed-${bed.id}`,
+        layer: bed.sortOrder,
         depth: depthOf(bedFootprint(bed)),
         flat: false,
         node: (
@@ -209,9 +212,15 @@ export const IsoScene = memo(function IsoScene({
         ),
       });
     }
-    // Painter's algorithm: ground-level surfaces first, then volumes from
-    // back (north-west) to front (south-east).
-    list.sort((a, b) => Number(b.flat) - Number(a.flat) || a.depth - b.depth);
+    // Painter's algorithm with a user override: the persisted sortOrder
+    // acts as an explicit layer (everything defaults to 0, so untouched
+    // gardens keep the pure geometric ordering). Within a layer,
+    // ground-level surfaces paint first, then volumes from back
+    // (north-west) to front (south-east).
+    list.sort(
+      (a, b) =>
+        a.layer - b.layer || Number(b.flat) - Number(a.flat) || a.depth - b.depth
+    );
     return list;
   }, [annotations, beds, cropsByBedId, onSelect, selected, shouldIgnoreClick]);
 

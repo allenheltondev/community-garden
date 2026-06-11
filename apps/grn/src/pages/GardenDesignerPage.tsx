@@ -122,6 +122,8 @@ export function GardenDesignerPage() {
           selectedBed={designer.selectedBed}
           selectedAnnotation={designer.selectedAnnotation}
           onSelect={designer.setSelected}
+          onPatchBed={designer.patchBed}
+          onPatchAnnotation={designer.patchAnnotation}
           onOpenLayoutEditor={() => switchView('layout')}
         />
       ) : (
@@ -185,6 +187,7 @@ export function GardenDesignerPage() {
                 void designer.commitPolygon(points);
               }}
               onCancelPolygon={() => designer.setMode('idle')}
+              onUpdateBedPoints={designer.updateBedPoints}
             />
 
             {designer.selectedBed && (
@@ -195,6 +198,12 @@ export function GardenDesignerPage() {
                 isEditable={designer.isEditable}
                 isSaving={designer.isSaving}
                 isMobile={designer.isMobile}
+                isVertexEditing={designer.mode === 'editing-vertices'}
+                onToggleVertexEditing={() =>
+                  designer.setMode(
+                    designer.mode === 'editing-vertices' ? 'idle' : 'editing-vertices'
+                  )
+                }
                 onChange={(patch) => {
                   if (designer.selectedBed) {
                     designer.patchBed(designer.selectedBed.id, patch);

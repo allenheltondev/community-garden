@@ -48,10 +48,10 @@ export interface BedShapeMeta {
 // Bed *shape* is geometry. Each toolbar button picks a shape and
 // drops a default-sized bed of that geometry onto the canvas.
 //
-// Only Rectangle and Circle are presets — a "polygon preset" would be
-// indistinguishable from a rectangle until per-vertex editing lands.
-// Custom polygons come from the "Draw shape" tool, which is wired up
-// separately in the toolbar.
+// Only Rectangle and Circle are presets — a "polygon preset" would just
+// be a rectangle until the user reshapes it. Custom polygons come from
+// the "Draw shape" tool, or from converting an existing bed via the
+// inspector's "Convert to custom shape" action.
 export const BED_SHAPES: BedShapeMeta[] = [
   { value: 'rect', label: 'Rectangle', emoji: '▭', hint: 'Add a rectangular bed' },
   { value: 'circle', label: 'Circle', emoji: '◯', hint: 'Add a circular bed' },
@@ -84,6 +84,68 @@ export function defaultRectPolygonPoints(width: number, height: number): BedPoly
     { x: width, y: height },
     { x: 0, y: height },
   ];
+}
+
+// Low-poly ellipse used when converting a circle bed to a custom shape.
+// 12 vertices keeps the silhouette round while leaving each handle big
+// enough to grab.
+export function ellipsePolygonPoints(
+  length: number,
+  width: number,
+  segments = 12
+): BedPolygonPoint[] {
+  const rx = length / 2;
+  const ry = width / 2;
+  const points: BedPolygonPoint[] = [];
+  for (let i = 0; i < segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push({
+      x: Math.round(rx + Math.cos(angle) * rx),
+      y: Math.round(ry + Math.sin(angle) * ry),
+    });
+  }
+  return points;
+}
+
+export interface PolygonGeometry {
+  positionX: number;
+  positionY: number;
+  lengthInches: number;
+  widthInches: number;
+  points: BedPolygonPoint[];
+}
+
+// After a vertex edit the point set can drift away from its (0,0)-anchored
+// convention. Re-anchor it: translate points so their bounding box starts
+// at the origin and absorb the shift into the bed position. Because
+// rotation pivots about the position origin, the offset has to be rotated
+// into world space for the bed to stay visually put.
+export function normalizePolygonGeometry(args: {
+  positionX: number;
+  positionY: number;
+  rotationDeg: number;
+  points: BedPolygonPoint[];
+}): PolygonGeometry {
+  const { positionX, positionY, rotationDeg, points } = args;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  const rad = (rotationDeg * Math.PI) / 180;
+  const offsetX = minX * Math.cos(rad) - minY * Math.sin(rad);
+  const offsetY = minX * Math.sin(rad) + minY * Math.cos(rad);
+  return {
+    positionX: Math.max(0, Math.round(positionX + offsetX)),
+    positionY: Math.max(0, Math.round(positionY + offsetY)),
+    lengthInches: Math.round(maxX - minX),
+    widthInches: Math.round(maxY - minY),
+    points: points.map((p) => ({
+      x: Math.round(p.x - minX),
+      y: Math.round(p.y - minY),
+    })),
+  };
 }
 
 // --- Soil ----------------------------------------------------------------
