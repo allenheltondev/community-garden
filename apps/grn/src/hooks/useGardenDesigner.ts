@@ -48,6 +48,13 @@ import {
   ANNOTATION_PRESETS,
   presetById,
 } from '../components/GardenDesigner/annotationPresets';
+import {
+  calibrationFactor,
+  rescaledAnnotationPayload,
+  rescaledBedPayload,
+  rescaledCanvas,
+} from '../components/GardenDesigner/calibration';
+import { templateById } from '../components/GardenDesigner/gardenTemplates';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
@@ -81,6 +88,7 @@ export interface UseGardenDesignerResult {
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
   duplicateSelected: () => Promise<void>;
+  applyTemplate: (templateId: string) => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
@@ -113,6 +121,11 @@ export interface UseGardenDesignerResult {
   patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   deleteAnnotation: (annotationId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
+  applyCalibration: (
+    drawnLengthInches: number,
+    realLengthInches: number,
+    rescaleElements: boolean
+  ) => void;
   uploadBackgroundImage: (file: File) => Promise<void>;
   clearBackgroundImage: () => Promise<void>;
   undo: () => void;
@@ -553,6 +566,45 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [beds.length, canvasQuery.data, createBedMutation, isEditable, record, selectItem]
   );
 
+  // Seeds an empty garden from a starter template: create every bed, then
+  // every annotation, sequentially through the normal create mutations so
+  // the saving indicator and cache invalidation behave exactly as if the
+  // user placed each element by hand. Guarded to empty gardens only —
+  // templates are a blank-canvas starting point, not a merge.
+  //
+  // Note: there is no undo/redo history mechanism in the designer yet
+  // (no designerHistory.ts in this codebase); when one lands, each
+  // creation here should be recorded so applying a template is undoable.
+  const applyTemplate = useCallback(
+    async (templateId: string) => {
+      if (!isEditable) return;
+      if (beds.length > 0 || annotations.length > 0) return;
+      const template = templateById(templateId);
+      if (!template) return;
+      const canvasData = canvasQuery.data;
+      const layout = template.build({
+        widthInches: canvasData?.widthInches ?? 360,
+        heightInches: canvasData?.heightInches ?? 240,
+      });
+      for (const bedPayload of layout.beds) {
+        await createBedMutation.mutateAsync(bedPayload);
+      }
+      for (const annotationPayload of layout.annotations) {
+        await createAnnotationMutation.mutateAsync(annotationPayload);
+      }
+      selectItem(null);
+    },
+    [
+      annotations.length,
+      beds.length,
+      canvasQuery.data,
+      createAnnotationMutation,
+      createBedMutation,
+      isEditable,
+      selectItem,
+    ]
+  );
+
   const commitPolygon = useCallback(
     async (points: BedPolygonPoint[]) => {
       if (!isEditable || points.length < 3) return;
@@ -964,6 +1016,57 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
+  // Background-image scale calibration: the user drew a reference line of
+  // drawnLengthInches over the photo and told us it's really
+  // realLengthInches long. Rescale the canvas by that ratio (clamped to
+  // sane bounds) and, when asked, move/resize every bed and annotation by
+  // the same factor so they keep their position relative to the photo.
+  const applyCalibration = useCallback(
+    (
+      drawnLengthInches: number,
+      realLengthInches: number,
+      rescaleElements: boolean
+    ) => {
+      if (!isEditable) return;
+      const canvas = canvasQuery.data;
+      if (!canvas) return;
+      const factor = calibrationFactor(drawnLengthInches, realLengthInches);
+      if (factor === null) return;
+      const next = rescaledCanvas(canvas, factor);
+      if (
+        next.widthInches !== canvas.widthInches ||
+        next.heightInches !== canvas.heightInches
+      ) {
+        updateCanvasMutation.mutate({
+          widthInches: next.widthInches,
+          heightInches: next.heightInches,
+        });
+      }
+      if (!rescaleElements || next.effectiveFactor === 1) return;
+      for (const bed of beds) {
+        updateBedMutation.mutate({
+          bedId: bed.id,
+          payload: rescaledBedPayload(bed, next.effectiveFactor),
+        });
+      }
+      for (const annotation of annotations) {
+        updateAnnotationMutation.mutate({
+          annotationId: annotation.id,
+          payload: rescaledAnnotationPayload(annotation, next.effectiveFactor),
+        });
+      }
+    },
+    [
+      annotations,
+      beds,
+      canvasQuery.data,
+      isEditable,
+      updateAnnotationMutation,
+      updateBedMutation,
+      updateCanvasMutation,
+    ]
+  );
+
   // Keyboard shortcuts:
   //   Esc           - deselect (when not in drawing-polygon mode; the
   //                   Canvas owns Esc-to-cancel for that mode)
@@ -982,7 +1085,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (mode === 'drawing-polygon') return;
+      // The Canvas owns Esc-to-cancel for drawing and calibration, and
+      // Delete shouldn't fire while either gesture is mid-flight.
+      if (mode === 'drawing-polygon' || mode === 'calibrating-scale') return;
       if (isEditingText(event.target)) return;
 
       const meta = event.metaKey || event.ctrlKey;
@@ -1137,6 +1242,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isSaving,
     addBed,
     duplicateSelected,
+    applyTemplate,
     commitPolygon,
     moveBed,
     resizeBed,
@@ -1149,6 +1255,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     patchAnnotation,
     deleteAnnotation,
     patchCanvas,
+    applyCalibration,
     uploadBackgroundImage,
     clearBackgroundImage,
     undo,
