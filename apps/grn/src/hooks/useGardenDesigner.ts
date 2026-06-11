@@ -34,6 +34,7 @@ import {
   ANNOTATION_PRESETS,
   presetById,
 } from '../components/GardenDesigner/annotationPresets';
+import { templateById } from '../components/GardenDesigner/gardenTemplates';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
@@ -66,6 +67,7 @@ export interface UseGardenDesignerResult {
   isEditable: boolean;
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
+  applyTemplate: (templateId: string) => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
@@ -478,6 +480,45 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [beds.length, canvasQuery.data, createBedMutation, isEditable, selectItem]
   );
 
+  // Seeds an empty garden from a starter template: create every bed, then
+  // every annotation, sequentially through the normal create mutations so
+  // the saving indicator and cache invalidation behave exactly as if the
+  // user placed each element by hand. Guarded to empty gardens only —
+  // templates are a blank-canvas starting point, not a merge.
+  //
+  // Note: there is no undo/redo history mechanism in the designer yet
+  // (no designerHistory.ts in this codebase); when one lands, each
+  // creation here should be recorded so applying a template is undoable.
+  const applyTemplate = useCallback(
+    async (templateId: string) => {
+      if (!isEditable) return;
+      if (beds.length > 0 || annotations.length > 0) return;
+      const template = templateById(templateId);
+      if (!template) return;
+      const canvasData = canvasQuery.data;
+      const layout = template.build({
+        widthInches: canvasData?.widthInches ?? 360,
+        heightInches: canvasData?.heightInches ?? 240,
+      });
+      for (const bedPayload of layout.beds) {
+        await createBedMutation.mutateAsync(bedPayload);
+      }
+      for (const annotationPayload of layout.annotations) {
+        await createAnnotationMutation.mutateAsync(annotationPayload);
+      }
+      selectItem(null);
+    },
+    [
+      annotations.length,
+      beds.length,
+      canvasQuery.data,
+      createAnnotationMutation,
+      createBedMutation,
+      isEditable,
+      selectItem,
+    ]
+  );
+
   const commitPolygon = useCallback(
     async (points: BedPolygonPoint[]) => {
       if (!isEditable || points.length < 3) return;
@@ -801,6 +842,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isEditable,
     isSaving,
     addBed,
+    applyTemplate,
     commitPolygon,
     moveBed,
     resizeBed,

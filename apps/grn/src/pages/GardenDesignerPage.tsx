@@ -125,6 +125,7 @@ export function GardenDesignerPage() {
           onPatchBed={designer.patchBed}
           onPatchAnnotation={designer.patchAnnotation}
           onOpenLayoutEditor={() => switchView('layout')}
+          onApplyTemplate={designer.applyTemplate}
         />
       ) : (
         <>

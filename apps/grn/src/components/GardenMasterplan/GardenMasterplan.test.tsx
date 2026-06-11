@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type {
@@ -7,6 +7,7 @@ import type {
   GardenCanvas,
   GrowerCropItem,
 } from '../../types/listing';
+import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
 import { GardenMasterplan } from './GardenMasterplan';
 
 beforeAll(() => {
@@ -112,6 +113,7 @@ function renderMasterplan(args?: {
   onPatchBed?: (bedId: string, patch: Partial<GardenBed>) => void;
   onPatchAnnotation?: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor?: () => void;
+  onApplyTemplate?: (templateId: string) => Promise<void>;
 }) {
   const beds = args?.beds ?? [makeBed({})];
   const annotations = args?.annotations ?? [makeAnnotation({})];
@@ -141,6 +143,7 @@ function renderMasterplan(args?: {
       onPatchBed={args?.onPatchBed ?? (() => {})}
       onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
       onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
+      onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
     />
   );
 }
@@ -207,6 +210,60 @@ describe('GardenMasterplan', () => {
     const onOpenLayoutEditor = vi.fn();
     renderMasterplan({ beds: [], annotations: [], crops: [], onOpenLayoutEditor });
     expect(screen.getByText(/your property, beautifully mapped/i)).toBeInTheDocument();
+  });
+
+  it('offers starter template cards in the empty state', () => {
+    renderMasterplan({ beds: [], annotations: [], crops: [] });
+    expect(screen.getByText(/start from a template/i)).toBeInTheDocument();
+    for (const template of GARDEN_TEMPLATES) {
+      expect(screen.getByText(template.name)).toBeInTheDocument();
+      expect(screen.getByText(template.description)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('button', { name: /use this layout/i })).toHaveLength(
+      GARDEN_TEMPLATES.length
+    );
+    // The start-from-scratch escape hatch survives.
+    expect(
+      screen.getByRole('button', { name: /open the layout editor/i })
+    ).toBeInTheDocument();
+  });
+
+  it('does not offer templates once the garden has elements', () => {
+    renderMasterplan();
+    expect(screen.queryByText(/start from a template/i)).not.toBeInTheDocument();
+  });
+
+  it('applies the clicked template by id', async () => {
+    const onApplyTemplate = vi.fn(async () => {});
+    renderMasterplan({ beds: [], annotations: [], crops: [], onApplyTemplate });
+    const buttons = screen.getAllByRole('button', { name: /use this layout/i });
+    await userEvent.click(buttons[1]);
+    expect(onApplyTemplate).toHaveBeenCalledTimes(1);
+    expect(onApplyTemplate).toHaveBeenCalledWith(GARDEN_TEMPLATES[1].id);
+  });
+
+  it('disables all template cards and shows progress while applying', async () => {
+    let resolveApply: () => void = () => {};
+    const onApplyTemplate = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveApply = resolve;
+        })
+    );
+    renderMasterplan({ beds: [], annotations: [], crops: [], onApplyTemplate });
+    const buttons = screen.getAllByRole('button', { name: /use this layout/i });
+    await userEvent.click(buttons[0]);
+
+    expect(screen.getByText(/planting your starter garden/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /planting/i })).toBeDisabled();
+    for (const button of screen.getAllByRole('button', { name: /use this layout/i })) {
+      expect(button).toBeDisabled();
+    }
+
+    resolveApply();
+    await waitFor(() =>
+      expect(screen.queryByText(/planting your starter garden/i)).not.toBeInTheDocument()
+    );
   });
 
   it('paints elements back-to-front by depth when no layer order is set', () => {

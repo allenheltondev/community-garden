@@ -3491,6 +3491,113 @@ body {
   font-size: 0.95rem;
 }
 
+/* --- Starter template picker (empty state) --------------------------------------- */
+
+.mp-explorer__empty {
+  overflow-y: auto;
+}
+
+.mp-templates__heading {
+  margin: 0.4rem 0 0;
+  font-family: var(--og-font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+}
+
+.mp-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 220px));
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 960px;
+  margin-top: 0.35rem;
+}
+
+.mp-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 253, 248, 0.85);
+  border: 1px solid rgba(91, 58, 28, 0.12);
+  box-shadow: var(--og-shadow-card);
+}
+
+.mp-template-card__name {
+  margin: 0;
+  font-family: var(--og-font-display);
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+}
+
+.mp-explorer__empty .mp-template-card__desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: rgba(79, 56, 37, 0.72);
+}
+
+.mp-explorer__empty .mp-template-card__stats {
+  margin: 0 0 0.2rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(79, 56, 37, 0.55);
+}
+
+.mp-template-card__use {
+  margin-top: auto;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgba(91, 58, 28, 0.18);
+  border-radius: var(--og-radius-pill);
+  background: rgba(91, 140, 74, 0.12);
+  color: var(--og-color-soil);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms var(--easing-out), border-color 150ms var(--easing-out);
+}
+
+.mp-template-card__use:hover:not(:disabled),
+.mp-template-card__use:focus-visible:not(:disabled) {
+  background: rgba(91, 140, 74, 0.24);
+  border-color: rgba(91, 140, 74, 0.45);
+  outline: none;
+}
+
+.mp-template-card__use:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.mp-templates__progress {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: rgba(79, 56, 37, 0.72);
+}
+
+.mp-explorer__empty .mp-templates__or {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: rgba(79, 56, 37, 0.55);
+}
+
+.mp-templates__editor-btn {
+  width: auto;
+  padding-inline: 1.4rem;
+}
+
+.mp-templates__editor-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* --- Floating detail panel ------------------------------------------------------ */
 
 .mp-panel {
