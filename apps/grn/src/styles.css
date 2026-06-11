@@ -3474,6 +3474,39 @@ body {
   z-index: 5;
 }
 
+.mp-explorer__export {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  gap: 0.35rem;
+  z-index: 5;
+}
+
+.mp-explorer__export-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+  background: rgba(253, 250, 241, 0.92);
+  border: 1px solid rgba(91, 58, 28, 0.18);
+  border-radius: var(--og-radius-pill);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  box-shadow: var(--og-shadow-button);
+}
+
+.mp-explorer__export-btn:hover:not(:disabled),
+.mp-explorer__export-btn:focus-visible {
+  background: #fff;
+  outline: none;
+}
+
+.mp-explorer__export-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 .mp-explorer__zoom-btn {
   width: 40px;
   height: 40px;

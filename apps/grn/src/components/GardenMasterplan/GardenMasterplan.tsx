@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type {
   GardenAnnotation,
   GardenBed,
@@ -7,6 +7,7 @@ import type {
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
+import { downloadScenePng, downloadSceneSvg } from './exportScene';
 import { sceneMetrics } from './footprints';
 import { IsoScene } from './IsoScene';
 import { MasterplanDetailPanel } from './MasterplanDetailPanel';
@@ -126,6 +127,26 @@ export function GardenMasterplan({
   } = useMapViewport(metrics.width, metrics.height);
   const isEmpty = beds.length === 0 && annotations.length === 0;
 
+  // Plain DOM ref to find the scene <svg> for export; pan/zoom state
+  // never touches it.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport(format: 'png' | 'svg') {
+    const svg = contentRef.current?.querySelector<SVGSVGElement>('svg.mp-scene');
+    if (!svg || exporting) return;
+    setExporting(true);
+    try {
+      if (format === 'svg') {
+        downloadSceneSvg(svg);
+      } else {
+        await downloadScenePng(svg);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="mp-explorer">
       <div
@@ -133,7 +154,7 @@ export function GardenMasterplan({
         className="mp-explorer__viewport"
         {...containerHandlers}
       >
-        <div className="mp-explorer__content" style={contentStyle}>
+        <div className="mp-explorer__content" style={contentStyle} ref={contentRef}>
           <IsoScene
             canvas={canvas}
             beds={beds}
@@ -176,6 +197,33 @@ export function GardenMasterplan({
             ⊡
           </button>
         </div>
+
+        {!isEmpty && (
+          <div className="mp-explorer__export" role="group" aria-label="Export the masterplan">
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                void handleExport('png');
+              }}
+              disabled={exporting}
+              title="Download the masterplan as a PNG image"
+            >
+              ⬇ PNG
+            </button>
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                void handleExport('svg');
+              }}
+              disabled={exporting}
+              title="Download the masterplan as an SVG file"
+            >
+              ⬇ SVG
+            </button>
+          </div>
+        )}
 
         {!isEmpty && (
           <p className="mp-explorer__hint" aria-hidden="true">
