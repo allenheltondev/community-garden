@@ -30,6 +30,9 @@ interface BedShapeProps {
   crops: GrowerCropItem[];
   onSelect: (bedId: string) => void;
   onMove: (bedId: string, positionX: number, positionY: number) => void;
+  /** Smart-alignment hook: given the in-flight drag position (inches),
+   * returns the position nudged onto neighbor alignment lines. */
+  onDragSnap?: (id: string, x: number, y: number) => { x: number; y: number } | null;
   onResize: (
     bedId: string,
     next: {
@@ -83,6 +86,7 @@ export function BedShape({
   crops,
   onSelect,
   onMove,
+  onDragSnap,
   onResize,
 }: BedShapeProps) {
   const groupRef = useRef<Konva.Group | null>(null);
@@ -198,8 +202,19 @@ export function BedShape({
     refreshDimsAnchor,
   ]);
 
+  function handleDragMove(event: KonvaEventObject<DragEvent>) {
+    const node = event.target;
+    if (node === groupRef.current && onDragSnap) {
+      const snapped = onDragSnap(bed.id, node.x() / pxPerInch, node.y() / pxPerInch);
+      if (snapped) {
+        node.position({ x: snapped.x * pxPerInch, y: snapped.y * pxPerInch });
+      }
+    }
+    refreshDimsAnchor();
+  }
+
   const dragProps = isEditable
-    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: refreshDimsAnchor }
+    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: handleDragMove }
     : { draggable: false };
 
   function renderShape() {

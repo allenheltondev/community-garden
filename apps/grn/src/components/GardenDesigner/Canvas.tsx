@@ -37,6 +37,11 @@ import { BackgroundLayer } from './BackgroundLayer';
 import { BedShape } from './BedShape';
 import { Grid } from './Grid';
 import { VertexEditor } from './VertexEditor';
+import {
+  snapToNeighbors,
+  type AlignmentGuide,
+  type ElementBounds,
+} from './alignment';
 import { distanceInches, formatInchesAsFeetInches } from './measure';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
@@ -152,6 +157,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     // segment); a third click starts a fresh measurement.
     const [measureA, setMeasureA] = useState<BedPolygonPoint | null>(null);
     const [measureB, setMeasureB] = useState<BedPolygonPoint | null>(null);
+    // Smart-alignment guide lines shown while a drag is locked onto a
+    // neighbor's edge or center.
+    const [alignGuides, setAlignGuides] = useState<AlignmentGuide[]>([]);
+    const elementSnapActiveRef = useRef(false);
 
     // Refs used during touch gestures so handlers don't need to be
     // re-bound on every render. The pinch handler in particular runs
@@ -486,10 +495,87 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       }
     }
 
+    // Bounds of everything except the dragged element, for smart
+    // alignment. Rotated elements are skipped — their axis-aligned box
+    // doesn't match their visual edges.
+    function neighborBounds(excludeKind: 'bed' | 'annotation', excludeId: string): ElementBounds[] {
+      const list: ElementBounds[] = [];
+      for (const bed of beds) {
+        if (excludeKind === 'bed' && bed.id === excludeId) continue;
+        if (bed.rotationDeg % 360 !== 0) continue;
+        const x = bed.positionX ?? 12;
+        const y = bed.positionY ?? 12;
+        list.push({
+          left: x,
+          top: y,
+          right: x + (bed.lengthInches ?? 96),
+          bottom: y + (bed.widthInches ?? 48),
+        });
+      }
+      for (const annotation of annotations) {
+        if (excludeKind === 'annotation' && annotation.id === excludeId) continue;
+        if (annotation.rotationDeg % 360 !== 0) continue;
+        const x = annotation.positionX ?? 12;
+        const y = annotation.positionY ?? 12;
+        list.push({
+          left: x,
+          top: y,
+          right: x + (annotation.lengthInches ?? 48),
+          bottom: y + (annotation.widthInches ?? 48),
+        });
+      }
+      return list;
+    }
+
+    function makeDragSnapper(
+      kind: 'bed' | 'annotation',
+      lengthInches: number,
+      widthInches: number,
+      rotationDeg: number
+    ) {
+      return (id: string, x: number, y: number): { x: number; y: number } | null => {
+        if (rotationDeg % 360 !== 0) return null;
+        const result = snapToNeighbors({
+          x,
+          y,
+          width: lengthInches,
+          height: widthInches,
+          neighbors: neighborBounds(kind, id),
+        });
+        setAlignGuides(result.guides);
+        elementSnapActiveRef.current = result.guides.length > 0;
+        return { x: result.x, y: result.y };
+      };
+    }
+
     function handleBedMove(bedId: string, x: number, y: number) {
+      const alignedToNeighbor = elementSnapActiveRef.current;
+      elementSnapActiveRef.current = false;
+      setAlignGuides([]);
+      if (alignedToNeighbor) {
+        // The drop position came from edge/center alignment; grid-snapping
+        // it afterwards would break the alignment the user just saw.
+        onMoveBed(bedId, Math.max(0, x), Math.max(0, y));
+        return;
+      }
       const snappedX = snapValue(x, snap);
       const snappedY = snapValue(y, snap);
       onMoveBed(bedId, Math.max(0, snappedX), Math.max(0, snappedY));
+    }
+
+    function handleAnnotationMove(annotationId: string, x: number, y: number) {
+      const alignedToNeighbor = elementSnapActiveRef.current;
+      elementSnapActiveRef.current = false;
+      setAlignGuides([]);
+      if (alignedToNeighbor) {
+        onMoveAnnotation(annotationId, Math.max(0, x), Math.max(0, y));
+        return;
+      }
+      onMoveAnnotation(
+        annotationId,
+        Math.max(0, snapValue(x, snap)),
+        Math.max(0, snapValue(y, snap))
+      );
     }
 
     const draftLinePoints = draftPoints.flatMap((p) => [
@@ -563,8 +649,14 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     }
                     isEditable={isEditable && !drawing}
                     onSelect={(id) => onSelect({ kind: 'annotation', id })}
-                    onMove={onMoveAnnotation}
+                    onMove={handleAnnotationMove}
                     onResize={onResizeAnnotation}
+                    onDragSnap={makeDragSnapper(
+                      'annotation',
+                      item.annotation.lengthInches ?? 48,
+                      item.annotation.widthInches ?? 48,
+                      item.annotation.rotationDeg
+                    )}
                   />
                 ) : (
                   <BedShape
@@ -579,6 +671,12 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     onSelect={(id) => onSelect({ kind: 'bed', id })}
                     onMove={handleBedMove}
                     onResize={onResizeBed}
+                    onDragSnap={makeDragSnapper(
+                      'bed',
+                      item.bed.lengthInches ?? 96,
+                      item.bed.widthInches ?? 48,
+                      item.bed.rotationDeg
+                    )}
                   />
                 )
               )}
@@ -622,6 +720,20 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                   listening={false}
                 />
               )}
+              {alignGuides.map((guide, idx) => (
+                <Line
+                  key={`guide-${idx}`}
+                  points={
+                    guide.orientation === 'vertical'
+                      ? [guide.position * PX_PER_INCH, 0, guide.position * PX_PER_INCH, heightPx]
+                      : [0, guide.position * PX_PER_INCH, widthPx, guide.position * PX_PER_INCH]
+                  }
+                  stroke="#c97aab"
+                  strokeWidth={1.4}
+                  dash={[6, 4]}
+                  listening={false}
+                />
+              ))}
               {measuring && (
                 <Rect
                   x={0}

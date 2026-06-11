@@ -26,6 +26,7 @@ interface BedInspectorProps {
   isVertexEditing: boolean;
   onToggleVertexEditing: () => void;
   onChange: (patch: Partial<GardenBed>) => void;
+  onDuplicate: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -52,6 +53,7 @@ export function BedInspector({
   isVertexEditing,
   onToggleVertexEditing,
   onChange,
+  onDuplicate,
   onDelete,
   onClose,
 }: BedInspectorProps) {
@@ -400,15 +402,26 @@ export function BedInspector({
         >
           {isSaving ? 'Saving…' : 'Saved'}
         </span>
-        <button
-          type="button"
-          className="grn-designer-inspector__delete"
-          onClick={onDelete}
-          disabled={!isEditable}
-          title="Delete bed (Del or Backspace)"
-        >
-          Delete bed
-        </button>
+        <div className="grn-designer-inspector__footer-actions">
+          <button
+            type="button"
+            className="grn-designer-inspector__duplicate"
+            onClick={onDuplicate}
+            disabled={!isEditable}
+            title="Duplicate bed (Ctrl+D)"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            className="grn-designer-inspector__delete"
+            onClick={onDelete}
+            disabled={!isEditable}
+            title="Delete bed (Del or Backspace)"
+          >
+            Delete bed
+          </button>
+        </div>
       </footer>
       <AddCropModal bed={bed} open={addCropOpen} onClose={() => setAddCropOpen(false)} />
     </InspectorShell>

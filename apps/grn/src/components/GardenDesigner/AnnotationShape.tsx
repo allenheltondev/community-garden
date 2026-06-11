@@ -28,6 +28,9 @@ interface AnnotationShapeProps {
   isEditable: boolean;
   onSelect: (annotationId: string) => void;
   onMove: (annotationId: string, positionX: number, positionY: number) => void;
+  /** Smart-alignment hook: given the in-flight drag position (inches),
+   * returns the position nudged onto neighbor alignment lines. */
+  onDragSnap?: (id: string, x: number, y: number) => { x: number; y: number } | null;
   onResize: (
     annotationId: string,
     next: {
@@ -69,6 +72,7 @@ export function AnnotationShape({
   isEditable,
   onSelect,
   onMove,
+  onDragSnap,
   onResize,
 }: AnnotationShapeProps) {
   const groupRef = useRef<Konva.Group | null>(null);
@@ -172,8 +176,23 @@ export function AnnotationShape({
     refreshDimsAnchor,
   ]);
 
+  function handleDragMove(event: KonvaEventObject<DragEvent>) {
+    const node = event.target;
+    if (node === groupRef.current && onDragSnap) {
+      const snapped = onDragSnap(
+        annotation.id,
+        node.x() / pxPerInch,
+        node.y() / pxPerInch
+      );
+      if (snapped) {
+        node.position({ x: snapped.x * pxPerInch, y: snapped.y * pxPerInch });
+      }
+    }
+    refreshDimsAnchor();
+  }
+
   const dragProps = isEditable
-    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: refreshDimsAnchor }
+    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: handleDragMove }
     : { draggable: false };
 
   // Lines read better as a single run length ("24'") than as a bounding

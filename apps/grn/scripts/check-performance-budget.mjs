@@ -18,9 +18,12 @@ const vendorBundle = jsFiles.find((file) => file.name.includes('vendor'));
 const MAX_MAIN_BYTES = 220 * 1024;
 const MAX_VENDOR_BYTES = 520 * 1024;
 // Total includes lazy chunks. The designer route lazy-loads konva
-// (~150 KB gz), which lifts the total well above the pre-designer
-// baseline. The main and vendor caps still guard initial-load perf.
-const MAX_TOTAL_BYTES = 1024 * 1024;
+// (~120 KB gz even with the minimal-core build), and the 2026 designer
+// feature program (undo/redo, measuring, alignment, capacity, seasons,
+// shadows, templates, calibration, export) lives in that same lazy
+// chunk. The main and vendor caps above still guard initial-load perf;
+// this cap tracks overall growth.
+const MAX_TOTAL_BYTES = 1200 * 1024;
 
 const totalBytes = jsFiles.reduce((sum, file) => sum + file.size, 0);
 

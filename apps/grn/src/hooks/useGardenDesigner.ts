@@ -80,6 +80,7 @@ export interface UseGardenDesignerResult {
   isEditable: boolean;
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
+  duplicateSelected: () => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
@@ -887,6 +888,51 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     void stepHistory('redo');
   }, [stepHistory]);
 
+  // Clone the selected element 12 inches down-right, select the clone,
+  // and record it so Cmd+Z removes it again.
+  const duplicateSelected = useCallback(async () => {
+    if (!isEditable || historyBusyRef.current) return;
+    if (selected?.kind === 'bed' && selectedBed) {
+      const payload: UpsertGardenBedRequest = {
+        ...bedToUpsertPayload(selectedBed),
+        name: `${selectedBed.name} copy`.slice(0, 80),
+        positionX: (selectedBed.positionX ?? 12) + 12,
+        positionY: (selectedBed.positionY ?? 12) + 12,
+      };
+      const created = await createBedMutation.mutateAsync(payload);
+      record({
+        kind: 'bed-create',
+        id: created.id,
+        payload: bedToUpsertPayload(created),
+        at: Date.now(),
+      });
+      selectItem({ kind: 'bed', id: created.id });
+    } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+      const payload: UpsertGardenAnnotationRequest = {
+        ...annotationToUpsertPayload(selectedAnnotation),
+        positionX: (selectedAnnotation.positionX ?? 12) + 12,
+        positionY: (selectedAnnotation.positionY ?? 12) + 12,
+      };
+      const created = await createAnnotationMutation.mutateAsync(payload);
+      record({
+        kind: 'annotation-create',
+        id: created.id,
+        payload: annotationToUpsertPayload(created),
+        at: Date.now(),
+      });
+      selectItem({ kind: 'annotation', id: created.id });
+    }
+  }, [
+    createAnnotationMutation,
+    createBedMutation,
+    isEditable,
+    record,
+    selectItem,
+    selected,
+    selectedAnnotation,
+    selectedBed,
+  ]);
+
   // Arrow-key nudging for the selected element. Rapid presses coalesce
   // into a single undo step (see designerHistory).
   const nudgeSelected = useCallback(
@@ -940,6 +986,13 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       if (isEditingText(event.target)) return;
 
       const meta = event.metaKey || event.ctrlKey;
+      if (meta && (event.key === 'd' || event.key === 'D')) {
+        if (selected) {
+          event.preventDefault();
+          void duplicateSelected();
+        }
+        return;
+      }
       if (meta && (event.key === 'z' || event.key === 'Z')) {
         event.preventDefault();
         if (event.shiftKey) {
@@ -1021,6 +1074,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     undo,
     redo,
     nudgeSelected,
+    duplicateSelected,
   ]);
 
   const uploadBackgroundImage = useCallback(
@@ -1082,6 +1136,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isEditable,
     isSaving,
     addBed,
+    duplicateSelected,
     commitPolygon,
     moveBed,
     resizeBed,
