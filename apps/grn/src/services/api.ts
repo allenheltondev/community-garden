@@ -867,6 +867,33 @@ export interface BackgroundUploadIntent {
   expiresInSeconds: number;
 }
 
+// --- AI garden review -------------------------------------------------------
+
+export interface GardenReviewInsight {
+  severity: 'warning' | 'tip' | 'info';
+  category: string;
+  title: string;
+  detail: string;
+  bedId?: string;
+  bedName?: string;
+}
+
+export interface GardenReviewResponse {
+  modelId: string;
+  modelVersion: string;
+  structuredJson: boolean;
+  generatedAt: string;
+  insights: GardenReviewInsight[];
+}
+
+/** Pro feature: throws ApiError with status 403 (feature_locked) on free tier. */
+export async function generateGardenReview(): Promise<GardenReviewResponse> {
+  return apiFetch<GardenReviewResponse>('/ai/copilot/garden-review', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function listMyBeds(): Promise<GardenBed[]> {
   const response = await apiFetch<RawGardenBed[]>('/beds');
   return response.map(mapGardenBed);

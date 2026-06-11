@@ -9,6 +9,7 @@ import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
 import { downloadScenePng, downloadSceneSvg } from './exportScene';
 import { sceneMetrics } from './footprints';
+import { GardenReviewPanel } from './GardenReviewPanel';
 import { IsoScene } from './IsoScene';
 import { MasterplanDetailPanel } from './MasterplanDetailPanel';
 import {
@@ -131,6 +132,14 @@ export function GardenMasterplan({
   // never touches it.
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Review panel and detail panel share the same screen edge; opening one
+  // closes the other so they never stack.
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  function handleSelect(next: SelectedItem) {
+    if (next) setReviewOpen(false);
+    onSelect(next);
+  }
 
   async function handleExport(format: 'png' | 'svg') {
     const svg = contentRef.current?.querySelector<SVGSVGElement>('svg.mp-scene');
@@ -161,7 +170,7 @@ export function GardenMasterplan({
             annotations={annotations}
             cropsByBedId={visibleCropsByBedId}
             selected={selected}
-            onSelect={onSelect}
+            onSelect={handleSelect}
             shouldIgnoreClick={shouldIgnoreClick}
             seasonMonth={seasonMonth}
             sunTime={sunTime}
@@ -221,6 +230,17 @@ export function GardenMasterplan({
               title="Download the masterplan as an SVG file"
             >
               ⬇ SVG
+            </button>
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                setReviewOpen(true);
+                onSelect(null);
+              }}
+              title="Get an AI review of your garden plan (Pro)"
+            >
+              ✨ Review
             </button>
           </div>
         )}
@@ -332,7 +352,17 @@ export function GardenMasterplan({
         )}
       </div>
 
-      {(selectedBed || selectedAnnotation) && (
+      {reviewOpen && (
+        <GardenReviewPanel
+          onSelectBed={(bedId) => {
+            setReviewOpen(false);
+            onSelect({ kind: 'bed', id: bedId });
+          }}
+          onClose={() => setReviewOpen(false)}
+        />
+      )}
+
+      {!reviewOpen && (selectedBed || selectedAnnotation) && (
         <MasterplanDetailPanel
           key={selectedBed?.id ?? selectedAnnotation?.id}
           bed={selectedBed}

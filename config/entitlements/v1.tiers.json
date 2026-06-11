@@ -22,6 +22,7 @@
       ],
       "entitlements": [
         "ai.copilot.weekly_grow_plan",
+        "ai.copilot.garden_review",
         "ai.feed_insights.read",
         "agent.tasks.automation",
         "pro.analytics.read"
@@ -41,6 +42,7 @@
     "scheduled_reminders": "reminders.deterministic.schedule",
     "manage_reminders": "reminders.deterministic.manage",
     "ai_copilot": "ai.copilot.weekly_grow_plan",
+    "ai_garden_review": "ai.copilot.garden_review",
     "ai_feed_cards": "ai.feed_insights.read",
     "agentic_automations": "agent.tasks.automation",
     "pro_dashboard": "pro.analytics.read"

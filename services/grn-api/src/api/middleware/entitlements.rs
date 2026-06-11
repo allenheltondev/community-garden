@@ -280,6 +280,7 @@ mod tests {
     // that invokes an LLM (or schedules one) must key off one of these.
     const LLM_BACKED_ENTITLEMENTS: &[&str] = &[
         "ai.copilot.weekly_grow_plan",
+        "ai.copilot.garden_review",
         "ai.feed_insights.read",
         "agent.tasks.automation",
     ];

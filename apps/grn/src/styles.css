@@ -3507,6 +3507,78 @@ body {
   cursor: progress;
 }
 
+/* --- AI garden review panel ---------------------------------------------- */
+
+.mp-review__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mp-review__item {
+  margin: 0;
+}
+
+.mp-review__jump,
+.mp-review__static {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+}
+
+.mp-review__jump {
+  font: inherit;
+  background: rgba(91, 140, 74, 0.06);
+  border: 1px solid rgba(91, 140, 74, 0.18);
+  border-radius: var(--og-radius-sm);
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+}
+
+.mp-review__jump:hover,
+.mp-review__jump:focus-visible {
+  background: rgba(91, 140, 74, 0.12);
+  outline: none;
+}
+
+.mp-review__static {
+  padding: 0.5rem 0.6rem;
+}
+
+.mp-review__icon {
+  flex: none;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.mp-review__icon--warning {
+  color: #8b1f1a;
+}
+
+.mp-review__text {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+  color: var(--og-color-soil);
+}
+
+.mp-review__text strong {
+  font-size: 0.88rem;
+}
+
+.mp-review__locked {
+  font-size: 0.9rem;
+  color: var(--og-color-soil);
+  background: rgba(214, 165, 44, 0.12);
+  border: 1px solid rgba(214, 165, 44, 0.35);
+  border-radius: var(--og-radius-sm);
+  padding: 0.7rem 0.8rem;
+}
+
 .mp-explorer__zoom-btn {
   width: 40px;
   height: 40px;
