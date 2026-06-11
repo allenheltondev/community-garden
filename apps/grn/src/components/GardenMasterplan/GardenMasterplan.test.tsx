@@ -184,6 +184,35 @@ describe('GardenMasterplan', () => {
     expect(panel).toHaveTextContent('×4');
   });
 
+  it('shows a capacity line in the detail panel when crops have spacing data', () => {
+    renderMasterplan({
+      // 96×48 bed → 4147.2 usable sq in; 4 plants × 12in spacing = 576 → ~14%.
+      crops: [makeCrop({ plantCount: 4, spacingInches: 12 })],
+      selected: { kind: 'bed', id: 'bed-1' },
+    });
+    const panel = screen.getByTestId('masterplan-detail-panel');
+    expect(panel).toHaveTextContent('Using ~14% of this bed · Room for more');
+  });
+
+  it('flags an overplanted bed in the detail panel', () => {
+    renderMasterplan({
+      // 40 plants × 144 sq in = 5760 > 4147.2 usable → 139%.
+      crops: [makeCrop({ plantCount: 40, spacingInches: 12 })],
+      selected: { kind: 'bed', id: 'bed-1' },
+    });
+    const panel = screen.getByTestId('masterplan-detail-panel');
+    expect(panel).toHaveTextContent('Using ~139% of this bed · Overplanted');
+  });
+
+  it('omits the capacity line when no crop has spacing data', () => {
+    renderMasterplan({
+      crops: [makeCrop({ plantCount: 4, spacingInches: null })],
+      selected: { kind: 'bed', id: 'bed-1' },
+    });
+    const panel = screen.getByTestId('masterplan-detail-panel');
+    expect(panel).not.toHaveTextContent(/of this bed/);
+  });
+
   it('jumps to the layout editor from the detail panel', async () => {
     const onOpenLayoutEditor = vi.fn();
     renderMasterplan({

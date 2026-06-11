@@ -1,5 +1,6 @@
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
+import 'konva/lib/shapes/Circle';
 import 'konva/lib/shapes/Ellipse';
 import 'konva/lib/shapes/Line';
 import 'konva/lib/shapes/Path';
@@ -8,6 +9,7 @@ import 'konva/lib/shapes/Text';
 import 'konva/lib/shapes/Transformer';
 import { useEffect, useRef } from 'react';
 import {
+  Circle,
   Ellipse,
   Group,
   Line,
@@ -18,6 +20,7 @@ import {
 } from 'react-konva/lib/ReactKonvaCore';
 import type { BedType, GardenBed, GrowerCropItem } from '../../types/listing';
 import { bedStyleFor } from './bedDefaults';
+import { bedCapacitySummary } from './capacity';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 
@@ -45,6 +48,7 @@ interface BedShapeProps {
 const MAX_CHIPS = 6;
 const CHIP_SIZE_PX = 22;
 const MIN_BED_INCHES = 6;
+const WARNING_BADGE_RADIUS_PX = 10;
 
 // Konva's default Transformer anchor is ~12px wide. That's hard to hit on
 // touch (Apple HIG recommends 44px minimum). When the device looks like
@@ -225,6 +229,12 @@ export function BedShape({
       ? heightPx / 2 + 8
       : Math.max(8, heightPx - CHIP_SIZE_PX - 6);
 
+  // Overplanted flag: when known crop footprints exceed the bed's usable
+  // area, surface a small "!" disc at the bed's top-right corner so the
+  // problem is visible at canvas zoom without opening the inspector.
+  const capacity = bedCapacitySummary(bed, crops);
+  const isOverplanted = capacity.utilization !== null && capacity.utilization > 1;
+
   return (
     <>
     <Group
@@ -274,6 +284,28 @@ export function BedShape({
           fill="#5b3a1c"
           listening={false}
         />
+      )}
+      {isOverplanted && (
+        <Group x={widthPx} y={0} listening={false}>
+          <Circle
+            radius={WARNING_BADGE_RADIUS_PX}
+            fill="#c0392b"
+            stroke="#fff"
+            strokeWidth={2}
+            shadowColor="rgba(91, 58, 28, 0.3)"
+            shadowBlur={4}
+          />
+          <Text
+            x={-WARNING_BADGE_RADIUS_PX}
+            y={-6}
+            width={WARNING_BADGE_RADIUS_PX * 2}
+            align="center"
+            text="!"
+            fontSize={13}
+            fontStyle="700"
+            fill="#fff"
+          />
+        </Group>
       )}
     </Group>
     {isEditable && (

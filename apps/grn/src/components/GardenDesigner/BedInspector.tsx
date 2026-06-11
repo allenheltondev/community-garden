@@ -4,6 +4,7 @@ import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
 import { AddCropModal } from './AddCropModal';
 import { InspectorShell } from './InspectorShell';
+import { bedCapacitySummary, capacityLabel } from './capacity';
 import {
   BED_COLOR_PALETTE,
   BED_TYPES,
@@ -97,6 +98,10 @@ export function BedInspector({
     widthInches: bed.widthInches,
     points: bed.points,
   });
+  const capacity = bedCapacitySummary(bed, cropsForBed);
+  const utilizationPct =
+    capacity.utilization !== null ? Math.round(capacity.utilization * 100) : null;
+  const isOverplanted = capacity.utilization !== null && capacity.utilization > 1;
 
   function commit(patch: Partial<GardenBed>) {
     if (!isEditable) return;
@@ -158,7 +163,55 @@ export function BedInspector({
           <span className="grn-designer-inspector__metric-label">Crops</span>
           <span className="grn-designer-inspector__metric-value">{cropsForBed.length}</span>
         </div>
+        <div className="grn-designer-inspector__metric">
+          <span className="grn-designer-inspector__metric-label">Capacity</span>
+          {utilizationPct !== null ? (
+            <span
+              className={`grn-designer-inspector__metric-value ${
+                isOverplanted ? 'grn-designer-inspector__metric-value--warning' : ''
+              }`}
+            >
+              {utilizationPct}%
+            </span>
+          ) : (
+            <span className="grn-designer-inspector__metric-value">—</span>
+          )}
+        </div>
       </div>
+
+      {capacity.utilization !== null && (
+        <div className="grn-designer-inspector__capacity" aria-label="Planting capacity">
+          <div
+            className="grn-designer-inspector__capacity-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(100, utilizationPct ?? 0)}
+            aria-valuetext={`${utilizationPct}% of usable space planted`}
+          >
+            <div
+              className={`grn-designer-inspector__capacity-fill ${
+                isOverplanted ? 'is-over' : ''
+              }`}
+              style={{ width: `${Math.min(100, capacity.utilization * 100)}%` }}
+            />
+          </div>
+          <span
+            className={`grn-designer-inspector__capacity-label ${
+              isOverplanted ? 'is-over' : ''
+            }`}
+          >
+            {capacityLabel(capacity)}
+          </span>
+        </div>
+      )}
+      {capacity.unknownCrops > 0 && (
+        <p className="grn-designer-inspector__capacity-footnote">
+          {capacity.unknownCrops === 1
+            ? '1 crop without spacing data isn’t counted'
+            : `${capacity.unknownCrops} crops without spacing data aren’t counted`}
+        </p>
+      )}
 
       <fieldset className="grn-designer-inspector__fieldset" disabled={!isEditable}>
         <legend>Details</legend>
@@ -410,7 +463,12 @@ export function BedInspector({
           Delete bed
         </button>
       </footer>
-      <AddCropModal bed={bed} open={addCropOpen} onClose={() => setAddCropOpen(false)} />
+      <AddCropModal
+        bed={bed}
+        cropsForBed={cropsForBed}
+        open={addCropOpen}
+        onClose={() => setAddCropOpen(false)}
+      />
     </InspectorShell>
   );
 }
