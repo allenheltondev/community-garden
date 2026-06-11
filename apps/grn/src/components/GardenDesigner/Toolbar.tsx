@@ -3,7 +3,11 @@ import type { BedShape } from '../../types/listing';
 import { ANNOTATION_PRESETS } from './annotationPresets';
 import { BED_SHAPES } from './bedDefaults';
 
-export type DesignerMode = 'idle' | 'drawing-polygon' | 'editing-vertices';
+export type DesignerMode =
+  | 'idle'
+  | 'drawing-polygon'
+  | 'editing-vertices'
+  | 'measuring';
 export type GridSnap = 'off' | '6' | '12';
 
 interface ToolbarProps {
@@ -20,6 +24,7 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onToggleMeasure: () => void;
 }
 
 /**
@@ -49,8 +54,10 @@ export function Toolbar({
   canRedo,
   onUndo,
   onRedo,
+  onToggleMeasure,
 }: ToolbarProps) {
   const drawing = mode === 'drawing-polygon';
+  const measuring = mode === 'measuring';
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,6 +167,28 @@ export function Toolbar({
     </>
   );
 
+  const measureButton = (
+    <button
+      type="button"
+      className={`grn-designer-toolbar__btn ${measuring ? 'is-active' : ''}`}
+      onClick={() => {
+        onToggleMeasure();
+        setMoreOpen(false);
+      }}
+      disabled={drawing}
+      title={
+        measuring
+          ? 'Click two points to measure. Esc to exit.'
+          : 'Measure distances on the canvas'
+      }
+      aria-label={measuring ? 'Stop measuring' : 'Measure distances'}
+      aria-pressed={measuring}
+    >
+      <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">📏</span>
+      <span className="grn-designer-toolbar__btn-label">Measure</span>
+    </button>
+  );
+
   const snapField = (
     <label className="grn-designer-toolbar__field">
       <span>Snap</span>
@@ -216,6 +245,7 @@ export function Toolbar({
             <div className="grn-designer-toolbar__sheet-section">
               <h3 className="grn-designer-toolbar__sheet-heading">View</h3>
               <div className="grn-designer-toolbar__sheet-row">
+                {measureButton}
                 {snapField}
                 <button
                   type="button"
@@ -268,6 +298,7 @@ export function Toolbar({
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />
 
       <div className="grn-designer-toolbar__group" role="group" aria-label="View">
+        {measureButton}
         {snapField}
         <button
           type="button"

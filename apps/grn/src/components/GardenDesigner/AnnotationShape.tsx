@@ -5,7 +5,7 @@ import 'konva/lib/shapes/Line';
 import 'konva/lib/shapes/Rect';
 import 'konva/lib/shapes/Text';
 import 'konva/lib/shapes/Transformer';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Circle,
   Group,
@@ -15,6 +15,11 @@ import {
   Transformer,
 } from 'react-konva/lib/ReactKonvaCore';
 import type { GardenAnnotation } from '../../types/listing';
+import {
+  formatDimensions,
+  formatInchesAsFeetInches,
+  polylineLengthInches,
+} from './measure';
 
 interface AnnotationShapeProps {
   annotation: GardenAnnotation;
@@ -68,6 +73,19 @@ export function AnnotationShape({
 }: AnnotationShapeProps) {
   const groupRef = useRef<Konva.Group | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
+  // Live size readout mid-transform; anchor for the label kept outside
+  // the group so the text never rotates or stretches. Mirrors BedShape.
+  const [liveScale, setLiveScale] = useState<{ x: number; y: number } | null>(null);
+  const [dimsAnchor, setDimsAnchor] = useState<{ x: number; y: number } | null>(null);
+
+  const refreshDimsAnchor = useCallback(() => {
+    const node = groupRef.current;
+    if (!node) return;
+    const layer = node.getLayer();
+    if (!layer) return;
+    const rect = node.getClientRect({ relativeTo: layer });
+    setDimsAnchor({ x: rect.x + 2, y: rect.y + rect.height + 6 });
+  }, []);
 
   const positionX = (annotation.positionX ?? 12) * pxPerInch;
   const positionY = (annotation.positionY ?? 12) * pxPerInch;
@@ -99,7 +117,15 @@ export function AnnotationShape({
     onMove(annotation.id, Math.max(0, nextX), Math.max(0, nextY));
   }
 
+  function handleTransform() {
+    const node = groupRef.current;
+    if (!node) return;
+    setLiveScale({ x: node.scaleX(), y: node.scaleY() });
+    refreshDimsAnchor();
+  }
+
   function handleTransformEnd() {
+    setLiveScale(null);
     const node = groupRef.current;
     if (!node) return;
     const scaleX = node.scaleX();
@@ -134,9 +160,40 @@ export function AnnotationShape({
     });
   }
 
+  useEffect(() => {
+    if (isSelected) refreshDimsAnchor();
+  }, [
+    isSelected,
+    positionX,
+    positionY,
+    widthPx,
+    heightPx,
+    annotation.rotationDeg,
+    refreshDimsAnchor,
+  ]);
+
   const dragProps = isEditable
-    ? { draggable: true, onDragEnd: handleDragEnd }
+    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: refreshDimsAnchor }
     : { draggable: false };
+
+  // Lines read better as a single run length ("24'") than as a bounding
+  // box; everything else shows length × width.
+  function dimsText(): string {
+    const sx = liveScale?.x ?? 1;
+    const sy = liveScale?.y ?? 1;
+    if (annotation.shape === 'line' && annotation.points && annotation.points.length >= 2) {
+      const scaled = annotation.points.map((p) => ({ x: p.x * sx, y: p.y * sy }));
+      return formatInchesAsFeetInches(polylineLengthInches(scaled));
+    }
+    if (annotation.shape === 'circle') {
+      const d = Math.round((annotation.lengthInches ?? 48) * ((sx + sy) / 2));
+      return `${formatInchesAsFeetInches(d)} across`;
+    }
+    return formatDimensions(
+      Math.round((annotation.lengthInches ?? 48) * sx),
+      Math.round((annotation.widthInches ?? 48) * sy)
+    );
+  }
 
   function renderShape() {
     if (annotation.shape === 'circle') {
@@ -202,6 +259,7 @@ export function AnnotationShape({
         rotation={annotation.rotationDeg}
         onMouseDown={() => onSelect(annotation.id)}
         onTouchStart={() => onSelect(annotation.id)}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         {...dragProps}
       >
@@ -225,6 +283,20 @@ export function AnnotationShape({
           listening={false}
         />
       </Group>
+      {isSelected && dimsAnchor && (
+        <Text
+          x={dimsAnchor.x}
+          y={dimsAnchor.y}
+          text={dimsText()}
+          fontSize={13}
+          fontStyle="600"
+          fill="#3a7e5a"
+          shadowColor="#fff"
+          shadowBlur={5}
+          shadowOpacity={0.9}
+          listening={false}
+        />
+      )}
       {isEditable && (
         <Transformer
           ref={transformerRef}

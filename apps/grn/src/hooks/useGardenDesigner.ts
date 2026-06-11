@@ -973,8 +973,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       }
 
       if (event.key === 'Escape') {
-        // Step out of vertex editing first; a second Esc deselects.
-        if (mode === 'editing-vertices') {
+        // Step out of vertex editing / measuring first; a second Esc
+        // deselects.
+        if (mode === 'editing-vertices' || mode === 'measuring') {
           event.preventDefault();
           setMode('idle');
           return;

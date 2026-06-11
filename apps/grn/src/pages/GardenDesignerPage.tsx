@@ -169,6 +169,9 @@ export function GardenDesignerPage() {
               canRedo={designer.canRedo}
               onUndo={designer.undo}
               onRedo={designer.redo}
+              onToggleMeasure={() =>
+                designer.setMode(designer.mode === 'measuring' ? 'idle' : 'measuring')
+              }
             />
 
             <DesignerCanvas

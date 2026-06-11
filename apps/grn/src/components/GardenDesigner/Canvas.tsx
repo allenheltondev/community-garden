@@ -5,6 +5,7 @@ import Konva from 'konva/lib/Core';
 import 'konva/lib/shapes/Circle';
 import 'konva/lib/shapes/Line';
 import 'konva/lib/shapes/Rect';
+import 'konva/lib/shapes/Text';
 import {
   forwardRef,
   useCallback,
@@ -15,7 +16,7 @@ import {
 import { useImperativeHandle } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
-import { Circle, Layer, Line, Rect, Stage } from 'react-konva/lib/ReactKonvaCore';
+import { Circle, Layer, Line, Rect, Stage, Text } from 'react-konva/lib/ReactKonvaCore';
 
 // Tighten Konva's click-vs-drag detection. The default of 0px means any
 // pointer jitter on a draggable Group fires a drag instead of a click,
@@ -36,6 +37,7 @@ import { BackgroundLayer } from './BackgroundLayer';
 import { BedShape } from './BedShape';
 import { Grid } from './Grid';
 import { VertexEditor } from './VertexEditor';
+import { distanceInches, formatInchesAsFeetInches } from './measure';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
 
@@ -146,6 +148,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [draftPoints, setDraftPoints] = useState<BedPolygonPoint[]>([]);
     const [hoverPoint, setHoverPoint] = useState<BedPolygonPoint | null>(null);
+    // Tape measure: A is set on first click, B on the second (frozen
+    // segment); a third click starts a fresh measurement.
+    const [measureA, setMeasureA] = useState<BedPolygonPoint | null>(null);
+    const [measureB, setMeasureB] = useState<BedPolygonPoint | null>(null);
 
     // Refs used during touch gestures so handlers don't need to be
     // re-bound on every render. The pinch handler in particular runs
@@ -232,6 +238,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
         setDraftPoints([]);
         setHoverPoint(null);
       }
+      if (mode !== 'measuring') {
+        setMeasureA(null);
+        setMeasureB(null);
+      }
     }, [mode]);
 
     // Esc cancels in-progress drawing.
@@ -246,6 +256,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     }, [mode, onCancelPolygon]);
 
     const drawing = mode === 'drawing-polygon';
+    const measuring = mode === 'measuring';
 
     // The bed whose vertices are being reshaped, if any. Its own
     // drag/Transformer interactions are suspended while the handles own
@@ -421,7 +432,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     }
 
     function handleStageMouseMove(event: KonvaEventObject<MouseEvent>) {
-      if (!drawing) return;
+      if (!drawing && !measuring) return;
       const stage = event.target.getStage();
       if (!stage) return;
       const pointer = relativePointer(stage);
@@ -429,6 +440,24 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       const inchX = snapValue(Math.round(pointer.x / PX_PER_INCH), snap);
       const inchY = snapValue(Math.round(pointer.y / PX_PER_INCH), snap);
       setHoverPoint({ x: inchX, y: inchY });
+    }
+
+    function handleMeasureClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
+      event.cancelBubble = true;
+      const stage = event.target.getStage();
+      if (!stage) return;
+      const pointer = relativePointer(stage);
+      if (!pointer) return;
+      const point = {
+        x: snapValue(Math.round(pointer.x / PX_PER_INCH), snap),
+        y: snapValue(Math.round(pointer.y / PX_PER_INCH), snap),
+      };
+      if (!measureA || measureB) {
+        setMeasureA(point);
+        setMeasureB(null);
+      } else {
+        setMeasureB(point);
+      }
     }
 
     function handleStageWheel(event: KonvaEventObject<WheelEvent>) {
@@ -593,6 +622,75 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                   listening={false}
                 />
               )}
+              {measuring && (
+                <Rect
+                  x={0}
+                  y={0}
+                  width={widthPx}
+                  height={heightPx}
+                  fill="rgba(0,0,0,0)"
+                  onClick={handleMeasureClick}
+                  onTap={handleMeasureClick}
+                />
+              )}
+              {measuring &&
+                measureA &&
+                (() => {
+                  const target = measureB ?? hoverPoint;
+                  const ax = measureA.x * PX_PER_INCH;
+                  const ay = measureA.y * PX_PER_INCH;
+                  const segments = target ? (
+                    <>
+                      <Line
+                        points={[
+                          ax,
+                          ay,
+                          target.x * PX_PER_INCH,
+                          target.y * PX_PER_INCH,
+                        ]}
+                        stroke="#8a6230"
+                        strokeWidth={2}
+                        dash={[8, 5]}
+                        listening={false}
+                      />
+                      <Circle
+                        x={target.x * PX_PER_INCH}
+                        y={target.y * PX_PER_INCH}
+                        radius={5}
+                        fill="#8a6230"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        listening={false}
+                      />
+                      <Text
+                        x={((measureA.x + target.x) / 2) * PX_PER_INCH + 10}
+                        y={((measureA.y + target.y) / 2) * PX_PER_INCH - 20}
+                        text={formatInchesAsFeetInches(distanceInches(measureA, target))}
+                        fontSize={15}
+                        fontStyle="700"
+                        fill="#5b3a1c"
+                        shadowColor="#fff"
+                        shadowBlur={6}
+                        shadowOpacity={0.95}
+                        listening={false}
+                      />
+                    </>
+                  ) : null;
+                  return (
+                    <>
+                      <Circle
+                        x={ax}
+                        y={ay}
+                        radius={5}
+                        fill="#8a6230"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        listening={false}
+                      />
+                      {segments}
+                    </>
+                  );
+                })()}
             </Layer>
           </Stage>
         <div className="grn-designer-canvas__zoom" role="group" aria-label="Zoom controls">
@@ -633,6 +731,12 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
           <div className="grn-designer-canvas__draw-hint" role="status">
             Drag points to reshape · tap an edge dot to add · double-tap a point
             to remove · esc to finish
+          </div>
+        )}
+        {measuring && (
+          <div className="grn-designer-canvas__draw-hint" role="status">
+            Click two points to measure · click again to start over · esc to
+            exit
           </div>
         )}
       </div>
