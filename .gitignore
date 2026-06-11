@@ -47,7 +47,6 @@ services/*/node_modules/
 services/*/target/
 services/*/**/*.rs.bk
 services/*/.cargo/
-services/*/Cargo.lock
 packages/*/node_modules/
 
 # AWS SAM
