@@ -140,7 +140,9 @@ describe('PlannerPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Flavor' })).toBeInTheDocument();
     // The grower's basil should appear in the Flavor layer's crop list.
-    expect(screen.getByText('Basil')).toBeInTheDocument();
+    // (Scoped to span chips — the pyramid silhouette also carries an svg
+    // <title>Basil</title> tooltip.)
+    expect(screen.getByText('Basil', { selector: 'span' })).toBeInTheDocument();
   });
 
   it('surfaces crops it cannot place in a "Not yet placed" section', async () => {
