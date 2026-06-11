@@ -54,11 +54,21 @@ describe('GardenPyramid (isometric)', () => {
     expect(screen.getByTestId('pyramid-count-fresh')).toHaveTextContent('+');
   });
 
-  it('collapses crops beyond the ledge capacity into a +N chip', () => {
+  it('shows a few silhouettes on the shoulders with a +N chip when resting', () => {
     const many = Array.from({ length: 9 }, (_, i) => crop(`c${i}`, `Crop ${i}`));
-    renderPyramid({ cropsByTier: { 1: many } });
-    // Foundation holds 6 silhouettes; the remaining 3 collapse.
-    expect(screen.getByText('+3')).toBeInTheDocument();
+    // Foundation is NOT the active tier, so it rests: 4 on the
+    // shoulders, the remaining 5 collapse.
+    renderPyramid({ cropsByTier: { 1: many }, activeTier: 3 });
+    expect(screen.getByText('+5')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Crop \d$/, { selector: 'title' })).toHaveLength(4);
+  });
+
+  it('showcases the full planting of the active tier', () => {
+    const many = Array.from({ length: 9 }, (_, i) => crop(`c${i}`, `Crop ${i}`));
+    renderPyramid({ cropsByTier: { 1: many }, activeTier: 1 });
+    // All nine stand across the band; no overflow chip.
+    expect(screen.getAllByText(/^Crop \d$/, { selector: 'title' })).toHaveLength(9);
+    expect(screen.queryByText(/^\+\d+$/)).not.toBeInTheDocument();
   });
 
   it('selects a tier on click', async () => {

@@ -1,110 +1,133 @@
 import { describe, expect, it } from 'vitest';
-import { Z_PER_INCH } from '../GardenMasterplan/iso';
 import type { PyramidTier } from '../CropPlanner/gardenPyramid';
 import {
-  LEDGE,
-  STEP_HEIGHT,
-  TIER_SIDES,
-  ledgeAnchors,
-  ledgeCapacity,
+  ALL_TIERS,
+  BAND_WIDTHS,
+  BASE_Y,
+  CENTER_X,
+  RELIEF,
+  SHOULDER_CAPACITY,
+  bandRect,
+  lawnRing,
+  ledgeQuads,
   pyramidMetrics,
-  tierBaseZ,
-  tierFootprint,
-  tierTopZ,
-  tierWalls,
+  showcaseCapacity,
+  sideQuad,
+  standPoints,
 } from './pyramidGeometry';
 
-const ALL_TIERS: PyramidTier[] = [1, 2, 3, 4, 5];
+describe('bandRect', () => {
+  it('keeps every band centered on the pyramid axis', () => {
+    for (const level of ALL_TIERS) {
+      const band = bandRect(level);
+      expect(band.x + band.w / 2).toBeCloseTo(CENTER_X);
+      expect(band.w).toBe(BAND_WIDTHS[level]);
+    }
+  });
 
-describe('tier dimensions', () => {
-  it('shrinks each tier by one ledge per side', () => {
+  it('stacks bands bottom-up into a triangle silhouette', () => {
+    const base = bandRect(1);
+    expect(base.y + base.h).toBe(BASE_Y);
     for (let level = 2 as PyramidTier; level <= 5; level += 1) {
-      expect(TIER_SIDES[level as PyramidTier]).toBe(
-        TIER_SIDES[(level - 1) as PyramidTier] - LEDGE * 2
-      );
-    }
-  });
-
-  it('stacks tiers one step apart', () => {
-    for (const level of ALL_TIERS) {
-      expect(tierBaseZ(level)).toBe((level - 1) * STEP_HEIGHT);
-      expect(tierTopZ(level)).toBe(level * STEP_HEIGHT);
-    }
-  });
-
-  it('centers every footprint on the pyramid axis', () => {
-    for (const level of ALL_TIERS) {
-      const fp = tierFootprint(level);
-      const cx = fp.reduce((s, p) => s + p.x, 0) / fp.length;
-      const cy = fp.reduce((s, p) => s + p.y, 0) / fp.length;
-      expect(cx).toBeCloseTo(0);
-      expect(cy).toBeCloseTo(0);
+      const below = bandRect((level - 1) as PyramidTier);
+      const band = bandRect(level as PyramidTier);
+      // Each band sits flush on the one beneath it and is narrower.
+      expect(band.y + band.h).toBe(below.y);
+      expect(band.w).toBeLessThan(below.w);
     }
   });
 });
 
-describe('tierWalls', () => {
-  it('builds two quads spanning exactly one step of height', () => {
+describe('relief quads', () => {
+  it('exposes two shoulder ledges on lower bands and one full ledge on top', () => {
     for (const level of ALL_TIERS) {
-      const walls = tierWalls(level);
-      for (const quad of [walls.right, walls.left]) {
+      const quads = ledgeQuads(level);
+      expect(quads).toHaveLength(level === 5 ? 1 : 2);
+      for (const quad of quads) {
         expect(quad).toHaveLength(4);
-        // Top corners sit one step above their base counterparts.
-        expect(quad[3].y).toBeCloseTo(quad[0].y - STEP_HEIGHT * Z_PER_INCH);
-        expect(quad[2].y).toBeCloseTo(quad[1].y - STEP_HEIGHT * Z_PER_INCH);
+        // The back edge is skewed up-right by the relief offset.
+        expect(quad[2].y).toBeCloseTo(quad[1].y - RELIEF.dy);
+        expect(quad[2].x).toBeCloseTo(quad[1].x + RELIEF.dx);
       }
+    }
+  });
+
+  it('builds the side return along the band right edge', () => {
+    for (const level of ALL_TIERS) {
+      const band = bandRect(level);
+      const quad = sideQuad(level);
+      expect(quad[0]).toEqual({ x: band.x + band.w, y: band.y });
+      expect(quad[3]).toEqual({ x: band.x + band.w, y: band.y + band.h });
     }
   });
 });
 
-describe('ledgeAnchors', () => {
-  it('returns the requested number of anchors inside the tier footprint', () => {
+describe('standPoints', () => {
+  it('puts showcased crops along the full band top, inside its width', () => {
     for (const level of ALL_TIERS) {
-      const half = TIER_SIDES[level] / 2;
-      const anchors = ledgeAnchors(level, 5);
-      expect(anchors).toHaveLength(5);
-      for (const a of anchors) {
-        expect(Math.abs(a.x)).toBeLessThanOrEqual(half);
-        expect(Math.abs(a.y)).toBeLessThanOrEqual(half);
+      const band = bandRect(level);
+      const points = standPoints(level, 5, 'full');
+      expect(points).toHaveLength(5);
+      for (const p of points) {
+        expect(p.y).toBe(band.y);
+        expect(p.x).toBeGreaterThan(band.x);
+        expect(p.x).toBeLessThan(band.x + band.w);
       }
     }
   });
 
-  it('orders anchors back-to-front for billboard painting', () => {
-    const anchors = ledgeAnchors(1, 6);
-    for (let i = 1; i < anchors.length; i += 1) {
-      expect(anchors[i].x + anchors[i].y).toBeGreaterThanOrEqual(
-        anchors[i - 1].x + anchors[i - 1].y
-      );
+  it('keeps resting crops on the shoulders, clear of the band above', () => {
+    for (let level = 1 as PyramidTier; level <= 4; level += 1) {
+      const above = bandRect((level + 1) as PyramidTier);
+      const points = standPoints(level as PyramidTier, 4, 'shoulders');
+      expect(points).toHaveLength(4);
+      for (const p of points) {
+        const onLeftShoulder = p.x < above.x;
+        const onRightShoulder = p.x > above.x + above.w;
+        expect(onLeftShoulder || onRightShoulder).toBe(true);
+      }
     }
   });
 
   it('returns nothing for zero crops', () => {
-    expect(ledgeAnchors(3, 0)).toEqual([]);
+    expect(standPoints(3, 0, 'full')).toEqual([]);
+    expect(standPoints(3, 0, 'shoulders')).toEqual([]);
   });
 });
 
-describe('ledgeCapacity', () => {
-  it('never shrinks below 2 or above 6 and narrows with the tiers', () => {
-    let previous = Infinity;
+describe('capacities', () => {
+  it('showcases at least as many crops as the resting shoulders', () => {
     for (const level of ALL_TIERS) {
-      const capacity = ledgeCapacity(level);
-      expect(capacity).toBeGreaterThanOrEqual(2);
-      expect(capacity).toBeLessThanOrEqual(6);
-      expect(capacity).toBeLessThanOrEqual(previous);
-      previous = capacity;
+      // Wider bands hold strictly more; the narrow top band at least
+      // matches its resting capacity.
+      if (level < 5) {
+        expect(showcaseCapacity(level)).toBeGreaterThan(SHOULDER_CAPACITY);
+      } else {
+        expect(showcaseCapacity(level)).toBeGreaterThanOrEqual(SHOULDER_CAPACITY);
+      }
     }
   });
+
+  it('gives wider bands more showcase room', () => {
+    expect(showcaseCapacity(1)).toBeGreaterThan(showcaseCapacity(5));
+  });
 });
 
-describe('pyramidMetrics', () => {
-  it('produces a viewBox that contains the base footprint', () => {
+describe('scene', () => {
+  it('produces a fixed viewBox containing the pyramid and lawn', () => {
     const m = pyramidMetrics();
     const [minX, minY, width, height] = m.viewBox.split(' ').map(Number);
-    expect(width).toBeGreaterThan(0);
-    expect(height).toBeGreaterThan(0);
-    expect(minX).toBeLessThan(0);
-    expect(minY).toBeLessThan(0);
-    expect(m.labelColumnX).toBeGreaterThan(minX);
+    expect(minX).toBe(0);
+    expect(minY).toBe(0);
+    const base = bandRect(1);
+    expect(width).toBeGreaterThan(base.x + base.w);
+    expect(height).toBeGreaterThan(BASE_Y);
+  });
+
+  it('draws the lawn wider than the base band', () => {
+    const xs = lawnRing().map((p) => p.x);
+    const base = bandRect(1);
+    expect(Math.min(...xs)).toBeLessThan(base.x);
+    expect(Math.max(...xs)).toBeGreaterThan(base.x + base.w);
   });
 });

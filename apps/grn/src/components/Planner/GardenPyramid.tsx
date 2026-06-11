@@ -1,24 +1,22 @@
-import type { KeyboardEvent } from 'react';
-import { PYRAMID_TIERS, type PyramidTier, type PyramidTierMeta } from '../CropPlanner/gardenPyramid';
-import { CROP_ICON_PATHS, type CropIconKey } from '../CropPlanner/cropIconPaths';
+import { useState, type KeyboardEvent } from 'react';
 import {
-  projectFootprint,
-  scaleFootprint,
-  smoothClosedPath,
-  toPath,
-} from '../GardenMasterplan/iso';
+  PYRAMID_TIERS,
+  type PyramidTier,
+  type PyramidTierMeta,
+} from '../CropPlanner/gardenPyramid';
+import { CROP_ICON_PATHS, type CropIconKey } from '../CropPlanner/cropIconPaths';
+import { smoothClosedPath, toPath } from '../GardenMasterplan/iso';
 import { SCENE, mixHex, mute, shade, tint } from '../GardenMasterplan/palette';
 import {
-  badgeAnchor,
-  groundRing,
-  labelAnchor,
-  ledgeAnchors,
-  ledgeCapacity,
+  RELIEF,
+  SHOULDER_CAPACITY,
+  bandRect,
+  lawnRing,
+  ledgeQuads,
   pyramidMetrics,
-  tierBaseZ,
-  tierFootprint,
-  tierTopZ,
-  tierWalls,
+  showcaseCapacity,
+  sideQuad,
+  standPoints,
 } from './pyramidGeometry';
 
 export interface PyramidCropVisual {
@@ -37,18 +35,104 @@ interface GardenPyramidProps {
 }
 
 const GHOST_COLOR = '#a39c8a';
+const ICON_SCALE = 1.15;
+
+// Light text for the deep bands, dark text for the pale gold one —
+// picked per band from the same family as its fill, like the masterplan
+// labels.
+function bandInk(base: string): { title: string; subtitle: string } {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(base.slice(i, i + 2), 16));
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (luminance > 0.6) {
+    return { title: shade(base, 0.72), subtitle: shade(base, 0.55) };
+  }
+  return { title: tint(base, 0.85), subtitle: tint(base, 0.62) };
+}
+
+interface StandingCrop {
+  id: string;
+  label: string;
+  iconKey: CropIconKey;
+  fill: string;
+  ghost: boolean;
+}
+
+function StandingCropRow({
+  crops,
+  points,
+  withShadows,
+}: {
+  crops: StandingCrop[];
+  points: { x: number; y: number }[];
+  withShadows: boolean;
+}) {
+  return (
+    <>
+      {crops.map((crop, idx) => {
+        const p = points[idx];
+        if (!p) return null;
+        return (
+          <g
+            key={crop.id}
+            className={`mp-crop ${crop.ghost ? 'is-ghost' : ''}`.trim()}
+            style={{ ['--crop-index' as string]: idx }}
+          >
+            <title>{crop.label}</title>
+            {withShadows && !crop.ghost && (
+              <ellipse cx={p.x} cy={p.y + 1} rx={9} ry={2.8} fill={SCENE.elementShadowSoft} />
+            )}
+            <path
+              d={CROP_ICON_PATHS[crop.iconKey]}
+              fill={crop.fill}
+              opacity={crop.ghost ? 0.45 : 1}
+              transform={`translate(${p.x - 12 * ICON_SCALE} ${p.y - 23 * ICON_SCALE}) scale(${ICON_SCALE})`}
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
 
 /**
- * The Garden Pyramid hero, drawn as an isometric terraced hill in the
- * same flat-shaded illustration language as the garden masterplan. Each
- * tier is a selectable terrace: planted crops stand on its front ledge as
- * silhouettes, empty tiers preview faded suggestions. Hovering lifts a
- * terrace while the others recede; the active terrace keeps a dashed
- * survey ring.
+ * The Garden Pyramid hero: the classic stepped-triangle elevation,
+ * rendered in the masterplan's flat-shaded illustration style. Each band
+ * is a selectable terrace with its name and tagline in place; the
+ * grower's crops stand on the exposed ledges as vector silhouettes, and
+ * hovering or selecting a band steps its full planting forward across
+ * the band's width. Empty bands preview faded suggestions.
  */
 export function GardenPyramid({ cropsByTier, activeTier, onSelectTier }: GardenPyramidProps) {
   const metrics = pyramidMetrics();
-  const ring = groundRing();
+  const [hoverTier, setHoverTier] = useState<PyramidTier | null>(null);
+  const lawn = lawnRing();
+
+  // The band whose full planting is showcased: hover wins (preview),
+  // otherwise the selected band.
+  const showcaseTier =
+    hoverTier !== null && (cropsByTier[hoverTier]?.length ?? 0) > 0
+      ? hoverTier
+      : (cropsByTier[activeTier]?.length ?? 0) > 0
+        ? activeTier
+        : null;
+
+  const showcaseCrops =
+    showcaseTier !== null
+      ? (cropsByTier[showcaseTier] ?? []).map((crop) => ({
+          id: crop.id,
+          label: crop.label,
+          iconKey: crop.iconKey,
+          fill: mute(crop.accent, 0.18),
+          ghost: false,
+        }))
+      : [];
+  const showcaseMax = showcaseTier !== null ? showcaseCapacity(showcaseTier) : 0;
+  const showcaseVisible = showcaseCrops.slice(0, showcaseMax);
+  const showcaseOverflow = showcaseCrops.length - showcaseVisible.length;
+  const showcasePoints =
+    showcaseTier !== null
+      ? standPoints(showcaseTier, showcaseVisible.length, 'full')
+      : [];
 
   return (
     <div className="grn-iso-pyramid">
@@ -60,81 +144,111 @@ export function GardenPyramid({ cropsByTier, activeTier, onSelectTier }: GardenP
       >
         <g aria-hidden="true">
           <path
-            d={smoothClosedPath(
-              projectFootprint(ring, 0).map((p) => ({ x: p.x + 9, y: p.y + 7 }))
-            )}
+            d={smoothClosedPath(lawn.map((p) => ({ x: p.x + 8, y: p.y + 6 })))}
             fill={SCENE.groundShadow}
           />
-          <path d={smoothClosedPath(projectFootprint(ring, 0))} fill={SCENE.lawn} />
+          <path d={smoothClosedPath(lawn)} fill={SCENE.lawn} />
           <path
-            d={smoothClosedPath(projectFootprint(scaleFootprint(ring, 0.9), 0))}
+            d={smoothClosedPath(
+              lawn.map((p) => ({ x: p.x * 0.92 + 330 * 0.08, y: p.y * 0.94 + 408 * 0.06 }))
+            )}
             fill={SCENE.lawnLight}
             opacity={0.6}
           />
-          <path
-            d={smoothClosedPath(projectFootprint(scaleFootprint(ring, 0.72), 0))}
-            fill="none"
-            stroke={SCENE.contour}
-            strokeWidth={1}
-            strokeDasharray="2 8"
-            strokeLinecap="round"
-          />
         </g>
         {PYRAMID_TIERS.map((tier) => (
-          <TierStep
+          <PyramidBand
             key={tier.key}
             tier={tier}
             crops={cropsByTier[tier.level] ?? []}
             isActive={activeTier === tier.level}
-            labelColumnX={metrics.labelColumnX}
+            isShowcased={showcaseTier === tier.level}
+            // The showcased planting below stands in front of this band's
+            // lower edge; quiet the tagline there so the two never fight.
+            taglineQuieted={showcaseTier !== null && tier.level === showcaseTier + 1}
             onSelect={() => onSelectTier(tier.level)}
+            onHover={(hovering) =>
+              setHoverTier((current) =>
+                hovering ? tier.level : current === tier.level ? null : current
+              )
+            }
           />
         ))}
+        {showcaseTier !== null && (
+          <g className="grn-iso-pyramid__showcase" aria-hidden="true" key={showcaseTier}>
+            <StandingCropRow crops={showcaseVisible} points={showcasePoints} withShadows />
+            {showcaseOverflow > 0 && (
+              <text
+                className="mp-label mp-label--count"
+                x={bandRect(showcaseTier).x + bandRect(showcaseTier).w + RELIEF.dx + 4}
+                y={bandRect(showcaseTier).y - 8}
+              >
+                +{showcaseOverflow}
+              </text>
+            )}
+          </g>
+        )}
       </svg>
     </div>
   );
 }
 
-interface TierStepProps {
+interface PyramidBandProps {
   tier: PyramidTierMeta;
   crops: PyramidCropVisual[];
   isActive: boolean;
-  labelColumnX: number;
+  isShowcased: boolean;
+  taglineQuieted: boolean;
   onSelect: () => void;
+  onHover: (hovering: boolean) => void;
 }
 
-function TierStep({ tier, crops, isActive, labelColumnX, onSelect }: TierStepProps) {
+function PyramidBand({
+  tier,
+  crops,
+  isActive,
+  isShowcased,
+  taglineQuieted,
+  onSelect,
+  onHover,
+}: PyramidBandProps) {
   const count = crops.length;
   const covered = count > 0;
 
   const base = mute(tier.accent, 0.22);
   const body = covered ? base : mixHex(base, SCENE.paper, 0.5);
+  const ink = bandInk(body);
 
-  const footprint = tierFootprint(tier.level);
-  const topZ = tierTopZ(tier.level);
-  const top = projectFootprint(footprint, topZ);
-  const walls = tierWalls(tier.level);
+  const band = bandRect(tier.level);
+  const ledges = ledgeQuads(tier.level);
+  const side = sideQuad(tier.level);
 
-  // Front lip of the terrace: west -> south -> east corners of the top
-  // face. The square's corners project to north (top), east (right),
-  // south (bottom), west (left) in that array order.
-  const [, east, south, west] = top;
-  const lip = [west, south, east];
-
-  const capacity = ledgeCapacity(tier.level);
-  const standing = covered
-    ? crops.slice(0, capacity)
-    : tier.suggestions.slice(0, Math.min(4, capacity)).map((s) => ({
+  // Resting-state silhouettes on the shoulders. Hidden while this band's
+  // full planting is showcased (the showcase row replaces them), kept
+  // for empty bands so ghost suggestions always preview what belongs.
+  const resting: StandingCrop[] = covered
+    ? crops.slice(0, SHOULDER_CAPACITY).map((crop) => ({
+        id: crop.id,
+        label: crop.label,
+        iconKey: crop.iconKey,
+        fill: mute(crop.accent, 0.18),
+        ghost: false,
+      }))
+    : tier.suggestions.slice(0, SHOULDER_CAPACITY).map((s) => ({
         id: s.name,
         label: s.name,
         iconKey: s.iconKey,
-        accent: GHOST_COLOR,
+        fill: GHOST_COLOR,
+        ghost: true,
       }));
-  const overflow = covered ? count - standing.length : 0;
-  const anchors = ledgeAnchors(tier.level, standing.length);
+  const restingPoints = standPoints(tier.level, resting.length, 'shoulders');
+  const restingOverflow = covered ? count - resting.length : 0;
+  const hideResting = isShowcased && covered;
 
-  const label = labelAnchor(tier.level);
-  const badge = badgeAnchor(tier.level);
+  // Copy layout inside the band: the two widest bands fit a tagline.
+  const showTagline = tier.level <= 3;
+  const nameY = band.y + (showTagline ? 27 : band.h / 2 + 5);
+  const badgeCx = band.x + band.w - 24;
 
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -157,84 +271,61 @@ function TierStep({ tier, crops, isActive, labelColumnX, onSelect }: TierStepPro
       }`}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
+      onPointerEnter={() => onHover(true)}
+      onPointerLeave={() => onHover(false)}
     >
-      <path d={toPath(walls.right)} fill={shade(body, 0.18)} />
-      <path d={toPath(walls.left)} fill={shade(body, 0.34)} />
-      <path d={toPath(top)} fill={tint(body, 0.24)} />
-      <path
-        d={toPath(lip, false)}
-        fill="none"
-        stroke={tint(body, 0.45)}
-        strokeWidth={1.4}
-        strokeLinejoin="round"
-      />
+      <path d={toPath(side)} fill={shade(body, 0.3)} />
+      <rect x={band.x} y={band.y} width={band.w} height={band.h} fill={body} />
+      {ledges.map((quad, idx) => (
+        <path key={idx} d={toPath(quad)} fill={tint(body, 0.28)} />
+      ))}
       {!covered && (
-        <path
-          d={toPath(projectFootprint(scaleFootprint(footprint, 0.86), topZ))}
+        <rect
+          x={band.x + 7}
+          y={band.y + 7}
+          width={band.w - 14}
+          height={band.h - 14}
           fill="none"
-          stroke={shade(body, 0.3)}
+          stroke={shade(body, 0.28)}
           strokeWidth={1}
           strokeDasharray="4 5"
           strokeLinecap="round"
         />
       )}
 
-      {standing.map((crop, idx) => {
-        const anchor = anchors[idx];
-        if (!anchor) return null;
-        const p = projectFootprint([anchor], topZ)[0];
-        const k = 1.5;
-        return (
-          <g key={crop.id} className={`mp-crop ${covered ? '' : 'is-ghost'}`.trim()}>
-            <title>{crop.label}</title>
-            {covered && (
-              <ellipse cx={p.x} cy={p.y + 1} rx={10} ry={3.4} fill={SCENE.elementShadowSoft} />
-            )}
-            <path
-              d={CROP_ICON_PATHS[crop.iconKey]}
-              fill={covered ? mute(crop.accent, 0.18) : GHOST_COLOR}
-              opacity={covered ? 1 : 0.45}
-              transform={`translate(${p.x - 12 * k} ${p.y - 23 * k}) scale(${k})`}
-            />
-          </g>
-        );
-      })}
-      {overflow > 0 && (
+      <text
+        className="grn-iso-pyramid__name"
+        x={band.x + 18}
+        y={nameY}
+        fill={ink.title}
+      >
+        {tier.name}
+      </text>
+      {showTagline && (
         <text
-          className="mp-label mp-label--count"
-          x={south.x + 16}
-          y={south.y + 2}
-          aria-hidden="true"
+          className={`grn-iso-pyramid__tagline ${taglineQuieted ? 'is-quiet' : ''}`.trim()}
+          x={band.x + 18}
+          y={band.y + 45}
+          fill={ink.subtitle}
         >
-          +{overflow}
+          {tier.tagline}
         </text>
       )}
 
-      <g className="grn-iso-pyramid__side-label" aria-hidden="true">
-        <text
-          className="grn-iso-pyramid__name"
-          x={labelColumnX}
-          y={label.y - 3}
-          textAnchor="end"
-        >
-          {tier.name}
-        </text>
-        <text
-          className="grn-iso-pyramid__caption"
-          x={labelColumnX}
-          y={label.y + 9.5}
-          textAnchor="end"
-        >
-          Layer {tier.level}
-        </text>
-        <line
-          className="grn-iso-pyramid__leader"
-          x1={labelColumnX + 8}
-          y1={label.y + 3}
-          x2={label.x - 8}
-          y2={label.y + 3}
-        />
-      </g>
+      {!hideResting && (
+        <g aria-hidden="true">
+          <StandingCropRow crops={resting} points={restingPoints} withShadows={false} />
+          {restingOverflow > 0 && (
+            <text
+              className="mp-label mp-label--count"
+              x={band.x + band.w + RELIEF.dx + 4}
+              y={band.y - 4}
+            >
+              +{restingOverflow}
+            </text>
+          )}
+        </g>
+      )}
 
       <g
         className="grn-iso-pyramid__badge"
@@ -242,15 +333,15 @@ function TierStep({ tier, crops, isActive, labelColumnX, onSelect }: TierStepPro
         aria-hidden="true"
       >
         <circle
-          cx={badge.x + 26}
-          cy={badge.y + 2}
-          r={11}
-          fill={covered ? mute(tier.accent, 0.18) : 'rgba(91, 58, 28, 0.1)'}
+          cx={badgeCx}
+          cy={band.y + band.h / 2}
+          r={12}
+          fill={covered ? shade(body, 0.28) : 'rgba(91, 58, 28, 0.12)'}
         />
         <text
           className={`grn-iso-pyramid__count ${covered ? 'is-covered' : 'is-empty'}`.trim()}
-          x={badge.x + 26}
-          y={badge.y + 6}
+          x={badgeCx}
+          y={band.y + band.h / 2 + 4}
           textAnchor="middle"
         >
           {covered ? count : '+'}
@@ -258,12 +349,13 @@ function TierStep({ tier, crops, isActive, labelColumnX, onSelect }: TierStepPro
       </g>
 
       {isActive && (
-        // Survey ring drawn on the surface this terrace stands on, so it
-        // hugs the selected step instead of floating at its (mostly
-        // covered) top plane.
-        <path
+        <rect
           className="mp-el__ring"
-          d={toPath(projectFootprint(scaleFootprint(footprint, 1.07), tierBaseZ(tier.level)))}
+          x={band.x - 5}
+          y={band.y - RELIEF.dy - 5}
+          width={band.w + RELIEF.dx + 10}
+          height={band.h + RELIEF.dy + 10}
+          rx={7}
           fill="none"
           stroke={SCENE.selection}
           strokeWidth={1.8}

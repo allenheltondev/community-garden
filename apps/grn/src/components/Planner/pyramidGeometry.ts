@@ -1,191 +1,177 @@
-// Geometry for the isometric Garden Pyramid: a five-step terraced
-// "ziggurat" drawn with the same projection and flat-shading rules as the
-// garden masterplan. All layout math lives here (component-free) so the
-// GardenPyramid component stays a pure illustration and the math is unit
-// testable.
+// Geometry for the Garden Pyramid hero: a front-elevation stepped
+// pyramid (the classic food-pyramid silhouette) rendered with the
+// masterplan's flat-shaded relief. All layout math lives here
+// (component-free) so the GardenPyramid component stays a pure
+// illustration and the math is unit testable.
 //
-// World units are inches, centered on the pyramid's axis at (0, 0).
-// Tier 1 (Foundation) is the widest, ground-level step; each tier above
-// is inset by a fixed ledge and raised one step.
+// Unlike the masterplan this is NOT an isometric projection — the
+// pyramid metaphor lives in the triangular front profile, so the bands
+// are drawn face-on in screen space, with a small skewed "relief" on
+// each band's top ledge and right side to keep the hand-crafted depth.
 
-import {
-  ISO_COS,
-  ISO_SIN,
-  PX_PER_INCH,
-  Z_PER_INCH,
-  project,
-  rectFootprint,
-  type ScreenPoint,
-  type WorldPoint,
-} from '../GardenMasterplan/iso';
+import type { ScreenPoint } from '../GardenMasterplan/iso';
 import type { PyramidTier } from '../CropPlanner/gardenPyramid';
 
-export const STEP_HEIGHT = 27; // inches per terrace step
-export const LEDGE = 22; // exposed terrace band per side, in inches
+export const ALL_TIERS: readonly PyramidTier[] = [1, 2, 3, 4, 5];
 
-// Side length of each tier's square, widest to narrowest.
-export const TIER_SIDES: Record<PyramidTier, number> = {
-  1: 240,
-  2: 240 - LEDGE * 2,
-  3: 240 - LEDGE * 4,
-  4: 240 - LEDGE * 6,
-  5: 240 - LEDGE * 8,
+// Band sizes, widest to narrowest. Heights taper slightly so the base
+// reads heavier — the hierarchy is the message.
+export const BAND_WIDTHS: Record<PyramidTier, number> = {
+  1: 480,
+  2: 384,
+  3: 288,
+  4: 192,
+  5: 96,
 };
 
-export function tierFootprint(level: PyramidTier): WorldPoint[] {
-  const half = TIER_SIDES[level] / 2;
-  return rectFootprint({ x: -half, y: -half, length: half * 2, width: half * 2 });
+export const BAND_HEIGHTS: Record<PyramidTier, number> = {
+  1: 64,
+  2: 58,
+  3: 54,
+  4: 50,
+  5: 46,
+};
+
+// Skew of the ledge/side relief, in screen px.
+export const RELIEF = { dx: 9, dy: 6 } as const;
+
+export const CENTER_X = 330;
+export const BASE_Y = 400;
+
+export interface BandRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
-export function tierBaseZ(level: PyramidTier): number {
-  return (level - 1) * STEP_HEIGHT;
-}
-
-export function tierTopZ(level: PyramidTier): number {
-  return level * STEP_HEIGHT;
-}
-
-// Walls of one step between two heights. Like iso.extrude but with an
-// explicit base elevation, since tiers stack on each other rather than on
-// the ground. Footprints are axis-aligned squares, so the two visible
-// walls are always the +x (right) and +y (left) faces.
-export interface TierWalls {
-  right: ScreenPoint[];
-  left: ScreenPoint[];
-}
-
-export function tierWalls(level: PyramidTier): TierWalls {
-  const half = TIER_SIDES[level] / 2;
-  const z0 = tierBaseZ(level);
-  const z1 = tierTopZ(level);
-  // Corners: E = (h, -h), S = (h, h), W = (-h, h).
-  const e = { x: half, y: -half };
-  const s = { x: half, y: half };
-  const w = { x: -half, y: half };
-  return {
-    right: [
-      project(e.x, e.y, z0),
-      project(s.x, s.y, z0),
-      project(s.x, s.y, z1),
-      project(e.x, e.y, z1),
-    ],
-    left: [
-      project(s.x, s.y, z0),
-      project(w.x, w.y, z0),
-      project(w.x, w.y, z1),
-      project(s.x, s.y, z1),
-    ],
-  };
-}
-
-// Evenly spaced stand-points for crop silhouettes along the front ledge
-// of a tier: the two camera-facing edges of its top face, walked from the
-// west corner around the south corner to the east corner, inset from the
-// outer rim so icons sit on the terrace band. Returned back-to-front so
-// upright billboards overlap correctly.
-export function ledgeAnchors(level: PyramidTier, count: number): WorldPoint[] {
-  if (count <= 0) return [];
-  const half = TIER_SIDES[level] / 2;
-  const inset = Math.min(LEDGE / 2, half / 2);
-  const r = half - inset;
-  // Polyline W' -> S' -> E' along the inset front edges.
-  const corner = 10; // keep icons off the very tips
-  const start = { x: -r + corner, y: r };
-  const mid = { x: r, y: r };
-  const end = { x: r, y: -r + corner };
-  const leg1 = Math.hypot(mid.x - start.x, mid.y - start.y);
-  const leg2 = Math.hypot(end.x - mid.x, end.y - mid.y);
-  const total = leg1 + leg2;
-
-  const anchors: WorldPoint[] = [];
-  for (let i = 0; i < count; i += 1) {
-    // Center the run along the polyline.
-    const t = count === 1 ? 0.5 : 0.5 + (i / (count - 1) - 0.5) * 0.9;
-    const dist = t * total;
-    if (dist <= leg1) {
-      const k = leg1 === 0 ? 0 : dist / leg1;
-      anchors.push({ x: start.x + (mid.x - start.x) * k, y: start.y + (mid.y - start.y) * k });
-    } else {
-      const k = leg2 === 0 ? 0 : (dist - leg1) / leg2;
-      anchors.push({ x: mid.x + (end.x - mid.x) * k, y: mid.y + (end.y - mid.y) * k });
-    }
+export function bandRect(level: PyramidTier): BandRect {
+  const w = BAND_WIDTHS[level];
+  let y = BASE_Y;
+  for (let l = 1 as PyramidTier; l <= level; l += 1) {
+    y -= BAND_HEIGHTS[l as PyramidTier];
   }
-  return anchors.sort((a, b) => a.x + a.y - (b.x + b.y));
+  return { x: CENTER_X - w / 2, y, w, h: BAND_HEIGHTS[level] };
 }
 
-// How many silhouettes fit on a tier's front ledge before "+N" kicks in.
-// Narrower (higher) tiers hold fewer.
-export function ledgeCapacity(level: PyramidTier): number {
-  const half = TIER_SIDES[level] / 2;
-  const frontLength = (half - LEDGE / 2) * 4; // both front edges, inset
-  return Math.max(2, Math.min(6, Math.floor(frontLength / 42)));
+function parallelogram(x0: number, x1: number, y: number): ScreenPoint[] {
+  return [
+    { x: x0, y },
+    { x: x1, y },
+    { x: x1 + RELIEF.dx, y: y - RELIEF.dy },
+    { x: x0 + RELIEF.dx, y: y - RELIEF.dy },
+  ];
 }
 
-// Anchor points for the side labels (west corner of each terrace top) and
-// the count badges (east corner), in screen space.
-export function labelAnchor(level: PyramidTier): ScreenPoint {
-  const half = TIER_SIDES[level] / 2;
-  return project(-half, half, tierTopZ(level));
+// The lit top ledges of a band: the exposed left/right shoulders beside
+// the band above, or the full top for the topmost band.
+export function ledgeQuads(level: PyramidTier): ScreenPoint[][] {
+  const band = bandRect(level);
+  if (level === 5) {
+    return [parallelogram(band.x, band.x + band.w, band.y)];
+  }
+  const above = bandRect((level + 1) as PyramidTier);
+  return [
+    parallelogram(band.x, above.x, band.y),
+    parallelogram(above.x + above.w, band.x + band.w, band.y),
+  ];
 }
 
-export function badgeAnchor(level: PyramidTier): ScreenPoint {
-  const half = TIER_SIDES[level] / 2;
-  return project(half, -half, tierTopZ(level));
+// The shaded right-side return of a band.
+export function sideQuad(level: PyramidTier): ScreenPoint[] {
+  const band = bandRect(level);
+  const xr = band.x + band.w;
+  return [
+    { x: xr, y: band.y },
+    { x: xr + RELIEF.dx, y: band.y - RELIEF.dy },
+    { x: xr + RELIEF.dx, y: band.y + band.h - RELIEF.dy },
+    { x: xr, y: band.y + band.h },
+  ];
+}
+
+// --- Crop stand points -------------------------------------------------------
+// Crops stand with their feet on a band's top edge. Two modes:
+//
+// - 'shoulders': the resting state. Silhouettes stand only on the
+//   exposed ledges beside the band above, so they never crowd the upper
+//   band's copy.
+// - 'full': the showcase state for the hovered/selected band. The whole
+//   planting steps forward across the band's full width, drawn in front
+//   of the hill.
+
+const STAND_MARGIN = 18;
+const SHOWCASE_SPACING = { min: 17, max: 30 } as const;
+
+function spread(x0: number, x1: number, count: number): number[] {
+  if (count <= 0) return [];
+  if (count === 1) return [(x0 + x1) / 2];
+  const usable = x1 - x0;
+  const spacing = Math.min(SHOWCASE_SPACING.max, usable / (count - 1));
+  const start = (x0 + x1) / 2 - (spacing * (count - 1)) / 2;
+  return Array.from({ length: count }, (_, i) => start + spacing * i);
+}
+
+// Two silhouettes per shoulder in the resting state; the top band's
+// full ledge holds the same four.
+export const SHOULDER_CAPACITY = 4;
+
+export function showcaseCapacity(level: PyramidTier): number {
+  const band = bandRect(level);
+  const usable = band.w - STAND_MARGIN * 2;
+  return Math.max(4, Math.floor(usable / SHOWCASE_SPACING.min) + 1);
+}
+
+export function standPoints(
+  level: PyramidTier,
+  count: number,
+  mode: 'shoulders' | 'full'
+): ScreenPoint[] {
+  if (count <= 0) return [];
+  const band = bandRect(level);
+  const y = band.y;
+
+  if (mode === 'full' || level === 5) {
+    const xs = spread(band.x + STAND_MARGIN, band.x + band.w - STAND_MARGIN, count);
+    return xs.map((x) => ({ x, y }));
+  }
+
+  const above = bandRect((level + 1) as PyramidTier);
+  const leftCount = Math.ceil(count / 2);
+  const rightCount = count - leftCount;
+  const left = spread(band.x + STAND_MARGIN, above.x - 8, leftCount);
+  const right = spread(above.x + above.w + 8, band.x + band.w - STAND_MARGIN, rightCount);
+  return [...left, ...right].map((x) => ({ x, y }));
 }
 
 // --- Scene metrics -----------------------------------------------------------
-
-const LABEL_COLUMN = 168; // reserved width for the leader-line labels
-const BADGE_GUTTER = 64;
-const PAD_TOP = 56;
-const PAD_BOTTOM = 64;
 
 export interface PyramidMetrics {
   width: number;
   height: number;
   viewBox: string;
-  /** x where label text right-aligns (leader lines run from here). */
-  labelColumnX: number;
 }
 
 export function pyramidMetrics(): PyramidMetrics {
-  const baseHalf = TIER_SIDES[1] / 2;
-  // Widest extent comes from the base square's west/east corners.
-  const halfWidth = baseHalf * 2 * ISO_COS * PX_PER_INCH;
-  // Lowest point: base south corner at z=0; highest: keep simple and use
-  // the base north corner (z=0) vs top tier's north corner and take the
-  // higher (smaller y).
-  const south = baseHalf * 2 * ISO_SIN * PX_PER_INCH;
-  const baseNorth = -south;
-  const topHalf = TIER_SIDES[5] / 2;
-  const topNorth = -topHalf * 2 * ISO_SIN * PX_PER_INCH - tierTopZ(5) * Z_PER_INCH;
-  const north = Math.min(baseNorth, topNorth);
-
-  const minX = -halfWidth - LABEL_COLUMN;
-  const maxX = halfWidth + BADGE_GUTTER;
-  const minY = north - PAD_TOP;
-  const maxY = south + PAD_BOTTOM;
-  return {
-    width: maxX - minX,
-    height: maxY - minY,
-    viewBox: `${Math.round(minX)} ${Math.round(minY)} ${Math.round(maxX - minX)} ${Math.round(maxY - minY)}`,
-    labelColumnX: -halfWidth - 28,
-  };
+  // Fixed frame: the pyramid plus lawn, headroom for standing crops on
+  // the top band, and the ground shadow below.
+  return { width: 680, height: 472, viewBox: '0 0 680 472' };
 }
 
-// Organic lawn blob under the pyramid, same hand-drawn wobble as the
-// masterplan ground plate. The radius covers the base square's *diagonal*
-// corners (half·√2), not just its sides, so no corner pokes past the lawn.
-export function groundRing(margin = 26): WorldPoint[] {
-  const half = (TIER_SIDES[1] / 2) * Math.SQRT2 + margin;
-  const points: WorldPoint[] = [];
+// Organic lawn blob beneath the pyramid, in screen space, with the same
+// hand-drawn wobble as the masterplan ground plate.
+export function lawnRing(): ScreenPoint[] {
+  const cx = CENTER_X;
+  const cy = BASE_Y + 8;
+  const rx = BAND_WIDTHS[1] / 2 + 64;
+  const ry = 42;
+  const points: ScreenPoint[] = [];
   const segments = 14;
   for (let i = 0; i < segments; i += 1) {
     const angle = (i / segments) * Math.PI * 2;
     const wobble = 1 + Math.sin(i * 2.7) * 0.06;
     points.push({
-      x: Math.cos(angle) * half * wobble,
-      y: Math.sin(angle) * half * wobble,
+      x: cx + Math.cos(angle) * rx * wobble,
+      y: cy + Math.sin(angle) * ry * wobble,
     });
   }
   return points;
