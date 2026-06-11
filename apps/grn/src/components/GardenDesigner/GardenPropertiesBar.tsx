@@ -18,6 +18,8 @@ interface GardenPropertiesBarProps {
   hasBackground: boolean;
   onPickBackgroundFile: (file: File) => void;
   onClearBackground: () => void;
+  isCalibrating: boolean;
+  onToggleCalibration: () => void;
 }
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -68,6 +70,8 @@ export function GardenPropertiesBar({
   hasBackground,
   onPickBackgroundFile,
   onClearBackground,
+  isCalibrating,
+  onToggleCalibration,
 }: GardenPropertiesBarProps) {
   const [widthInput, setWidthInput] = useState(formatFeetFromInches(canvas.widthInches));
   const [heightInput, setHeightInput] = useState(formatFeetFromInches(canvas.heightInches));
@@ -263,6 +267,19 @@ export function GardenPropertiesBar({
                 disabled={!isEditable}
               />
             </label>
+            <button
+              type="button"
+              className={`grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost ${
+                isCalibrating ? 'is-active' : ''
+              }`}
+              onClick={onToggleCalibration}
+              disabled={!isEditable}
+              title="Click two points on the photo, then enter the real-world distance"
+              aria-pressed={isCalibrating}
+            >
+              <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">📏</span>
+              <span>{isCalibrating ? 'Calibrating…' : 'Calibrate scale'}</span>
+            </button>
             <button
               type="button"
               className="grn-designer-toolbar__btn grn-designer-toolbar__btn--ghost"

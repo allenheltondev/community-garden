@@ -5,6 +5,7 @@ import Konva from 'konva/lib/Core';
 import 'konva/lib/shapes/Circle';
 import 'konva/lib/shapes/Line';
 import 'konva/lib/shapes/Rect';
+import 'konva/lib/shapes/Text';
 import {
   forwardRef,
   useCallback,
@@ -15,7 +16,7 @@ import {
 import { useImperativeHandle } from 'react';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
-import { Circle, Layer, Line, Rect, Stage } from 'react-konva/lib/ReactKonvaCore';
+import { Circle, Layer, Line, Rect, Stage, Text } from 'react-konva/lib/ReactKonvaCore';
 
 // Tighten Konva's click-vs-drag detection. The default of 0px means any
 // pointer jitter on a draggable Group fires a drag instead of a click,
@@ -36,6 +37,7 @@ import { BackgroundLayer } from './BackgroundLayer';
 import { BedShape } from './BedShape';
 import { Grid } from './Grid';
 import { VertexEditor } from './VertexEditor';
+import { formatInchesAsFeet } from './calibration';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
 
@@ -77,6 +79,8 @@ interface DesignerCanvasProps {
   onCommitPolygon: (points: BedPolygonPoint[]) => void;
   onCancelPolygon: () => void;
   onUpdateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
+  onCalibrationCaptured: (drawnLengthInches: number) => void;
+  onCancelCalibration: () => void;
 }
 
 export interface DesignerCanvasHandle {
@@ -129,6 +133,8 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       onCommitPolygon,
       onCancelPolygon,
       onUpdateBedPoints,
+      onCalibrationCaptured,
+      onCancelCalibration,
     },
     ref
   ) {
@@ -146,6 +152,16 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [draftPoints, setDraftPoints] = useState<BedPolygonPoint[]>([]);
     const [hoverPoint, setHoverPoint] = useState<BedPolygonPoint | null>(null);
+    // Calibration reference line: up to two endpoints in UNSNAPPED,
+    // fractional canvas inches. Grid snap would corrupt the measurement —
+    // the photo's features don't sit on our grid.
+    const [calibrationPoints, setCalibrationPoints] = useState<
+      Array<{ x: number; y: number }>
+    >([]);
+    const [calibrationHover, setCalibrationHover] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
 
     // Refs used during touch gestures so handlers don't need to be
     // re-bound on every render. The pinch handler in particular runs
@@ -234,18 +250,30 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       }
     }, [mode]);
 
-    // Esc cancels in-progress drawing.
+    // Reset the calibration line whenever we leave calibration mode.
+    useEffect(() => {
+      if (mode !== 'calibrating-scale') {
+        setCalibrationPoints([]);
+        setCalibrationHover(null);
+      }
+    }, [mode]);
+
+    // Esc cancels in-progress drawing or calibration.
     useEffect(() => {
       function onKeyDown(event: KeyboardEvent) {
-        if (event.key === 'Escape' && mode === 'drawing-polygon') {
+        if (event.key !== 'Escape') return;
+        if (mode === 'drawing-polygon') {
           onCancelPolygon();
+        } else if (mode === 'calibrating-scale') {
+          onCancelCalibration();
         }
       }
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-    }, [mode, onCancelPolygon]);
+    }, [mode, onCancelPolygon, onCancelCalibration]);
 
     const drawing = mode === 'drawing-polygon';
+    const calibrating = mode === 'calibrating-scale';
 
     // The bed whose vertices are being reshaped, if any. Its own
     // drag/Transformer interactions are suspended while the handles own
@@ -399,6 +427,9 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       // the behaviour deterministic regardless of bubbling order.
       const stage = event.target.getStage();
       if (!stage) return;
+      // Calibration clicks are handled at the Stage level (they must land
+      // even when the click hits a bed); don't double-handle them here.
+      if (calibrating) return;
       if (!drawing) {
         onSelect(null);
         return;
@@ -408,6 +439,30 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       const inchX = snapValue(Math.round(pointer.x / PX_PER_INCH), snap);
       const inchY = snapValue(Math.round(pointer.y / PX_PER_INCH), snap);
       setDraftPoints((prev) => [...prev, { x: inchX, y: inchY }]);
+    }
+
+    // Calibration ignores snapping entirely: the user is tracing a real
+    // feature on the photo, so we keep raw fractional inch coordinates.
+    function handleCalibrationClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
+      const stage = event.target.getStage();
+      if (!stage) return;
+      const pointer = relativePointer(stage);
+      if (!pointer) return;
+      const point = { x: pointer.x / PX_PER_INCH, y: pointer.y / PX_PER_INCH };
+      if (calibrationPoints.length === 0) {
+        setCalibrationPoints([point]);
+        return;
+      }
+      if (calibrationPoints.length === 1) {
+        const first = calibrationPoints[0];
+        const drawnLength = Math.hypot(point.x - first.x, point.y - first.y);
+        // A sub-inch line is almost certainly an accidental double click,
+        // and tiny denominators produce absurd scale factors.
+        if (drawnLength < 1) return;
+        setCalibrationPoints([first, point]);
+        onCalibrationCaptured(drawnLength);
+      }
+      // Both endpoints placed: the dialog owns the flow from here.
     }
 
     function handleStageDblClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
@@ -421,11 +476,18 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     }
 
     function handleStageMouseMove(event: KonvaEventObject<MouseEvent>) {
-      if (!drawing) return;
+      if (!drawing && !calibrating) return;
       const stage = event.target.getStage();
       if (!stage) return;
       const pointer = relativePointer(stage);
       if (!pointer) return;
+      if (calibrating) {
+        setCalibrationHover({
+          x: pointer.x / PX_PER_INCH,
+          y: pointer.y / PX_PER_INCH,
+        });
+        return;
+      }
       const inchX = snapValue(Math.round(pointer.x / PX_PER_INCH), snap);
       const inchY = snapValue(Math.round(pointer.y / PX_PER_INCH), snap);
       setHoverPoint({ x: inchX, y: inchY });
@@ -471,6 +533,20 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       draftLinePoints.push(hoverPoint.x * PX_PER_INCH, hoverPoint.y * PX_PER_INCH);
     }
 
+    // The calibration line runs from the first click to either the second
+    // click (once placed) or the live cursor position.
+    const calibrationStart = calibrating ? calibrationPoints[0] ?? null : null;
+    const calibrationEnd = calibrating
+      ? calibrationPoints[1] ?? (calibrationPoints.length === 1 ? calibrationHover : null)
+      : null;
+    const calibrationLengthInches =
+      calibrationStart && calibrationEnd
+        ? Math.hypot(
+            calibrationEnd.x - calibrationStart.x,
+            calibrationEnd.y - calibrationStart.y
+          )
+        : null;
+
     return (
       <div ref={containerRef} className="grn-designer-canvas">
         <Stage
@@ -481,8 +557,14 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
             scaleY={scale}
             x={position.x}
             y={position.y}
-            draggable={!drawing}
+            draggable={!drawing && !calibrating}
             onClick={(event) => {
+              // While calibrating, every click anywhere on the stage
+              // (beds included — they bubble) places a reference point.
+              if (calibrating) {
+                handleCalibrationClick(event);
+                return;
+              }
               // Fallback for clicks outside the world (the gray area
               // around the canvas). The transparent Rect handles
               // clicks inside the world.
@@ -490,6 +572,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
               if (stage && event.target === stage) handleEmptyClick(event);
             }}
             onTap={(event) => {
+              if (calibrating) {
+                handleCalibrationClick(event);
+                return;
+              }
               const stage = event.target.getStage();
               if (stage && event.target === stage) handleEmptyClick(event);
             }}
@@ -532,8 +618,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     isSelected={
                       selected?.kind === 'annotation' && selected.id === item.annotation.id
                     }
-                    isEditable={isEditable && !drawing}
-                    onSelect={(id) => onSelect({ kind: 'annotation', id })}
+                    isEditable={isEditable && !drawing && !calibrating}
+                    onSelect={(id) => {
+                      if (!calibrating) onSelect({ kind: 'annotation', id });
+                    }}
                     onMove={onMoveAnnotation}
                     onResize={onResizeAnnotation}
                   />
@@ -544,10 +632,15 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     pxPerInch={PX_PER_INCH}
                     isSelected={selected?.kind === 'bed' && selected.id === item.bed.id}
                     isEditable={
-                      isEditable && !drawing && item.bed.id !== vertexEditBed?.id
+                      isEditable &&
+                      !drawing &&
+                      !calibrating &&
+                      item.bed.id !== vertexEditBed?.id
                     }
                     crops={cropsByBedId.get(item.bed.id) ?? []}
-                    onSelect={(id) => onSelect({ kind: 'bed', id })}
+                    onSelect={(id) => {
+                      if (!calibrating) onSelect({ kind: 'bed', id });
+                    }}
                     onMove={handleBedMove}
                     onResize={onResizeBed}
                   />
@@ -593,6 +686,51 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                   listening={false}
                 />
               )}
+              {calibrating && calibrationStart && calibrationEnd && (
+                <Line
+                  points={[
+                    calibrationStart.x * PX_PER_INCH,
+                    calibrationStart.y * PX_PER_INCH,
+                    calibrationEnd.x * PX_PER_INCH,
+                    calibrationEnd.y * PX_PER_INCH,
+                  ]}
+                  stroke="#b3541e"
+                  strokeWidth={2 / scale}
+                  dash={[8 / scale, 6 / scale]}
+                  listening={false}
+                />
+              )}
+              {calibrating &&
+                calibrationPoints.map((point, idx) => (
+                  <Circle
+                    key={idx}
+                    x={point.x * PX_PER_INCH}
+                    y={point.y * PX_PER_INCH}
+                    radius={5 / scale}
+                    fill="#b3541e"
+                    stroke="#fff"
+                    strokeWidth={2 / scale}
+                    listening={false}
+                  />
+                ))}
+              {calibrating &&
+                calibrationStart &&
+                calibrationEnd &&
+                calibrationLengthInches !== null && (
+                  <Text
+                    x={((calibrationStart.x + calibrationEnd.x) / 2) * PX_PER_INCH}
+                    y={((calibrationStart.y + calibrationEnd.y) / 2) * PX_PER_INCH}
+                    offsetY={24 / scale}
+                    text={formatInchesAsFeet(calibrationLengthInches)}
+                    fontSize={14 / scale}
+                    fontStyle="700"
+                    fill="#b3541e"
+                    stroke="#fff"
+                    strokeWidth={4 / scale}
+                    fillAfterStrokeEnabled
+                    listening={false}
+                  />
+                )}
             </Layer>
           </Stage>
         <div className="grn-designer-canvas__zoom" role="group" aria-label="Zoom controls">
@@ -633,6 +771,19 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
           <div className="grn-designer-canvas__draw-hint" role="status">
             Drag points to reshape · tap an edge dot to add · double-tap a point
             to remove · esc to finish
+          </div>
+        )}
+        {calibrating && (
+          <div className="grn-designer-canvas__draw-hint" role="status">
+            {calibrationPoints.length === 0
+              ? 'Click one end of something with a known length (fence, driveway, bed) · esc to cancel'
+              : calibrationPoints.length === 1
+                ? `Click the other end${
+                    calibrationLengthInches !== null
+                      ? ` · ${formatInchesAsFeet(calibrationLengthInches)}`
+                      : ''
+                  } · esc to cancel`
+                : 'Enter the real-world length of this line'}
           </div>
         )}
       </div>

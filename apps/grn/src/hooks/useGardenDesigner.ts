@@ -34,6 +34,12 @@ import {
   ANNOTATION_PRESETS,
   presetById,
 } from '../components/GardenDesigner/annotationPresets';
+import {
+  calibrationFactor,
+  rescaledAnnotationPayload,
+  rescaledBedPayload,
+  rescaledCanvas,
+} from '../components/GardenDesigner/calibration';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
@@ -98,6 +104,11 @@ export interface UseGardenDesignerResult {
   patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   deleteAnnotation: (annotationId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
+  applyCalibration: (
+    drawnLengthInches: number,
+    realLengthInches: number,
+    rescaleElements: boolean
+  ) => void;
   uploadBackgroundImage: (file: File) => Promise<void>;
   clearBackgroundImage: () => Promise<void>;
 }
@@ -684,6 +695,57 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [updateCanvasMutation]
   );
 
+  // Background-image scale calibration: the user drew a reference line of
+  // drawnLengthInches over the photo and told us it's really
+  // realLengthInches long. Rescale the canvas by that ratio (clamped to
+  // sane bounds) and, when asked, move/resize every bed and annotation by
+  // the same factor so they keep their position relative to the photo.
+  const applyCalibration = useCallback(
+    (
+      drawnLengthInches: number,
+      realLengthInches: number,
+      rescaleElements: boolean
+    ) => {
+      if (!isEditable) return;
+      const canvas = canvasQuery.data;
+      if (!canvas) return;
+      const factor = calibrationFactor(drawnLengthInches, realLengthInches);
+      if (factor === null) return;
+      const next = rescaledCanvas(canvas, factor);
+      if (
+        next.widthInches !== canvas.widthInches ||
+        next.heightInches !== canvas.heightInches
+      ) {
+        updateCanvasMutation.mutate({
+          widthInches: next.widthInches,
+          heightInches: next.heightInches,
+        });
+      }
+      if (!rescaleElements || next.effectiveFactor === 1) return;
+      for (const bed of beds) {
+        updateBedMutation.mutate({
+          bedId: bed.id,
+          payload: rescaledBedPayload(bed, next.effectiveFactor),
+        });
+      }
+      for (const annotation of annotations) {
+        updateAnnotationMutation.mutate({
+          annotationId: annotation.id,
+          payload: rescaledAnnotationPayload(annotation, next.effectiveFactor),
+        });
+      }
+    },
+    [
+      annotations,
+      beds,
+      canvasQuery.data,
+      isEditable,
+      updateAnnotationMutation,
+      updateBedMutation,
+      updateCanvasMutation,
+    ]
+  );
+
   // Keyboard shortcuts:
   //   Esc           - deselect (when not in drawing-polygon mode; the
   //                   Canvas owns Esc-to-cancel for that mode)
@@ -700,7 +762,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (mode === 'drawing-polygon') return;
+      // The Canvas owns Esc-to-cancel for drawing and calibration, and
+      // Delete shouldn't fire while either gesture is mid-flight.
+      if (mode === 'drawing-polygon' || mode === 'calibrating-scale') return;
       if (isEditingText(event.target)) return;
 
       if (event.key === 'Escape') {
@@ -813,6 +877,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     patchAnnotation,
     deleteAnnotation,
     patchCanvas,
+    applyCalibration,
     uploadBackgroundImage,
     clearBackgroundImage,
   };
