@@ -85,6 +85,8 @@ export const SCENE = {
   label: '#3c3527',
   labelHalo: 'rgba(247, 242, 231, 0.9)',
   selection: '#a8632f',
+  // Warm accent under crops that are ready to harvest in the scrubbed month.
+  harvestGlow: 'rgba(217, 156, 74, 0.45)',
 
   soil: '#9a7c5c',
   soilDark: '#7c6248',

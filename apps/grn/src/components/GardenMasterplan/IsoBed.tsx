@@ -18,9 +18,9 @@ import {
   type WorldPoint,
 } from './iso';
 import { SCENE, bedPalette, mute, shade, tint } from './palette';
+import { isHarvestMonth, type SeasonMonth } from './season';
+import { IN_GROUND_BED_HEIGHT, MOUND_HEIGHT, RAISED_BED_HEIGHT } from './shadows';
 
-const RAISED_BED_HEIGHT = 11;
-const IN_GROUND_HEIGHT = 2.5;
 const MAX_CROPS = 5;
 const CROP_SPACING_INCHES = 15;
 
@@ -57,15 +57,22 @@ interface IsoBedProps {
   bed: GardenBed;
   crops: GrowerCropItem[];
   isSelected: boolean;
+  seasonMonth?: SeasonMonth;
 }
 
 /**
  * Pure SVG illustration of one bed: a flat-shaded extruded volume (or
  * contoured mound), a soil surface, standing crop silhouettes, a soft
  * ground shadow, and the name label. Interaction lives in the IsoElement
- * wrapper; this component only draws.
+ * wrapper; this component only draws. `seasonMonth` only affects styling
+ * here (the harvest glow) — which crops appear is decided upstream.
  */
-export const IsoBed = memo(function IsoBed({ bed, crops, isSelected }: IsoBedProps) {
+export const IsoBed = memo(function IsoBed({
+  bed,
+  crops,
+  isSelected,
+  seasonMonth = null,
+}: IsoBedProps) {
   const footprint = bedFootprint(bed);
   const palette = bedPalette(bed.bedType, bed.color);
   const height =
@@ -73,7 +80,7 @@ export const IsoBed = memo(function IsoBed({ bed, crops, isSelected }: IsoBedPro
       ? RAISED_BED_HEIGHT
       : bed.bedType === 'mound'
         ? 0
-        : IN_GROUND_HEIGHT;
+        : IN_GROUND_BED_HEIGHT;
 
   const shadowPath = toPath(
     projectFootprint(footprint, 0).map((p) => ({ x: p.x + 6, y: p.y + 4 }))
@@ -86,10 +93,10 @@ export const IsoBed = memo(function IsoBed({ bed, crops, isSelected }: IsoBedPro
     // Mounds render as stacked contour blobs instead of hard walls.
     const layers: Array<{ scale: number; z: number; fill: string }> = [
       { scale: 1, z: 0, fill: shade(SCENE.soil, 0.18) },
-      { scale: 0.7, z: 4, fill: SCENE.soil },
-      { scale: 0.42, z: 8, fill: tint(SCENE.soil, 0.16) },
+      { scale: 0.7, z: MOUND_HEIGHT / 2, fill: SCENE.soil },
+      { scale: 0.42, z: MOUND_HEIGHT, fill: tint(SCENE.soil, 0.16) },
     ];
-    surfaceZ = 8;
+    surfaceZ = MOUND_HEIGHT;
     body = (
       <>
         {layers.map((layer, idx) => (
@@ -152,14 +159,18 @@ export const IsoBed = memo(function IsoBed({ bed, crops, isSelected }: IsoBedPro
         const visual = visualForCrop(crop.cropName);
         const p = project(anchor.x, anchor.y, surfaceZ);
         const k = 1.05;
+        const harvestReady = isHarvestMonth(crop, seasonMonth);
         return (
-          <g key={crop.id} className="mp-crop">
+          <g
+            key={crop.id}
+            className={`mp-crop${harvestReady ? ' mp-crop--harvest' : ''}`}
+          >
             <ellipse
               cx={p.x}
               cy={p.y + 1}
               rx={7}
               ry={2.6}
-              fill={SCENE.elementShadowSoft}
+              fill={harvestReady ? SCENE.harvestGlow : SCENE.elementShadowSoft}
             />
             <path
               d={CROP_ICON_PATHS[visual.iconKey]}

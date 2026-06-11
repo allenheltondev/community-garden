@@ -31,19 +31,25 @@ import {
   shade,
   tint,
 } from './palette';
+import {
+  BERRY_BUSH_TOP_FACTOR,
+  CANOPY_TOP_FACTOR,
+  COMPOST_HEIGHT,
+  COOP_EAVES,
+  COOP_RIDGE,
+  GREENHOUSE_EAVES,
+  GREENHOUSE_RIDGE,
+  SHED_EAVES,
+  SHED_RIDGE,
+  TRELLIS_HEIGHT,
+  avgFootprintRadius,
+} from './shadows';
 
 // Structures (sheds, greenhouses, bins…) always build from an oriented
 // rectangle so roof/wall construction has four predictable corners, even
 // if the underlying record was created with another shape.
 function structureCorners(a: GardenAnnotation): WorldPoint[] {
   return rectFootprint(annotationGeometry(a));
-}
-
-function avgRadius(footprint: WorldPoint[]): number {
-  const c = worldCentroid(footprint);
-  if (footprint.length === 0) return 12;
-  const total = footprint.reduce((sum, p) => sum + Math.hypot(p.x - c.x, p.y - c.y), 0);
-  return Math.max(8, total / footprint.length);
 }
 
 function groundShadow(footprint: WorldPoint[], spread = 1): ReactNode {
@@ -77,7 +83,7 @@ function renderCanopyPlant(
 ): ReactNode {
   const footprint = annotationFootprint(a);
   const c = worldCentroid(footprint);
-  const r = avgRadius(footprint);
+  const r = avgFootprintRadius(footprint);
   const seed = hashSeed(a.id);
 
   const base =
@@ -91,12 +97,12 @@ function renderCanopyPlant(
     kind === 'berryBush'
       ? [
           { scale: 1, z: r * 0.28, fill: shade(base, 0.16) },
-          { scale: 0.62, z: r * 0.62, fill: tint(base, 0.08) },
+          { scale: 0.62, z: r * BERRY_BUSH_TOP_FACTOR, fill: tint(base, 0.08) },
         ]
       : [
           { scale: 1, z: r * 0.5, fill: shade(base, 0.18) },
           { scale: 0.74, z: r * 0.82, fill: base },
-          { scale: 0.46, z: r * 1.08, fill: tint(base, 0.16) },
+          { scale: 0.46, z: r * CANOPY_TOP_FACTOR, fill: tint(base, 0.16) },
         ];
 
   const trunk =
@@ -157,7 +163,7 @@ function renderPond(a: GardenAnnotation): ReactNode {
   const footprint = annotationFootprint(a);
   const c = worldCentroid(footprint);
   const ripple1 = projectFootprint(
-    organicRing(c, avgRadius(footprint) * 0.34, hashSeed(a.id), 6),
+    organicRing(c, avgFootprintRadius(footprint) * 0.34, hashSeed(a.id), 6),
     0
   );
   return (
@@ -398,7 +404,12 @@ function renderGreenhouse(a: GardenAnnotation): ReactNode {
         {renderGabledStructure(
           a,
           SCENE.glass,
-          { eaves: 62, ridge: 84, color: SCENE.glass, overhang: 1.04 },
+          {
+            eaves: GREENHOUSE_EAVES,
+            ridge: GREENHOUSE_RIDGE,
+            color: SCENE.glass,
+            overhang: 1.04,
+          },
           (cs, eaves) => {
             // Mullions on the two camera-facing walls.
             const lines: ReactNode[] = [];
@@ -427,8 +438,6 @@ function renderGreenhouse(a: GardenAnnotation): ReactNode {
     </>
   );
 }
-
-const TRELLIS_HEIGHT = 66;
 
 function renderTrellis(a: GardenAnnotation): ReactNode {
   const g = annotationGeometry(a);
@@ -499,7 +508,7 @@ function renderTrellis(a: GardenAnnotation): ReactNode {
 
 function renderCompost(a: GardenAnnotation): ReactNode {
   const corners = structureCorners(a);
-  const height = 24;
+  const height = COMPOST_HEIGHT;
   const bin = extrude(corners, height);
   const fill = insetFootprint(corners, 3);
   const seed = hashSeed(a.id);
@@ -597,7 +606,7 @@ export const IsoAnnotation = memo(function IsoAnnotation({
       body = renderGabledStructure(
         annotation,
         annotation.color ? mute(annotation.color, 0.35) : SCENE.woodDark,
-        { eaves: 70, ridge: 96, color: SCENE.terracotta, overhang: 1.06 },
+        { eaves: SHED_EAVES, ridge: SHED_RIDGE, color: SCENE.terracotta, overhang: 1.06 },
         doorExtra(shade(SCENE.woodDark, 0.35))
       );
       break;
@@ -614,7 +623,7 @@ export const IsoAnnotation = memo(function IsoAnnotation({
       body = renderGabledStructure(
         annotation,
         SCENE.coop,
-        { eaves: 40, ridge: 56, color: shade(SCENE.coop, 0.1), overhang: 1.05 },
+        { eaves: COOP_EAVES, ridge: COOP_RIDGE, color: shade(SCENE.coop, 0.1), overhang: 1.05 },
         doorExtra(shade(SCENE.coop, 0.4))
       );
       break;

@@ -26,6 +26,8 @@ import {
 import { IsoAnnotation } from './IsoAnnotation';
 import { IsoBed } from './IsoBed';
 import { KIND_LABELS, SCENE, annotationKind } from './palette';
+import type { SeasonMonth } from './season';
+import { collectShadowCasters, shadowPolygonsFor, type SunTime } from './shadows';
 
 // Organic ring of world points around the canvas rectangle — the lawn
 // plate is a soft blob, not a hard parallelogram, so the plan reads as an
@@ -94,6 +96,10 @@ interface IsoSceneProps {
   selected: SelectedItem;
   onSelect: (next: SelectedItem) => void;
   shouldIgnoreClick: () => boolean;
+  /** Selected scrubber month (0–11) or null for "All season". Styling only — crop filtering happens upstream. */
+  seasonMonth?: SeasonMonth;
+  /** Time of day for cast sun shadows, or null to hide the layer. */
+  sunTime?: SunTime | null;
 }
 
 interface RenderItem {
@@ -119,10 +125,25 @@ export const IsoScene = memo(function IsoScene({
   selected,
   onSelect,
   shouldIgnoreClick,
+  seasonMonth = null,
+  sunTime = null,
 }: IsoSceneProps) {
   const metrics = sceneMetrics(canvas);
   const w = canvas.widthInches;
   const h = canvas.heightInches;
+  const northOffsetDeg = canvas.northOffsetDeg;
+
+  // All cast sun shadows joined into one path: with a single fill,
+  // overlapping shadows merge into a flat wash instead of stacking darker
+  // where two casters overlap.
+  const sunShadowPath = useMemo(() => {
+    if (!sunTime) return null;
+    const casters = collectShadowCasters(beds, annotations);
+    if (casters.length === 0) return null;
+    return shadowPolygonsFor(casters, sunTime, northOffsetDeg)
+      .map((poly) => smoothClosedPath(projectFootprint(poly, 0)))
+      .join(' ');
+  }, [annotations, beds, northOffsetDeg, sunTime]);
 
   const ground = useMemo(() => {
     const margin = Math.max(14, Math.min(w, h) * 0.07);
@@ -182,6 +203,7 @@ export const IsoScene = memo(function IsoScene({
               bed={bed}
               crops={crops}
               isSelected={selected?.kind === 'bed' && selected.id === bed.id}
+              seasonMonth={seasonMonth}
             />
           </IsoElement>
         ),
@@ -197,7 +219,7 @@ export const IsoScene = memo(function IsoScene({
         a.layer - b.layer || Number(b.flat) - Number(a.flat) || a.depth - b.depth
     );
     return list;
-  }, [annotations, beds, cropsByBedId, onSelect, selected, shouldIgnoreClick]);
+  }, [annotations, beds, cropsByBedId, onSelect, seasonMonth, selected, shouldIgnoreClick]);
 
   // Compass + scale bar live in screen space at the plate corners.
   const plate = boundsOf(
@@ -252,6 +274,11 @@ export const IsoScene = memo(function IsoScene({
           strokeLinecap="round"
         />
       </g>
+      {sunShadowPath && (
+        <g className="mp-sun-shadows" aria-hidden="true" data-testid="sun-shadows">
+          <path d={sunShadowPath} fill={SCENE.elementShadow} fillRule="nonzero" />
+        </g>
+      )}
       <g className="mp-elements">{items.map((item) => item.node)}</g>
       <g
         className="mp-compass"
