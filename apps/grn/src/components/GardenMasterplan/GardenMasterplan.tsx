@@ -8,6 +8,7 @@ import type {
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
 import { downloadScenePng, downloadSceneSvg } from './exportScene';
+import { SharePopover } from './SharePopover';
 import { sceneMetrics } from './footprints';
 import { GardenReviewPanel } from './GardenReviewPanel';
 import { IsoScene } from './IsoScene';
@@ -242,6 +243,7 @@ export function GardenMasterplan({
             >
               ✨ Review
             </button>
+            <SharePopover />
           </div>
         )}
 

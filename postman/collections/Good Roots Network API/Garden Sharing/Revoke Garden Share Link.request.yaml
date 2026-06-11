@@ -1,0 +1,18 @@
+$kind: http-request
+name: Revoke Garden Share Link
+description: |-
+  Revoke the caller's share link. Idempotent: revoking when no link is
+  active still returns 204.
+method: DELETE
+url: '{{baseUrl}}/garden/share'
+order: 1630
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204", function () {
+          pm.response.to.have.status(204);
+      });

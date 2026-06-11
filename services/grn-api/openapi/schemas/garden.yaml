@@ -409,3 +409,78 @@ BackgroundUploadIntentResponse:
       description: "Persist this on the canvas via PUT /garden once the upload completes."
     expires_in_seconds:
       type: integer
+
+GardenShareLink:
+  type: object
+  required: [token, createdAt]
+  properties:
+    token:
+      type: string
+      description: 32-char hex token addressing the public view
+    createdAt:
+      type: string
+      format: date-time
+
+SharedGardenResponse:
+  type: object
+  required: [canvas, beds, annotations, crops]
+  properties:
+    canvas:
+      type: object
+      required: [widthInches, heightInches, northOffsetDeg]
+      properties:
+        widthInches:
+          type: integer
+        heightInches:
+          type: integer
+        northOffsetDeg:
+          type: integer
+    beds:
+      type: array
+      items:
+        type: object
+        required: [id, name, bedType, shape, rotationDeg, sortOrder]
+        description: "Bed geometry without user identity or free-text notes"
+        properties:
+          id: { type: string }
+          name: { type: string }
+          bedType: { type: string, enum: [in_ground, raised, mound] }
+          shape: { type: string, enum: [rect, circle, polygon] }
+          sunExposure: { type: string, nullable: true }
+          soilType: { type: string, nullable: true }
+          lengthInches: { type: integer, nullable: true }
+          widthInches: { type: integer, nullable: true }
+          positionX: { type: integer, nullable: true }
+          positionY: { type: integer, nullable: true }
+          rotationDeg: { type: integer }
+          points: { type: array, nullable: true, items: { type: object } }
+          color: { type: string, nullable: true }
+          sortOrder: { type: integer }
+    annotations:
+      type: array
+      items:
+        type: object
+        required: [id, label, shape, rotationDeg, sortOrder]
+        properties:
+          id: { type: string }
+          label: { type: string }
+          icon: { type: string, nullable: true }
+          shape: { type: string, enum: [rect, circle, polygon, line] }
+          positionX: { type: integer, nullable: true }
+          positionY: { type: integer, nullable: true }
+          lengthInches: { type: integer, nullable: true }
+          widthInches: { type: integer, nullable: true }
+          rotationDeg: { type: integer }
+          points: { type: array, nullable: true, items: { type: object } }
+          color: { type: string, nullable: true }
+          sortOrder: { type: integer }
+    crops:
+      type: array
+      description: "Non-private crops by name only"
+      items:
+        type: object
+        required: [bedId, cropName]
+        properties:
+          bedId: { type: string }
+          cropName: { type: string }
+          plantCount: { type: integer, nullable: true }

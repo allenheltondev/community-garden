@@ -1,6 +1,13 @@
 import { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { PlantLoader } from './components/branding/PlantLoader';
+
+// Public page, lazy-loaded so visitors don't pay for the app shell and
+// signed-in users don't pay for it at all.
+const SharedGardenPage = lazy(() =>
+  import('./pages/SharedGardenPage').then((m) => ({ default: m.SharedGardenPage }))
+);
 
 // Lazy-load the entire authenticated tree (shell + useUser + onboarding +
 // every page) so the main bundle stays under the perf:budget cap.
@@ -32,7 +39,9 @@ function FullPageLoader() {
   );
 }
 
-function App() {
+// The auth gate wraps everything except explicitly public pages: shared
+// garden links must open for visitors without bouncing them to login.
+function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -48,6 +57,22 @@ function App() {
     <Suspense fallback={<FullPageLoader />}>
       <AuthenticatedRoot />
     </Suspense>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route
+        path="/shared/:token"
+        element={
+          <Suspense fallback={<FullPageLoader />}>
+            <SharedGardenPage />
+          </Suspense>
+        }
+      />
+      <Route path="*" element={<AuthGate />} />
+    </Routes>
   );
 }
 
