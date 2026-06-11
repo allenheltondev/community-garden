@@ -165,6 +165,10 @@ export function GardenDesignerPage() {
               gridSnap={designer.snap}
               onGridSnapChange={designer.setSnap}
               onFitToScreen={() => canvasRef.current?.fitToScreen()}
+              canUndo={designer.canUndo}
+              canRedo={designer.canRedo}
+              onUndo={designer.undo}
+              onRedo={designer.redo}
             />
 
             <DesignerCanvas
