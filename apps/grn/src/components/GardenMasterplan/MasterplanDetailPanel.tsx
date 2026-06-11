@@ -11,9 +11,11 @@ import {
   parseSoilField,
   soilLabel,
 } from '../GardenDesigner/bedDefaults';
+import { bedCapacitySummary, capacityLabel } from '../GardenDesigner/capacity';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { KIND_LABELS, annotationKind, mute } from './palette';
+import { MONTH_LABELS_FULL, type SeasonMonth } from './season';
 
 const SUN_LABELS: Record<SunExposure, string> = {
   full_sun: 'Full sun',
@@ -33,6 +35,12 @@ interface MasterplanDetailPanelProps {
   bed?: GardenBed;
   annotation?: GardenAnnotation;
   crops: GrowerCropItem[];
+  /** Scrubbed month (0–11) or null for "All season". */
+  seasonMonth?: SeasonMonth;
+  /** Crops in this bed whose expected harvest month is the scrubbed month. */
+  harvestCount?: number;
+  /** True when a full-sun bed sits mostly in other elements' noon shadows. */
+  noonShadeConflict?: boolean;
   onArrange: (direction: 'forward' | 'backward') => void;
   onClose: () => void;
   onOpenLayoutEditor: () => void;
@@ -48,6 +56,9 @@ export function MasterplanDetailPanel({
   bed,
   annotation,
   crops,
+  seasonMonth = null,
+  harvestCount = 0,
+  noonShadeConflict = false,
   onArrange,
   onClose,
   onOpenLayoutEditor,
@@ -69,6 +80,7 @@ export function MasterplanDetailPanel({
       : '';
 
   const soils = bed ? parseSoilField(bed.soilType) : [];
+  const capacity = bed ? bedCapacitySummary(bed, crops) : null;
 
   return (
     <aside
@@ -94,6 +106,15 @@ export function MasterplanDetailPanel({
 
       <div className="mp-panel__body">
         {bed?.description && <p className="mp-panel__description">{bed.description}</p>}
+
+        {bed && noonShadeConflict && (
+          <p className="mp-panel__warning" role="note">
+            <span className="mp-panel__warning-icon" aria-hidden="true">
+              ⚠
+            </span>
+            Labeled full sun, but sits mostly in shade at midday.
+          </p>
+        )}
 
         <dl className="mp-panel__meta">
           {bed && (
@@ -141,6 +162,22 @@ export function MasterplanDetailPanel({
                 ? `Growing here (${crops.length})`
                 : 'Nothing planted yet'}
             </h3>
+            {capacity?.utilization != null && (
+              <p
+                className={`mp-panel__capacity ${
+                  capacity.utilization > 1 ? 'is-over' : ''
+                }`}
+              >
+                Using ~{Math.round(capacity.utilization * 100)}% of this bed ·{' '}
+                {capacityLabel(capacity)}
+              </p>
+            )}
+            {seasonMonth != null && harvestCount > 0 && (
+              <p className="mp-panel__harvest">
+                {harvestCount} crop{harvestCount === 1 ? '' : 's'} ready to harvest in{' '}
+                {MONTH_LABELS_FULL[seasonMonth]}
+              </p>
+            )}
             {crops.length > 0 && (
               <ul className="mp-panel__crop-list">
                 {crops.map((crop) => {

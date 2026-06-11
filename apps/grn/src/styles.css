@@ -2831,6 +2831,55 @@ body {
   font-weight: 600;
 }
 
+.grn-designer-inspector__metric-value--warning {
+  color: #b03a2e;
+}
+
+.grn-designer-inspector__capacity {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: -0.25rem;
+  padding: 0 0.75rem;
+}
+
+.grn-designer-inspector__capacity-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(91, 58, 28, 0.12);
+  overflow: hidden;
+}
+
+.grn-designer-inspector__capacity-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #5b8c4a;
+  transition: width 0.25s ease;
+}
+
+.grn-designer-inspector__capacity-fill.is-over {
+  background: #b03a2e;
+}
+
+.grn-designer-inspector__capacity-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(79, 56, 37, 0.7);
+  white-space: nowrap;
+}
+
+.grn-designer-inspector__capacity-label.is-over {
+  color: #b03a2e;
+}
+
+.grn-designer-inspector__capacity-footnote {
+  margin: -0.2rem 0 0;
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  color: rgba(79, 56, 37, 0.55);
+}
+
 .grn-designer-inspector__soil {
   border: none;
   padding: 0;
@@ -3469,7 +3518,8 @@ body {
 
 .mp-explorer__hint {
   position: absolute;
-  bottom: 0.85rem;
+  /* Sits above the season/sun toolbar docked at the bottom edge. */
+  bottom: 3.6rem;
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -3671,6 +3721,17 @@ body {
   color: rgba(79, 56, 37, 0.55);
 }
 
+.mp-panel__capacity {
+  margin: -0.15rem 0 0.45rem;
+  font-size: 0.78rem;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.mp-panel__capacity.is-over {
+  color: #b03a2e;
+  font-weight: 600;
+}
+
 .mp-panel__crop-list {
   margin: 0;
   padding: 0;
@@ -3763,6 +3824,145 @@ body {
 
 .mp-panel__action:active {
   transform: scale(0.98);
+}
+
+.mp-panel__warning {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--og-radius-sm);
+  background: rgba(193, 122, 60, 0.12);
+  border: 1px solid rgba(193, 122, 60, 0.3);
+  font-size: 0.84rem;
+  color: #7a4a22;
+}
+
+.mp-panel__warning-icon {
+  flex: none;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.mp-panel__harvest {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--og-radius-sm);
+  background: rgba(217, 156, 74, 0.14);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #8a5a22;
+}
+
+/* --- Season scrubber + sun toggle ---------------------------------------------- */
+
+.mp-explorer__toolbar {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  z-index: 5;
+  /* Let map gestures pass through the gaps between the two pills. */
+  pointer-events: none;
+}
+
+.mp-season,
+.mp-sun {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem;
+  border-radius: var(--og-radius-pill);
+  border: 1px solid rgba(91, 58, 28, 0.15);
+  background: var(--og-color-paper);
+  box-shadow: 0 6px 16px rgba(91, 58, 28, 0.14);
+}
+
+.mp-season {
+  /* The 13 segments overflow small screens: scroll, don't wrap. */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mp-season::-webkit-scrollbar {
+  display: none;
+}
+
+.mp-season__btn,
+.mp-sun__btn {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(79, 56, 37, 0.75);
+  background: transparent;
+  border: none;
+  border-radius: var(--og-radius-pill);
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mp-season__btn:hover,
+.mp-season__btn:focus-visible,
+.mp-sun__btn:hover,
+.mp-sun__btn:focus-visible {
+  background: rgba(91, 140, 74, 0.12);
+  outline: none;
+}
+
+.mp-season__btn--active,
+.mp-season__btn--active:hover,
+.mp-sun__btn--active,
+.mp-sun__btn--active:hover {
+  background: var(--og-color-moss);
+  color: var(--og-color-paper);
+}
+
+.mp-sun__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(79, 56, 37, 0.55);
+  padding: 0 0.2rem 0 0.45rem;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__toolbar {
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    justify-content: flex-start;
+  }
+  .mp-season__btn,
+  .mp-sun__btn {
+    padding: 0.42rem 0.6rem;
+  }
+}
+
+/* --- Sun shadows + harvest glow -------------------------------------------------- */
+
+.mp-sun-shadows {
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 200ms var(--easing-out);
+}
+
+.mp-crop--harvest {
+  filter: drop-shadow(0 0 4px rgba(224, 168, 88, 0.85));
 }
 
 /* --- Motion preferences ---------------------------------------------------------- */
