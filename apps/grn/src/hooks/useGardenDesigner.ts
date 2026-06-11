@@ -1,5 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  EMPTY_HISTORY,
+  canRedo as historyCanRedo,
+  canUndo as historyCanUndo,
+  peekRedo,
+  peekUndo,
+  pushEntry,
+  remapEntityId,
+  steppedBack,
+  steppedForward,
+  type DesignerHistory,
+  type HistoryEntityKind,
+  type HistoryEntry,
+} from './designerHistory';
 import {
   createMyAnnotation,
   createMyBed,
@@ -66,6 +80,7 @@ export interface UseGardenDesignerResult {
   isEditable: boolean;
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
+  duplicateSelected: () => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
@@ -100,6 +115,10 @@ export interface UseGardenDesignerResult {
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
   uploadBackgroundImage: (file: File) => Promise<void>;
   clearBackgroundImage: () => Promise<void>;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const MOBILE_BREAKPOINT = 768;
@@ -404,6 +423,56 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     },
   });
 
+  // --- Undo/redo -----------------------------------------------------------
+  // Geometry-level history over bed/annotation mutations. Canvas settings
+  // and crop assignments are deliberately out of scope. Entries are
+  // recorded at the commit helpers below; undo/redo replays them through
+  // the raw mutations so nothing re-records.
+  const [history, setHistory] = useState<DesignerHistory>(EMPTY_HISTORY);
+  const historyBusyRef = useRef(false);
+
+  const record = useCallback((entry: HistoryEntry) => {
+    setHistory((h) => pushEntry(h, entry));
+  }, []);
+
+  const commitBedUpdate = useCallback(
+    (bed: GardenBed, payload: UpsertGardenBedRequest, coalesceKey?: string) => {
+      const before = bedToUpsertPayload(bed);
+      if (JSON.stringify(before) === JSON.stringify(payload)) return;
+      record({
+        kind: 'bed-update',
+        id: bed.id,
+        before,
+        after: payload,
+        at: Date.now(),
+        coalesceKey,
+      });
+      updateBedMutation.mutate({ bedId: bed.id, payload });
+    },
+    [record, updateBedMutation]
+  );
+
+  const commitAnnotationUpdate = useCallback(
+    (
+      annotation: GardenAnnotation,
+      payload: UpsertGardenAnnotationRequest,
+      coalesceKey?: string
+    ) => {
+      const before = annotationToUpsertPayload(annotation);
+      if (JSON.stringify(before) === JSON.stringify(payload)) return;
+      record({
+        kind: 'annotation-update',
+        id: annotation.id,
+        before,
+        after: payload,
+        at: Date.now(),
+        coalesceKey,
+      });
+      updateAnnotationMutation.mutate({ annotationId: annotation.id, payload });
+    },
+    [record, updateAnnotationMutation]
+  );
+
   const beds = useMemo(() => bedsQuery.data ?? [], [bedsQuery.data]);
   const annotations = useMemo(
     () => annotationsQuery.data ?? [],
@@ -473,9 +542,15 @@ export function useGardenDesigner(): UseGardenDesignerResult {
             ? defaultRectPolygonPoints(defaults.lengthInches, defaults.widthInches)
             : null,
       });
+      record({
+        kind: 'bed-create',
+        id: created.id,
+        payload: bedToUpsertPayload(created),
+        at: Date.now(),
+      });
       selectItem({ kind: 'bed', id: created.id });
     },
-    [beds.length, canvasQuery.data, createBedMutation, isEditable, selectItem]
+    [beds.length, canvasQuery.data, createBedMutation, isEditable, record, selectItem]
   );
 
   const commitPolygon = useCallback(
@@ -499,10 +574,16 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         rotationDeg: 0,
         points: normalized,
       });
+      record({
+        kind: 'bed-create',
+        id: created.id,
+        payload: bedToUpsertPayload(created),
+        at: Date.now(),
+      });
       selectItem({ kind: 'bed', id: created.id });
       setMode('idle');
     },
-    [beds.length, createBedMutation, isEditable, selectItem]
+    [beds.length, createBedMutation, isEditable, record, selectItem]
   );
 
   const moveBed = useCallback(
@@ -510,9 +591,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       const bed = beds.find((b) => b.id === bedId);
       if (!bed) return;
       const payload = bedToUpsertPayload({ ...bed, positionX, positionY });
-      updateBedMutation.mutate({ bedId, payload });
+      commitBedUpdate(bed, payload);
     },
-    [beds, updateBedMutation]
+    [beds, commitBedUpdate]
   );
 
   const resizeBed = useCallback(
@@ -538,9 +619,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         rotationDeg: next.rotationDeg,
         points: next.points,
       });
-      updateBedMutation.mutate({ bedId, payload });
+      commitBedUpdate(bed, payload);
     },
-    [beds, updateBedMutation]
+    [beds, commitBedUpdate]
   );
 
   const patchBed = useCallback(
@@ -548,9 +629,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       const bed = beds.find((b) => b.id === bedId);
       if (!bed) return;
       const payload = bedToUpsertPayload({ ...bed, ...patch });
-      updateBedMutation.mutate({ bedId, payload });
+      commitBedUpdate(bed, payload);
     },
-    [beds, updateBedMutation]
+    [beds, commitBedUpdate]
   );
 
   // Vertex edits arrive as the full reshaped point list (in the bed's
@@ -567,20 +648,29 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         points,
       });
       const payload = bedToUpsertPayload({ ...bed, ...geometry });
-      updateBedMutation.mutate({ bedId, payload });
+      commitBedUpdate(bed, payload);
     },
-    [beds, updateBedMutation]
+    [beds, commitBedUpdate]
   );
 
   const deleteBed = useCallback(
     async (bedId: string) => {
       if (!isEditable) return;
+      const bed = beds.find((b) => b.id === bedId);
       await deleteBedMutation.mutateAsync(bedId);
+      if (bed) {
+        record({
+          kind: 'bed-delete',
+          id: bedId,
+          payload: bedToUpsertPayload(bed),
+          at: Date.now(),
+        });
+      }
       if (selected?.kind === 'bed' && selected.id === bedId) {
         selectItem(null);
       }
     },
-    [deleteBedMutation, isEditable, selected, selectItem]
+    [beds, deleteBedMutation, isEditable, record, selected, selectItem]
   );
 
   const addAnnotation = useCallback(
@@ -609,9 +699,15 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         color: preset.defaultColor,
         points,
       });
+      record({
+        kind: 'annotation-create',
+        id: created.id,
+        payload: annotationToUpsertPayload(created),
+        at: Date.now(),
+      });
       selectItem({ kind: 'annotation', id: created.id });
     },
-    [canvasQuery.data, createAnnotationMutation, isEditable, selectItem]
+    [canvasQuery.data, createAnnotationMutation, isEditable, record, selectItem]
   );
 
   const moveAnnotation = useCallback(
@@ -623,9 +719,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         positionX,
         positionY,
       });
-      updateAnnotationMutation.mutate({ annotationId, payload });
+      commitAnnotationUpdate(annotation, payload);
     },
-    [annotations, updateAnnotationMutation]
+    [annotations, commitAnnotationUpdate]
   );
 
   const resizeAnnotation = useCallback(
@@ -651,9 +747,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         rotationDeg: next.rotationDeg,
         points: next.points,
       });
-      updateAnnotationMutation.mutate({ annotationId, payload });
+      commitAnnotationUpdate(annotation, payload);
     },
-    [annotations, updateAnnotationMutation]
+    [annotations, commitAnnotationUpdate]
   );
 
   const patchAnnotation = useCallback(
@@ -661,20 +757,29 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       const annotation = annotations.find((a) => a.id === annotationId);
       if (!annotation) return;
       const payload = annotationToUpsertPayload({ ...annotation, ...patch });
-      updateAnnotationMutation.mutate({ annotationId, payload });
+      commitAnnotationUpdate(annotation, payload);
     },
-    [annotations, updateAnnotationMutation]
+    [annotations, commitAnnotationUpdate]
   );
 
   const deleteAnnotation = useCallback(
     async (annotationId: string) => {
       if (!isEditable) return;
+      const annotation = annotations.find((a) => a.id === annotationId);
       await deleteAnnotationMutation.mutateAsync(annotationId);
+      if (annotation) {
+        record({
+          kind: 'annotation-delete',
+          id: annotationId,
+          payload: annotationToUpsertPayload(annotation),
+          at: Date.now(),
+        });
+      }
       if (selected?.kind === 'annotation' && selected.id === annotationId) {
         selectItem(null);
       }
     },
-    [deleteAnnotationMutation, isEditable, selected, selectItem]
+    [annotations, deleteAnnotationMutation, isEditable, record, selected, selectItem]
   );
 
   const patchCanvas = useCallback(
@@ -684,9 +789,186 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     [updateCanvasMutation]
   );
 
+  // Applies one history entry in the given direction through the raw
+  // mutations (so nothing re-records). Recreating an entity returns an id
+  // remap that the caller must fold back into the stack.
+  const applyEntry = useCallback(
+    async (
+      entry: HistoryEntry,
+      direction: 'undo' | 'redo'
+    ): Promise<{ kind: HistoryEntityKind; oldId: string; newId: string } | null> => {
+      switch (entry.kind) {
+        case 'bed-update':
+          await updateBedMutation.mutateAsync({
+            bedId: entry.id,
+            payload: direction === 'undo' ? entry.before : entry.after,
+          });
+          return null;
+        case 'annotation-update':
+          await updateAnnotationMutation.mutateAsync({
+            annotationId: entry.id,
+            payload: direction === 'undo' ? entry.before : entry.after,
+          });
+          return null;
+        case 'bed-create':
+        case 'bed-delete': {
+          const recreate =
+            (entry.kind === 'bed-create') === (direction === 'redo');
+          if (!recreate) {
+            await deleteBedMutation.mutateAsync(entry.id);
+            if (selected?.kind === 'bed' && selected.id === entry.id) {
+              setSelected(null);
+            }
+            return null;
+          }
+          const created = await createBedMutation.mutateAsync(entry.payload);
+          return { kind: 'bed', oldId: entry.id, newId: created.id };
+        }
+        case 'annotation-create':
+        case 'annotation-delete': {
+          const recreate =
+            (entry.kind === 'annotation-create') === (direction === 'redo');
+          if (!recreate) {
+            await deleteAnnotationMutation.mutateAsync(entry.id);
+            if (selected?.kind === 'annotation' && selected.id === entry.id) {
+              setSelected(null);
+            }
+            return null;
+          }
+          const created = await createAnnotationMutation.mutateAsync(entry.payload);
+          return { kind: 'annotation', oldId: entry.id, newId: created.id };
+        }
+      }
+    },
+    [
+      createAnnotationMutation,
+      createBedMutation,
+      deleteAnnotationMutation,
+      deleteBedMutation,
+      selected,
+      updateAnnotationMutation,
+      updateBedMutation,
+    ]
+  );
+
+  const stepHistory = useCallback(
+    async (direction: 'undo' | 'redo') => {
+      if (historyBusyRef.current || !isEditable) return;
+      const entry = direction === 'undo' ? peekUndo(history) : peekRedo(history);
+      if (!entry) return;
+      historyBusyRef.current = true;
+      setHistory(direction === 'undo' ? steppedBack : steppedForward);
+      try {
+        const remap = await applyEntry(entry, direction);
+        if (remap) {
+          setHistory((h) => remapEntityId(h, remap.kind, remap.oldId, remap.newId));
+          setSelected((prev) =>
+            prev && prev.id === remap.oldId ? { ...prev, id: remap.newId } : prev
+          );
+        }
+      } catch {
+        // The mutation failed (and its optimistic update rolled back), so
+        // put the pointer back where it was. If the user managed to push a
+        // new entry in the same instant, the pointer is already correct.
+        setHistory((h) =>
+          direction === 'undo' ? steppedForward(h) : steppedBack(h)
+        );
+      } finally {
+        historyBusyRef.current = false;
+      }
+    },
+    [applyEntry, history, isEditable]
+  );
+
+  const undo = useCallback(() => {
+    void stepHistory('undo');
+  }, [stepHistory]);
+
+  const redo = useCallback(() => {
+    void stepHistory('redo');
+  }, [stepHistory]);
+
+  // Clone the selected element 12 inches down-right, select the clone,
+  // and record it so Cmd+Z removes it again.
+  const duplicateSelected = useCallback(async () => {
+    if (!isEditable || historyBusyRef.current) return;
+    if (selected?.kind === 'bed' && selectedBed) {
+      const payload: UpsertGardenBedRequest = {
+        ...bedToUpsertPayload(selectedBed),
+        name: `${selectedBed.name} copy`.slice(0, 80),
+        positionX: (selectedBed.positionX ?? 12) + 12,
+        positionY: (selectedBed.positionY ?? 12) + 12,
+      };
+      const created = await createBedMutation.mutateAsync(payload);
+      record({
+        kind: 'bed-create',
+        id: created.id,
+        payload: bedToUpsertPayload(created),
+        at: Date.now(),
+      });
+      selectItem({ kind: 'bed', id: created.id });
+    } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+      const payload: UpsertGardenAnnotationRequest = {
+        ...annotationToUpsertPayload(selectedAnnotation),
+        positionX: (selectedAnnotation.positionX ?? 12) + 12,
+        positionY: (selectedAnnotation.positionY ?? 12) + 12,
+      };
+      const created = await createAnnotationMutation.mutateAsync(payload);
+      record({
+        kind: 'annotation-create',
+        id: created.id,
+        payload: annotationToUpsertPayload(created),
+        at: Date.now(),
+      });
+      selectItem({ kind: 'annotation', id: created.id });
+    }
+  }, [
+    createAnnotationMutation,
+    createBedMutation,
+    isEditable,
+    record,
+    selectItem,
+    selected,
+    selectedAnnotation,
+    selectedBed,
+  ]);
+
+  // Arrow-key nudging for the selected element. Rapid presses coalesce
+  // into a single undo step (see designerHistory).
+  const nudgeSelected = useCallback(
+    (dx: number, dy: number) => {
+      if (!isEditable) return;
+      if (selected?.kind === 'bed' && selectedBed) {
+        const payload = bedToUpsertPayload({
+          ...selectedBed,
+          positionX: Math.max(0, (selectedBed.positionX ?? 12) + dx),
+          positionY: Math.max(0, (selectedBed.positionY ?? 12) + dy),
+        });
+        commitBedUpdate(selectedBed, payload, 'nudge');
+      } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+        const payload = annotationToUpsertPayload({
+          ...selectedAnnotation,
+          positionX: Math.max(0, (selectedAnnotation.positionX ?? 12) + dx),
+          positionY: Math.max(0, (selectedAnnotation.positionY ?? 12) + dy),
+        });
+        commitAnnotationUpdate(selectedAnnotation, payload, 'nudge');
+      }
+    },
+    [
+      commitAnnotationUpdate,
+      commitBedUpdate,
+      isEditable,
+      selected,
+      selectedAnnotation,
+      selectedBed,
+    ]
+  );
+
   // Keyboard shortcuts:
   //   Esc           - deselect (when not in drawing-polygon mode; the
   //                   Canvas owns Esc-to-cancel for that mode)
+  //   Cmd/Ctrl+Z    - undo; with Shift (or Ctrl+Y) - redo
+  //   Arrow keys    - nudge the selected element 1 inch (Shift = 12)
   //   Delete /
   //   Backspace     - prompt for confirmation, then delete the selected
   //                   bed or annotation. Skipped when focus is in a text
@@ -703,9 +985,50 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       if (mode === 'drawing-polygon') return;
       if (isEditingText(event.target)) return;
 
+      const meta = event.metaKey || event.ctrlKey;
+      if (meta && (event.key === 'd' || event.key === 'D')) {
+        if (selected) {
+          event.preventDefault();
+          void duplicateSelected();
+        }
+        return;
+      }
+      if (meta && (event.key === 'z' || event.key === 'Z')) {
+        event.preventDefault();
+        if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+      if (meta && (event.key === 'y' || event.key === 'Y')) {
+        event.preventDefault();
+        redo();
+        return;
+      }
+
+      if (
+        selected &&
+        (event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown' ||
+          event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight')
+      ) {
+        event.preventDefault();
+        const step = event.shiftKey ? 12 : 1;
+        const dx =
+          event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const dy =
+          event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+        nudgeSelected(dx, dy);
+        return;
+      }
+
       if (event.key === 'Escape') {
-        // Step out of vertex editing first; a second Esc deselects.
-        if (mode === 'editing-vertices') {
+        // Step out of vertex editing / measuring first; a second Esc
+        // deselects.
+        if (mode === 'editing-vertices' || mode === 'measuring') {
           event.preventDefault();
           setMode('idle');
           return;
@@ -740,7 +1063,19 @@ export function useGardenDesigner(): UseGardenDesignerResult {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mode, selected, selectedBed, selectedAnnotation, isEditable, deleteBed, deleteAnnotation]);
+  }, [
+    mode,
+    selected,
+    selectedBed,
+    selectedAnnotation,
+    isEditable,
+    deleteBed,
+    deleteAnnotation,
+    undo,
+    redo,
+    nudgeSelected,
+    duplicateSelected,
+  ]);
 
   const uploadBackgroundImage = useCallback(
     async (file: File) => {
@@ -801,6 +1136,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isEditable,
     isSaving,
     addBed,
+    duplicateSelected,
     commitPolygon,
     moveBed,
     resizeBed,
@@ -815,5 +1151,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     patchCanvas,
     uploadBackgroundImage,
     clearBackgroundImage,
+    undo,
+    redo,
+    canUndo: historyCanUndo(history),
+    canRedo: historyCanRedo(history),
   };
 }

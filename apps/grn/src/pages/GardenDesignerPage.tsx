@@ -165,6 +165,13 @@ export function GardenDesignerPage() {
               gridSnap={designer.snap}
               onGridSnapChange={designer.setSnap}
               onFitToScreen={() => canvasRef.current?.fitToScreen()}
+              canUndo={designer.canUndo}
+              canRedo={designer.canRedo}
+              onUndo={designer.undo}
+              onRedo={designer.redo}
+              onToggleMeasure={() =>
+                designer.setMode(designer.mode === 'measuring' ? 'idle' : 'measuring')
+              }
             />
 
             <DesignerCanvas
@@ -209,6 +216,9 @@ export function GardenDesignerPage() {
                     designer.patchBed(designer.selectedBed.id, patch);
                   }
                 }}
+                onDuplicate={() => {
+                  void designer.duplicateSelected();
+                }}
                 onDelete={() => {
                   if (designer.selectedBed) {
                     void designer.deleteBed(designer.selectedBed.id);
@@ -229,6 +239,9 @@ export function GardenDesignerPage() {
                   if (designer.selectedAnnotation) {
                     designer.patchAnnotation(designer.selectedAnnotation.id, patch);
                   }
+                }}
+                onDuplicate={() => {
+                  void designer.duplicateSelected();
                 }}
                 onDelete={() => {
                   if (designer.selectedAnnotation) {

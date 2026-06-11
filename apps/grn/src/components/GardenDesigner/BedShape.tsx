@@ -6,7 +6,7 @@ import 'konva/lib/shapes/Path';
 import 'konva/lib/shapes/Rect';
 import 'konva/lib/shapes/Text';
 import 'konva/lib/shapes/Transformer';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Ellipse,
   Group,
@@ -18,6 +18,7 @@ import {
 } from 'react-konva/lib/ReactKonvaCore';
 import type { BedType, GardenBed, GrowerCropItem } from '../../types/listing';
 import { bedStyleFor } from './bedDefaults';
+import { formatDimensions } from './measure';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 
@@ -29,6 +30,9 @@ interface BedShapeProps {
   crops: GrowerCropItem[];
   onSelect: (bedId: string) => void;
   onMove: (bedId: string, positionX: number, positionY: number) => void;
+  /** Smart-alignment hook: given the in-flight drag position (inches),
+   * returns the position nudged onto neighbor alignment lines. */
+  onDragSnap?: (id: string, x: number, y: number) => { x: number; y: number } | null;
   onResize: (
     bedId: string,
     next: {
@@ -82,10 +86,28 @@ export function BedShape({
   crops,
   onSelect,
   onMove,
+  onDragSnap,
   onResize,
 }: BedShapeProps) {
   const groupRef = useRef<Konva.Group | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
+  // Live dimensions readout while the Transformer is mid-gesture; null
+  // means "show the committed dimensions".
+  const [liveDims, setLiveDims] = useState<{ length: number; width: number } | null>(
+    null
+  );
+  // Anchor (layer coords) for the dimensions label beneath the bed. Kept
+  // outside the group so the text never rotates or stretches with it.
+  const [dimsAnchor, setDimsAnchor] = useState<{ x: number; y: number } | null>(null);
+
+  const refreshDimsAnchor = useCallback(() => {
+    const node = groupRef.current;
+    if (!node) return;
+    const layer = node.getLayer();
+    if (!layer) return;
+    const rect = node.getClientRect({ relativeTo: layer });
+    setDimsAnchor({ x: rect.x + 2, y: rect.y + rect.height + 6 });
+  }, []);
 
   const positionX = (bed.positionX ?? 12) * pxPerInch;
   const positionY = (bed.positionY ?? 12) * pxPerInch;
@@ -120,7 +142,18 @@ export function BedShape({
     onMove(bed.id, nextX, nextY);
   }
 
+  function handleTransform() {
+    const node = groupRef.current;
+    if (!node) return;
+    setLiveDims({
+      length: Math.round((bed.lengthInches ?? 96) * node.scaleX()),
+      width: Math.round((bed.widthInches ?? 48) * node.scaleY()),
+    });
+    refreshDimsAnchor();
+  }
+
   function handleTransformEnd() {
+    setLiveDims(null);
     const node = groupRef.current;
     if (!node) return;
     const scaleX = node.scaleX();
@@ -155,8 +188,33 @@ export function BedShape({
     });
   }
 
+  // Keep the dimensions label anchored as the bed moves or its committed
+  // geometry changes.
+  useEffect(() => {
+    if (isSelected) refreshDimsAnchor();
+  }, [
+    isSelected,
+    positionX,
+    positionY,
+    widthPx,
+    heightPx,
+    bed.rotationDeg,
+    refreshDimsAnchor,
+  ]);
+
+  function handleDragMove(event: KonvaEventObject<DragEvent>) {
+    const node = event.target;
+    if (node === groupRef.current && onDragSnap) {
+      const snapped = onDragSnap(bed.id, node.x() / pxPerInch, node.y() / pxPerInch);
+      if (snapped) {
+        node.position({ x: snapped.x * pxPerInch, y: snapped.y * pxPerInch });
+      }
+    }
+    refreshDimsAnchor();
+  }
+
   const dragProps = isEditable
-    ? { draggable: true, onDragEnd: handleDragEnd }
+    ? { draggable: true, onDragEnd: handleDragEnd, onDragMove: handleDragMove }
     : { draggable: false };
 
   function renderShape() {
@@ -234,6 +292,7 @@ export function BedShape({
       rotation={bed.rotationDeg}
       onMouseDown={() => onSelect(bed.id)}
       onTouchStart={() => onSelect(bed.id)}
+      onTransform={handleTransform}
       onTransformEnd={handleTransformEnd}
       {...dragProps}
     >
@@ -276,6 +335,23 @@ export function BedShape({
         />
       )}
     </Group>
+    {isSelected && dimsAnchor && (
+      <Text
+        x={dimsAnchor.x}
+        y={dimsAnchor.y}
+        text={formatDimensions(
+          liveDims?.length ?? bed.lengthInches ?? 96,
+          liveDims?.width ?? bed.widthInches ?? 48
+        )}
+        fontSize={13}
+        fontStyle="600"
+        fill="#3a7e5a"
+        shadowColor="#fff"
+        shadowBlur={5}
+        shadowOpacity={0.9}
+        listening={false}
+      />
+    )}
     {isEditable && (
       <Transformer
         ref={transformerRef}

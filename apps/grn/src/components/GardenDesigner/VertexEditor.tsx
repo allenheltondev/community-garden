@@ -1,9 +1,11 @@
 import type { KonvaEventObject } from 'konva/lib/Node';
 import 'konva/lib/shapes/Circle';
 import 'konva/lib/shapes/Line';
+import 'konva/lib/shapes/Text';
 import { useState } from 'react';
-import { Circle, Group, Line } from 'react-konva/lib/ReactKonvaCore';
+import { Circle, Group, Line, Text } from 'react-konva/lib/ReactKonvaCore';
 import type { BedPolygonPoint, GardenBed } from '../../types/listing';
+import { distanceInches, formatInchesAsFeetInches } from './measure';
 import type { GridSnap } from './Toolbar';
 
 interface VertexEditorProps {
@@ -92,6 +94,10 @@ export function VertexEditor({ bed, pxPerInch, snap, onCommit }: VertexEditorPro
   }
 
   const outline = points.flatMap((p) => [p.x * pxPerInch, p.y * pxPerInch]);
+  const centroid = points.reduce(
+    (acc, p) => ({ x: acc.x + p.x / points.length, y: acc.y + p.y / points.length }),
+    { x: 0, y: 0 }
+  );
 
   return (
     <Group x={positionX} y={positionY} rotation={bed.rotationDeg}>
@@ -106,24 +112,50 @@ export function VertexEditor({ bed, pxPerInch, snap, onCommit }: VertexEditorPro
       {points.map((point, idx) => {
         const next = points[(idx + 1) % points.length];
         const midpoint = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
+        // Push the edge-length label outward from the shape so it doesn't
+        // sit under the midpoint handle. Of the two perpendiculars, keep
+        // the one pointing away from the centroid (winding-agnostic).
+        const edgeLength = distanceInches(point, next);
+        let nx = next.y - point.y;
+        let ny = point.x - next.x;
+        if (nx * (midpoint.x - centroid.x) + ny * (midpoint.y - centroid.y) < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        const nLen = Math.hypot(nx, ny) || 1;
         return (
-          <Circle
-            key={`mid-${idx}`}
-            x={midpoint.x * pxPerInch}
-            y={midpoint.y * pxPerInch}
-            radius={MIDPOINT_RADIUS}
-            fill="rgba(255, 255, 255, 0.9)"
-            stroke="#3a7e5a"
-            strokeWidth={1.5}
-            onMouseDown={(event) => {
-              event.cancelBubble = true;
-              handleInsertAfter(idx, midpoint);
-            }}
-            onTouchStart={(event) => {
-              event.cancelBubble = true;
-              handleInsertAfter(idx, midpoint);
-            }}
-          />
+          <Group key={`mid-${idx}`}>
+            <Circle
+              x={midpoint.x * pxPerInch}
+              y={midpoint.y * pxPerInch}
+              radius={MIDPOINT_RADIUS}
+              fill="rgba(255, 255, 255, 0.9)"
+              stroke="#3a7e5a"
+              strokeWidth={1.5}
+              onMouseDown={(event) => {
+                event.cancelBubble = true;
+                handleInsertAfter(idx, midpoint);
+              }}
+              onTouchStart={(event) => {
+                event.cancelBubble = true;
+                handleInsertAfter(idx, midpoint);
+              }}
+            />
+            {edgeLength >= 12 && (
+              <Text
+                x={midpoint.x * pxPerInch + (nx / nLen) * 16 - 18}
+                y={midpoint.y * pxPerInch + (ny / nLen) * 16 - 6}
+                text={formatInchesAsFeetInches(edgeLength)}
+                fontSize={11}
+                fontStyle="600"
+                fill="#3a7e5a"
+                shadowColor="#fff"
+                shadowBlur={4}
+                shadowOpacity={0.9}
+                listening={false}
+              />
+            )}
+          </Group>
         );
       })}
       {points.map((point, idx) => (

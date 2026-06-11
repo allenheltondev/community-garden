@@ -3048,6 +3048,32 @@ body {
   padding-top: 0.85rem;
 }
 
+.grn-designer-inspector__footer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.grn-designer-inspector__duplicate {
+  border: 1px solid rgba(91, 140, 74, 0.45);
+  color: var(--og-color-soil);
+  background: transparent;
+  border-radius: var(--og-radius-sm);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.grn-designer-inspector__duplicate:hover:not(:disabled),
+.grn-designer-inspector__duplicate:focus-visible {
+  background: rgba(91, 140, 74, 0.1);
+  outline: none;
+}
+
+.grn-designer-inspector__duplicate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Pin the footer to the bottom of the sheet so Delete is always within
    thumb reach without scrolling. */
 .grn-designer-inspector--sheet .grn-designer-inspector__footer {

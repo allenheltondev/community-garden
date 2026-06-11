@@ -9,6 +9,7 @@ interface AnnotationInspectorProps {
   isSaving: boolean;
   isMobile: boolean;
   onChange: (patch: Partial<GardenAnnotation>) => void;
+  onDuplicate: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -19,6 +20,7 @@ export function AnnotationInspector({
   isSaving,
   isMobile,
   onChange,
+  onDuplicate,
   onDelete,
   onClose,
 }: AnnotationInspectorProps) {
@@ -206,15 +208,26 @@ export function AnnotationInspector({
         >
           {isSaving ? 'Saving…' : 'Saved'}
         </span>
-        <button
-          type="button"
-          className="grn-designer-inspector__delete"
-          onClick={onDelete}
-          disabled={!isEditable}
-          title="Delete annotation (Del or Backspace)"
-        >
-          Delete
-        </button>
+        <div className="grn-designer-inspector__footer-actions">
+          <button
+            type="button"
+            className="grn-designer-inspector__duplicate"
+            onClick={onDuplicate}
+            disabled={!isEditable}
+            title="Duplicate annotation (Ctrl+D)"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            className="grn-designer-inspector__delete"
+            onClick={onDelete}
+            disabled={!isEditable}
+            title="Delete annotation (Del or Backspace)"
+          >
+            Delete
+          </button>
+        </div>
       </footer>
     </InspectorShell>
   );

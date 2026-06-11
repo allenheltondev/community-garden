@@ -3,7 +3,11 @@ import type { BedShape } from '../../types/listing';
 import { ANNOTATION_PRESETS } from './annotationPresets';
 import { BED_SHAPES } from './bedDefaults';
 
-export type DesignerMode = 'idle' | 'drawing-polygon' | 'editing-vertices';
+export type DesignerMode =
+  | 'idle'
+  | 'drawing-polygon'
+  | 'editing-vertices'
+  | 'measuring';
 export type GridSnap = 'off' | '6' | '12';
 
 interface ToolbarProps {
@@ -16,6 +20,11 @@ interface ToolbarProps {
   gridSnap: GridSnap;
   onGridSnapChange: (snap: GridSnap) => void;
   onFitToScreen: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onToggleMeasure: () => void;
 }
 
 /**
@@ -41,8 +50,14 @@ export function Toolbar({
   gridSnap,
   onGridSnapChange,
   onFitToScreen,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onToggleMeasure,
 }: ToolbarProps) {
   const drawing = mode === 'drawing-polygon';
+  const measuring = mode === 'measuring';
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
@@ -125,6 +140,55 @@ export function Toolbar({
     </button>
   ));
 
+  const undoRedoButtons = (
+    <>
+      <button
+        type="button"
+        className="grn-designer-toolbar__btn"
+        onClick={onUndo}
+        disabled={!canUndo}
+        title="Undo (Ctrl+Z)"
+        aria-label="Undo"
+      >
+        <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">↶</span>
+        <span className="grn-designer-toolbar__btn-label">Undo</span>
+      </button>
+      <button
+        type="button"
+        className="grn-designer-toolbar__btn"
+        onClick={onRedo}
+        disabled={!canRedo}
+        title="Redo (Ctrl+Shift+Z)"
+        aria-label="Redo"
+      >
+        <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">↷</span>
+        <span className="grn-designer-toolbar__btn-label">Redo</span>
+      </button>
+    </>
+  );
+
+  const measureButton = (
+    <button
+      type="button"
+      className={`grn-designer-toolbar__btn ${measuring ? 'is-active' : ''}`}
+      onClick={() => {
+        onToggleMeasure();
+        setMoreOpen(false);
+      }}
+      disabled={drawing}
+      title={
+        measuring
+          ? 'Click two points to measure. Esc to exit.'
+          : 'Measure distances on the canvas'
+      }
+      aria-label={measuring ? 'Stop measuring' : 'Measure distances'}
+      aria-pressed={measuring}
+    >
+      <span className="grn-designer-toolbar__btn-emoji" aria-hidden="true">📏</span>
+      <span className="grn-designer-toolbar__btn-label">Measure</span>
+    </button>
+  );
+
   const snapField = (
     <label className="grn-designer-toolbar__field">
       <span>Snap</span>
@@ -175,8 +239,13 @@ export function Toolbar({
               <div className="grn-designer-toolbar__sheet-grid">{annotationButtons}</div>
             </div>
             <div className="grn-designer-toolbar__sheet-section">
+              <h3 className="grn-designer-toolbar__sheet-heading">Edit</h3>
+              <div className="grn-designer-toolbar__sheet-row">{undoRedoButtons}</div>
+            </div>
+            <div className="grn-designer-toolbar__sheet-section">
               <h3 className="grn-designer-toolbar__sheet-heading">View</h3>
               <div className="grn-designer-toolbar__sheet-row">
+                {measureButton}
                 {snapField}
                 <button
                   type="button"
@@ -205,6 +274,12 @@ export function Toolbar({
       role="toolbar"
       aria-label="Garden designer tools"
     >
+      <div className="grn-designer-toolbar__group" role="group" aria-label="Edit history">
+        {undoRedoButtons}
+      </div>
+
+      <div className="grn-designer-toolbar__divider" aria-hidden="true" />
+
       <div className="grn-designer-toolbar__group" role="group" aria-label="Add a bed">
         {bedButtons}
         {drawButton}
@@ -223,6 +298,7 @@ export function Toolbar({
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />
 
       <div className="grn-designer-toolbar__group" role="group" aria-label="View">
+        {measureButton}
         {snapField}
         <button
           type="button"
