@@ -4088,3 +4088,82 @@ body {
     transform: none;
   }
 }
+
+/* ==========================================================================
+   Background scale calibration (designer)
+   ========================================================================== */
+
+/* "How long is this line?" dialog content. */
+.grn-calibrate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.grn-calibrate-form__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.grn-calibrate-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: rgba(79, 56, 37, 0.7);
+  flex: 1;
+  min-width: 0;
+}
+
+.grn-calibrate-form__field--unit {
+  flex: 0 0 auto;
+}
+
+.grn-calibrate-form__field input,
+.grn-calibrate-form__field select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(91, 58, 28, 0.18);
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-cream);
+  color: var(--og-color-soil);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.grn-calibrate-form__field input:focus-visible,
+.grn-calibrate-form__field select:focus-visible {
+  outline: 2px solid rgba(91, 140, 74, 0.4);
+  outline-offset: 1px;
+  border-color: var(--og-color-moss);
+}
+
+.grn-calibrate-form__rescale {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--og-color-ink);
+  cursor: pointer;
+}
+
+.grn-calibrate-form__rescale input[type='checkbox'] {
+  margin-top: 0.15rem;
+  accent-color: var(--og-color-moss);
+}
+
+/* Live result line: new canvas dimensions + clamping note. */
+.grn-calibrate-form__preview {
+  margin: 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--og-radius-sm);
+  background: rgba(91, 140, 74, 0.1);
+  color: var(--og-color-moss);
+  font-size: 0.85rem;
+}
+
+.grn-calibrate-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

@@ -7,7 +7,8 @@ export type DesignerMode =
   | 'idle'
   | 'drawing-polygon'
   | 'editing-vertices'
-  | 'measuring';
+  | 'measuring'
+  | 'calibrating-scale';
 export type GridSnap = 'off' | '6' | '12';
 
 interface ToolbarProps {
@@ -58,6 +59,9 @@ export function Toolbar({
 }: ToolbarProps) {
   const drawing = mode === 'drawing-polygon';
   const measuring = mode === 'measuring';
+  // While the user is calibrating the background scale, creating new
+  // elements would land at a soon-to-change scale — park the tools.
+  const calibrating = mode === 'calibrating-scale';
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
@@ -90,7 +94,7 @@ export function Toolbar({
         onAddBed(shape.value);
         setMoreOpen(false);
       }}
-      disabled={drawing}
+      disabled={drawing || calibrating}
       title={shape.hint}
       aria-label={shape.hint}
     >
@@ -106,6 +110,7 @@ export function Toolbar({
       type="button"
       className={`grn-designer-toolbar__btn ${drawing ? 'is-active' : ''}`}
       onClick={drawing ? onCancelDrawingPolygon : onStartDrawingPolygon}
+      disabled={calibrating}
       title={
         drawing
           ? 'Tap to add points, double-tap to close. Esc to cancel.'
@@ -129,7 +134,7 @@ export function Toolbar({
         onAddAnnotation(preset.id);
         setMoreOpen(false);
       }}
-      disabled={drawing}
+      disabled={drawing || calibrating}
       title={preset.description}
       aria-label={preset.description}
     >
