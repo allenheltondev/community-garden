@@ -313,6 +313,140 @@ describe('GardenMasterplan', () => {
     ).toBeInTheDocument();
   });
 
+  describe('season scrubber', () => {
+    const summerCrop = makeCrop({
+      id: 'tomato',
+      cropName: 'Tomato',
+      plantingDate: '2026-05-10',
+      expectedHarvestDate: '2026-09-20',
+    });
+
+    it('defaults to "All season" and shows every crop, dates or not', () => {
+      renderMasterplan({ crops: [summerCrop, makeCrop({ id: 'undated' })] });
+      expect(screen.getByRole('button', { name: 'All season' })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
+      expect(
+        screen.getByRole('button', { name: /herb spiral \(raised bed, 2 crops\)/i })
+      ).toBeInTheDocument();
+    });
+
+    it('hides crops outside their planting-to-harvest window in the scrubbed month', async () => {
+      renderMasterplan({ crops: [summerCrop] });
+      await userEvent.click(screen.getByRole('button', { name: 'March' }));
+      // Bed renders as bare soil: the label no longer mentions crops.
+      expect(
+        screen.getByRole('button', { name: /^herb spiral \(raised bed\)$/i })
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'July' }));
+      expect(
+        screen.getByRole('button', { name: /herb spiral \(raised bed, 1 crop\)/i })
+      ).toBeInTheDocument();
+    });
+
+    it('keeps undated crops standing all year', async () => {
+      renderMasterplan({ crops: [makeCrop({ id: 'undated' })] });
+      await userEvent.click(screen.getByRole('button', { name: 'February' }));
+      expect(
+        screen.getByRole('button', { name: /herb spiral \(raised bed, 1 crop\)/i })
+      ).toBeInTheDocument();
+    });
+
+    it('restores the full map when returning to "All season"', async () => {
+      renderMasterplan({ crops: [summerCrop] });
+      await userEvent.click(screen.getByRole('button', { name: 'March' }));
+      await userEvent.click(screen.getByRole('button', { name: 'All season' }));
+      expect(
+        screen.getByRole('button', { name: /herb spiral \(raised bed, 1 crop\)/i })
+      ).toBeInTheDocument();
+    });
+
+    it('glows crops in their harvest month and counts them in the detail panel', async () => {
+      const { container } = renderMasterplan({
+        crops: [summerCrop],
+        selected: { kind: 'bed', id: 'bed-1' },
+      });
+      expect(container.querySelector('.mp-crop--harvest')).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'September' }));
+      expect(container.querySelector('.mp-crop--harvest')).toBeInTheDocument();
+      expect(screen.getByTestId('masterplan-detail-panel')).toHaveTextContent(
+        '1 crop ready to harvest in September'
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'July' }));
+      expect(container.querySelector('.mp-crop--harvest')).not.toBeInTheDocument();
+      expect(screen.getByTestId('masterplan-detail-panel')).not.toHaveTextContent(
+        /ready to harvest/i
+      );
+    });
+  });
+
+  describe('sun shadows', () => {
+    it('defaults to noon shadows cast onto the ground layer', () => {
+      const { container } = renderMasterplan();
+      expect(
+        screen.getByRole('button', { name: /midday sun/i })
+      ).toHaveAttribute('aria-pressed', 'true');
+      expect(container.querySelector('.mp-sun-shadows')).toBeInTheDocument();
+    });
+
+    it('can switch sun times or turn shadows off', async () => {
+      const { container } = renderMasterplan();
+      await userEvent.click(screen.getByRole('button', { name: /morning sun/i }));
+      expect(container.querySelector('.mp-sun-shadows')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /hide sun shadows/i }));
+      expect(container.querySelector('.mp-sun-shadows')).not.toBeInTheDocument();
+    });
+
+    it('casts no shadows when nothing has height', () => {
+      const { container } = renderMasterplan({
+        beds: [makeBed({ bedType: 'in_ground' })],
+        annotations: [],
+        crops: [],
+      });
+      expect(container.querySelector('.mp-sun-shadows')).not.toBeInTheDocument();
+    });
+
+    it('warns when a full-sun bed sits mostly in noon shade', () => {
+      const bed = makeBed({
+        positionX: 40,
+        positionY: 60,
+        lengthInches: 48,
+        widthInches: 24,
+        sunExposure: 'full_sun',
+      });
+      const shed = makeAnnotation({
+        id: 'shed',
+        label: 'Tool shed',
+        icon: '🏚️',
+        shape: 'rect',
+        positionX: 0,
+        positionY: 88,
+        lengthInches: 160,
+        widthInches: 96,
+      });
+      renderMasterplan({
+        beds: [bed],
+        annotations: [shed],
+        crops: [],
+        selected: { kind: 'bed', id: 'bed-1' },
+      });
+      expect(screen.getByTestId('masterplan-detail-panel')).toHaveTextContent(
+        /labeled full sun, but sits mostly in shade at midday/i
+      );
+    });
+
+    it('shows no shade warning for an unshaded bed', () => {
+      renderMasterplan({
+        annotations: [],
+        selected: { kind: 'bed', id: 'bed-1' },
+      });
+      expect(screen.getByTestId('masterplan-detail-panel')).not.toHaveTextContent(
+        /mostly in shade/i
+      );
+    });
+  });
+
   it('labels annotation kinds for assistive tech', () => {
     renderMasterplan({
       annotations: [
