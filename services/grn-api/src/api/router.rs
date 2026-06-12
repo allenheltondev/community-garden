@@ -32,14 +32,23 @@ fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
     response
 }
 
+// lambda_http builds the request URI from the proxy event's `path` and
+// prefixes the stage name, so direct execute-api calls arrive as `/api/me`.
+// Requests through the shared custom domain (api.<domain>/grn/...) also
+// carry the `grn` base path because API Gateway does not strip base path
+// mappings from REST proxy events, yielding `/api/grn/me`. Strip both so
+// routes match regardless of how the request reached us.
 fn normalize_route_path(path: &str) -> &str {
-    match path {
-        "/api" => "/",
-        _ => path
-            .strip_prefix("/api")
-            .filter(|normalized| normalized.starts_with('/'))
-            .unwrap_or(path),
+    strip_path_prefix(strip_path_prefix(path, "/api"), "/grn")
+}
+
+fn strip_path_prefix<'a>(path: &'a str, prefix: &str) -> &'a str {
+    if path == prefix {
+        return "/";
     }
+    path.strip_prefix(prefix)
+        .filter(|stripped| stripped.starts_with('/'))
+        .unwrap_or(path)
 }
 
 pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Error> {
@@ -515,6 +524,28 @@ mod tests {
         assert_eq!(normalize_route_path("/crops"), "/crops");
         assert_eq!(normalize_route_path("/catalog/crops"), "/catalog/crops");
         assert_eq!(normalize_route_path("/api"), "/");
+    }
+
+    /// Regression guard: requests through the shared custom domain
+    /// (api.<domain>/grn/...) keep the `grn` base path in the event path, so
+    /// the router used to fall through to the catch-all 404 for every route.
+    #[test]
+    fn normalize_route_path_strips_custom_domain_base_path() {
+        assert_eq!(normalize_route_path("/api/grn/me"), "/me");
+        assert_eq!(
+            normalize_route_path("/api/grn/catalog/crops"),
+            "/catalog/crops"
+        );
+        assert_eq!(normalize_route_path("/grn/me"), "/me");
+        assert_eq!(normalize_route_path("/grn"), "/");
+        assert_eq!(normalize_route_path("/api/grn"), "/");
+    }
+
+    #[test]
+    fn normalize_route_path_leaves_grn_like_segments_unchanged() {
+        assert_eq!(normalize_route_path("/grnxyz/me"), "/grnxyz/me");
+        assert_eq!(normalize_route_path("/api/grnxyz"), "/grnxyz");
+        assert_eq!(normalize_route_path("/growers"), "/growers");
     }
 
     #[test]
