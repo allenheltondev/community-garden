@@ -1697,153 +1697,96 @@ body {
   background: rgba(79, 56, 37, 0.14);
 }
 
-/* ── The pyramid ─────────────────────────────────────────────────── */
+/* ── The pyramid (illustrated front elevation) ───────────────────── */
+/* Reuses the masterplan's .mp-scene/.mp-el hover-dim/lift/ring system so
+   the planner and the garden map share one interaction vocabulary. */
 
-.grn-pyramid {
+.grn-iso-pyramid {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.grn-pyramid__band {
-  --tier-accent: var(--og-color-moss);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 4.1rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid transparent;
-  border-radius: var(--og-radius-md);
-  background: linear-gradient(135deg, var(--tier-accent), color-mix(in srgb, var(--tier-accent) 78%, #000));
-  color: #fff7ec;
-  cursor: pointer;
-  text-align: left;
-  box-shadow: 0 4px 12px rgba(38, 23, 15, 0.12);
-  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
-}
-
-.grn-pyramid__band.is-empty {
-  background: rgba(79, 56, 37, 0.08);
-  color: rgba(79, 56, 37, 0.7);
-  box-shadow: none;
-  border-color: rgba(79, 56, 37, 0.16);
-  border-style: dashed;
-}
-
-.grn-pyramid__band:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.04);
-  box-shadow: 0 8px 18px rgba(38, 23, 15, 0.18);
-}
-
-.grn-pyramid__band.is-active {
-  outline: 3px solid var(--tier-accent);
-  outline-offset: 2px;
-}
-
-.grn-pyramid__band:focus-visible {
-  outline: 3px solid var(--og-color-soil);
-  outline-offset: 2px;
-}
-
-.grn-pyramid__level {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
-  font-family: var(--og-font-display);
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.grn-pyramid__band.is-empty .grn-pyramid__level {
-  background: rgba(79, 56, 37, 0.12);
-}
-
-.grn-pyramid__band-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.grn-pyramid__band-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.grn-pyramid__crops {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.grn-pyramid__crop-icon {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 3px rgba(38, 23, 15, 0.18);
 }
 
-.grn-pyramid__crop-icon.is-ghost {
-  background: rgba(79, 56, 37, 0.06);
-  box-shadow: none;
-  opacity: 0.5;
+.grn-iso-pyramid__svg {
+  display: block;
+  width: 100%;
+  max-width: 880px;
+  height: auto;
+  overflow: visible;
 }
 
-.grn-pyramid__crop-more {
-  display: inline-flex;
-  align-items: center;
-  height: 1.85rem;
-  padding: 0 0.55rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
-  font-size: 0.8rem;
-  font-weight: 700;
+.grn-iso-pyramid__tier:focus-visible {
+  outline: none;
 }
 
-.grn-pyramid__band-name {
+.grn-iso-pyramid__name {
   font-family: var(--og-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.grn-iso-pyramid__tagline {
+  font-family: var(--og-font-body);
+  font-size: 11px;
+  transition: opacity 160ms var(--easing-out);
+}
+
+/* Quieted while the showcased planting of the band below stands in
+   front of this band's lower edge. */
+.grn-iso-pyramid__tagline.is-quiet {
+  opacity: 0;
+}
+
+.grn-iso-pyramid__count {
+  font-family: var(--og-font-body);
+  font-size: 12px;
   font-weight: 700;
-  font-size: 1rem;
-  line-height: 1.2;
+  fill: #fffdf8;
 }
 
-.grn-pyramid__band-tagline {
-  font-size: 0.78rem;
-  opacity: 0.85;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.grn-iso-pyramid__count.is-empty {
+  fill: rgba(79, 56, 37, 0.6);
 }
 
-.grn-pyramid__band-count {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  min-width: 1.9rem;
-  height: 1.9rem;
-  padding: 0 0.5rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
-  font-weight: 700;
-  font-size: 0.9rem;
+.mp-crop.is-ghost {
+  pointer-events: none;
 }
 
-.grn-pyramid__band-count.is-empty {
-  background: rgba(79, 56, 37, 0.12);
-  color: rgba(79, 56, 37, 0.7);
+/* The showcased planting steps forward crop by crop. */
+.grn-iso-pyramid__showcase .mp-crop {
+  animation: grn-crop-pop 240ms var(--easing-out) backwards;
+  animation-delay: calc(var(--crop-index, 0) * 22ms);
+}
+
+@keyframes grn-crop-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Scaled down on phones, the band names need a larger viewBox size to
+     stay legible; taglines drop out (the tier detail card repeats them). */
+  .grn-iso-pyramid__name {
+    font-size: 24px;
+  }
+  .grn-iso-pyramid__tagline {
+    display: none;
+  }
+  .grn-iso-pyramid__count {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grn-iso-pyramid__showcase .mp-crop {
+    animation: none;
+  }
 }
 
 /* ── Tier detail panel ───────────────────────────────────────────── */
