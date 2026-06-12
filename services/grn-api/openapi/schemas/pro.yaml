@@ -45,6 +45,44 @@ WeeklyPlanRecommendation:
       items:
         type: string
 
+GardenReviewResponse:
+  type: object
+  required: [modelId, modelVersion, structuredJson, generatedAt, insights]
+  properties:
+    modelId:
+      type: string
+    modelVersion:
+      type: string
+    structuredJson:
+      type: boolean
+    generatedAt:
+      type: string
+      format: date-time
+    insights:
+      type: array
+      items:
+        $ref: '#/GardenReviewInsight'
+
+GardenReviewInsight:
+  type: object
+  required: [severity, category, title, detail]
+  properties:
+    severity:
+      type: string
+      enum: [warning, tip, info]
+    category:
+      type: string
+    title:
+      type: string
+    detail:
+      type: string
+    bedId:
+      type: string
+      format: uuid
+    bedName:
+      type: string
+
+
 CreateAgentTaskRequest:
   type: object
   required: [name, scheduleCron, instruction]

@@ -27,6 +27,26 @@
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
 
+/ai/copilot/garden-review:
+  post:
+    tags: [AI, Pro]
+    summary: Generate an AI garden review for the caller's garden
+    operationId: generateGardenReview
+    responses:
+      '200':
+        description: Structured garden review insights
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/pro.yaml#/GardenReviewResponse'
+      '403':
+        $ref: '../schemas/_responses.yaml#/FeatureLockedResponse'
+      '429':
+        description: AI guardrail rate limit
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
 # ── Agent Tasks (Premium) ────────────────────────────────
 /agent-tasks:
   get:

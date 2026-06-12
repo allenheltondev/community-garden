@@ -1,0 +1,64 @@
+$kind: http-request
+name: Generate Garden Review
+description: |-
+  Generate a structured AI garden review for the caller's beds and crops:
+  companion-planting conflicts, overplanted beds, idle beds, and missing
+  growing details.
+
+  Pro feature - requires active subscription.
+method: POST
+url: '{{baseUrl}}/ai/copilot/garden-review'
+order: 1500
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: '{}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const expectFeatureLocked = pm.variables.get("expectFeatureLocked") === "true";
+
+      if (expectFeatureLocked) {
+          pm.test("Status code is 403 when feature is locked", function () {
+              pm.response.to.have.status(403);
+          });
+
+          pm.test("Feature lock response matches entitlement error contract", function () {
+              const response = pm.response.json();
+              pm.expect(response).to.have.property("error", "feature_locked");
+              pm.expect(response).to.have.property("entitlementKey", "ai.copilot.garden_review");
+              pm.expect(response).to.have.property("requiredTier", "pro");
+              pm.expect(response).to.have.property("upgradeHintKey", "upgrade.pro");
+          });
+      } else {
+          pm.test("Status code is 200", function () {
+              pm.response.to.have.status(200);
+          });
+
+          pm.test("Response matches garden review contract", function () {
+              const response = pm.response.json();
+              pm.expect(response).to.have.property("modelId");
+              pm.expect(response).to.have.property("modelVersion");
+              pm.expect(response.modelVersion).to.be.a("string").and.not.empty;
+              pm.expect(response).to.have.property("structuredJson", true);
+              pm.expect(response).to.have.property("generatedAt");
+              pm.expect(response).to.have.property("insights");
+              pm.expect(Array.isArray(response.insights)).to.be.true;
+          });
+
+          pm.test("Every insight carries the structured fields", function () {
+              const response = pm.response.json();
+              response.insights.forEach((insight) => {
+                  pm.expect(insight).to.have.property("severity");
+                  pm.expect(["warning", "tip", "info"]).to.include(insight.severity);
+                  pm.expect(insight).to.have.property("category");
+                  pm.expect(insight).to.have.property("title");
+                  pm.expect(insight).to.have.property("detail");
+              });
+          });
+      }

@@ -1,6 +1,6 @@
 use crate::handlers::{
     agent_task, ai_copilot, analytics, annotation, bed, billing, catalog, claim, claim_read, crop,
-    feed, garden_canvas, listing, listing_discovery, reminder, request, user,
+    feed, garden_canvas, garden_review, listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -82,6 +82,18 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 
         ("POST", "/ai/copilot/weekly-plan") => {
             handle(ai_copilot::generate_weekly_plan(event, &correlation_id).await)?
+        }
+
+        ("POST", "/ai/copilot/garden-review") => {
+            // Boxed: the review future is large and the dispatch frame is
+            // already near clippy's stack-size budget.
+            handle(
+                Box::pin(garden_review::generate_garden_review(
+                    event,
+                    &correlation_id,
+                ))
+                .await,
+            )?
         }
 
         ("POST", "/analytics/pro/events") => {
