@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { PlantLoader } from '../components/branding/PlantLoader';
 import { AnnotationInspector } from '../components/GardenDesigner/AnnotationInspector';
 import { BedInspector } from '../components/GardenDesigner/BedInspector';
+import { CalibrateScaleModal } from '../components/GardenDesigner/CalibrateScaleModal';
 import {
   DesignerCanvas,
   type DesignerCanvasHandle,
@@ -29,6 +30,11 @@ export function GardenDesignerPage() {
   const canvasRef = useRef<DesignerCanvasHandle | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [view, setView] = useState<GardenView>('masterplan');
+  // Length of the two-click calibration line, in canvas inches. Non-null
+  // while the "how long is this?" dialog is open.
+  const [calibrationDrawnLength, setCalibrationDrawnLength] = useState<number | null>(
+    null
+  );
 
   if (designer.isLoading) {
     return (
@@ -59,10 +65,32 @@ export function GardenDesignerPage() {
 
   function switchView(next: GardenView) {
     if (next === 'masterplan') {
-      // Drawing only exists in the editor; never leave it armed.
+      // Drawing/calibration only exist in the editor; never leave them armed.
       designer.setMode('idle');
+      setCalibrationDrawnLength(null);
     }
     setView(next);
+  }
+
+  const isCalibrating = designer.mode === 'calibrating-scale';
+
+  function startCalibration() {
+    designer.setSelected(null);
+    setCalibrationDrawnLength(null);
+    designer.setMode('calibrating-scale');
+  }
+
+  function cancelCalibration() {
+    setCalibrationDrawnLength(null);
+    designer.setMode('idle');
+  }
+
+  function handleCalibrationApply(realLengthInches: number, rescaleElements: boolean) {
+    if (calibrationDrawnLength !== null) {
+      designer.applyCalibration(calibrationDrawnLength, realLengthInches, rescaleElements);
+    }
+    setCalibrationDrawnLength(null);
+    designer.setMode('idle');
   }
 
   async function handlePickBackgroundFile(file: File) {
@@ -125,6 +153,7 @@ export function GardenDesignerPage() {
           onPatchBed={designer.patchBed}
           onPatchAnnotation={designer.patchAnnotation}
           onOpenLayoutEditor={() => switchView('layout')}
+          onApplyTemplate={designer.applyTemplate}
         />
       ) : (
         <>
@@ -140,7 +169,16 @@ export function GardenDesignerPage() {
             onPickBackgroundFile={handlePickBackgroundFile}
             onClearBackground={() => {
               setUploadError(null);
+              if (isCalibrating) cancelCalibration();
               void designer.clearBackgroundImage();
+            }}
+            isCalibrating={isCalibrating}
+            onToggleCalibration={() => {
+              if (isCalibrating) {
+                cancelCalibration();
+              } else {
+                startCalibration();
+              }
             }}
           />
 
@@ -195,7 +233,19 @@ export function GardenDesignerPage() {
               }}
               onCancelPolygon={() => designer.setMode('idle')}
               onUpdateBedPoints={designer.updateBedPoints}
+              onCalibrationCaptured={setCalibrationDrawnLength}
+              onCancelCalibration={cancelCalibration}
             />
+
+            {isCalibrating && calibrationDrawnLength !== null && (
+              <CalibrateScaleModal
+                canvas={designer.canvas}
+                drawnLengthInches={calibrationDrawnLength}
+                elementCount={designer.beds.length + designer.annotations.length}
+                onApply={handleCalibrationApply}
+                onCancel={cancelCalibration}
+              />
+            )}
 
             {designer.selectedBed && (
               <BedInspector

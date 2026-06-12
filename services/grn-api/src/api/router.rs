@@ -1,6 +1,7 @@
 use crate::handlers::{
     agent_task, ai_copilot, analytics, annotation, bed, billing, catalog, claim, claim_read, crop,
-    feed, garden_canvas, listing, listing_discovery, reminder, request, user,
+    feed, garden_canvas, garden_review, garden_share, listing, listing_discovery, reminder,
+    request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -82,6 +83,18 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
 
         ("POST", "/ai/copilot/weekly-plan") => {
             handle(ai_copilot::generate_weekly_plan(event, &correlation_id).await)?
+        }
+
+        ("POST", "/ai/copilot/garden-review") => {
+            // Boxed: the review future is large and the dispatch frame is
+            // already near clippy's stack-size budget.
+            handle(
+                Box::pin(garden_review::generate_garden_review(
+                    event,
+                    &correlation_id,
+                ))
+                .await,
+            )?
         }
 
         ("POST", "/analytics/pro/events") => {
@@ -252,6 +265,21 @@ async fn route_garden_designer_request(
     if request_path == "/garden/background-upload-url" {
         return Some(match event.method().as_str() {
             "POST" => garden_canvas::create_background_upload_url(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if request_path == "/garden/share" {
+        return Some(match event.method().as_str() {
+            "GET" => garden_share::get_my_share_link(event, correlation_id).await,
+            "POST" => garden_share::create_my_share_link(event, correlation_id).await,
+            "DELETE" => garden_share::revoke_my_share_link(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    // Public, token-addressed view (allow-listed in the authorizer).
+    if let Some(token) = request_path.strip_prefix("/shared-gardens/") {
+        return Some(match event.method().as_str() {
+            "GET" => garden_share::get_shared_garden(token, correlation_id).await,
             _ => method_not_allowed(),
         });
     }

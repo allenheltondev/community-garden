@@ -10,6 +10,8 @@ pub mod claim_read;
 pub mod crop;
 pub mod feed;
 pub mod garden_canvas;
+pub mod garden_review;
+pub mod garden_share;
 pub mod listing;
 pub mod listing_discovery;
 pub mod reminder;

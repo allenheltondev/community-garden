@@ -867,6 +867,33 @@ export interface BackgroundUploadIntent {
   expiresInSeconds: number;
 }
 
+// --- AI garden review -------------------------------------------------------
+
+export interface GardenReviewInsight {
+  severity: 'warning' | 'tip' | 'info';
+  category: string;
+  title: string;
+  detail: string;
+  bedId?: string;
+  bedName?: string;
+}
+
+export interface GardenReviewResponse {
+  modelId: string;
+  modelVersion: string;
+  structuredJson: boolean;
+  generatedAt: string;
+  insights: GardenReviewInsight[];
+}
+
+/** Pro feature: throws ApiError with status 403 (feature_locked) on free tier. */
+export async function generateGardenReview(): Promise<GardenReviewResponse> {
+  return apiFetch<GardenReviewResponse>('/ai/copilot/garden-review', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function listMyBeds(): Promise<GardenBed[]> {
   const response = await apiFetch<RawGardenBed[]>('/beds');
   return response.map(mapGardenBed);
@@ -1211,6 +1238,84 @@ export async function updateRequest(
   });
 
   return mapRequestWriteResponse(response);
+}
+
+// --- Garden sharing ---------------------------------------------------------
+// The owner manages one public link; anyone with the token reads a
+// privacy-trimmed snapshot without authentication.
+
+export interface GardenShareLink {
+  token: string;
+  createdAt: string;
+}
+
+export interface SharedGardenBed {
+  id: string;
+  name: string;
+  bedType: BedType;
+  shape: BedShape;
+  sunExposure: SunExposure | null;
+  soilType: string | null;
+  lengthInches: number | null;
+  widthInches: number | null;
+  positionX: number | null;
+  positionY: number | null;
+  rotationDeg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
+  sortOrder: number;
+}
+
+export interface SharedGardenAnnotation {
+  id: string;
+  label: string;
+  icon: string | null;
+  shape: AnnotationShape;
+  positionX: number | null;
+  positionY: number | null;
+  lengthInches: number | null;
+  widthInches: number | null;
+  rotationDeg: number;
+  points: BedPolygonPoint[] | null;
+  color: string | null;
+  sortOrder: number;
+}
+
+export interface SharedGardenSnapshot {
+  canvas: {
+    widthInches: number;
+    heightInches: number;
+    northOffsetDeg: number;
+  };
+  beds: SharedGardenBed[];
+  annotations: SharedGardenAnnotation[];
+  crops: Array<{ bedId: string; cropName: string; plantCount: number | null }>;
+}
+
+export async function getMyGardenShare(): Promise<GardenShareLink> {
+  return apiFetch<GardenShareLink>('/garden/share');
+}
+
+export async function createMyGardenShare(): Promise<GardenShareLink> {
+  return apiFetch<GardenShareLink>('/garden/share', { method: 'POST' });
+}
+
+export async function revokeMyGardenShare(): Promise<void> {
+  await apiFetch<void>('/garden/share', { method: 'DELETE' });
+}
+
+/**
+ * Public fetch for the shared-garden page: no Amplify session, no auth
+ * header — visitors are anonymous by design.
+ */
+export async function fetchSharedGarden(token: string): Promise<SharedGardenSnapshot> {
+  const response = await fetch(`${getApiEndpoint()}/shared-gardens/${encodeURIComponent(token)}`, {
+    headers: { 'X-Correlation-Id': uuidv4() },
+  });
+  if (!response.ok) {
+    throw new ApiError('Shared garden not found', response.status);
+  }
+  return (await response.json()) as SharedGardenSnapshot;
 }
 
 export default apiFetch;

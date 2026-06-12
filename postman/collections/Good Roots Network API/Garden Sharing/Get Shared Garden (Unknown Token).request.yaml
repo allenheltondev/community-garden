@@ -1,0 +1,20 @@
+$kind: http-request
+name: Get Shared Garden (Unknown Token)
+description: |-
+  Unknown, malformed, and revoked tokens all return a constant 404 so the
+  endpoint cannot be used to enumerate users.
+method: GET
+url: '{{baseUrl}}/shared-gardens/00000000000000000000000000000000'
+order: 1620
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 404", function () {
+          pm.response.to.have.status(404);
+      });
+
+      pm.test("Error body does not reveal token state", function () {
+          const response = pm.response.json();
+          pm.expect(response).to.have.property("error", "Garden not found");
+      });

@@ -200,6 +200,14 @@ fn is_public_route(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> bool
         {
             true
         }
+        // Read-only shared-garden views are addressed by an unguessable
+        // token; the handler returns a privacy-trimmed payload and a
+        // constant 404 for unknown or revoked tokens.
+        Some("GET")
+            if path.starts_with("/api/shared-gardens/") || path.starts_with("/shared-gardens/") =>
+        {
+            true
+        }
         _ => false,
     }
 }

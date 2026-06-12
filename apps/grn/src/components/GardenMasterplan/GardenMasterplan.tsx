@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type {
   GardenAnnotation,
   GardenBed,
@@ -6,7 +6,11 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
+import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
+import { downloadScenePng, downloadSceneSvg } from './exportScene';
+import { SharePopover } from './SharePopover';
 import { sceneMetrics } from './footprints';
+import { GardenReviewPanel } from './GardenReviewPanel';
 import { IsoScene } from './IsoScene';
 import { MasterplanDetailPanel } from './MasterplanDetailPanel';
 import {
@@ -38,6 +42,7 @@ interface GardenMasterplanProps {
   onPatchBed: (bedId: string, patch: Partial<GardenBed>) => void;
   onPatchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor: () => void;
+  onApplyTemplate: (templateId: string) => Promise<void>;
 }
 
 /**
@@ -59,8 +64,23 @@ export function GardenMasterplan({
   onPatchBed,
   onPatchAnnotation,
   onOpenLayoutEditor,
+  onApplyTemplate,
 }: GardenMasterplanProps) {
   const metrics = useMemo(() => sceneMetrics(canvas), [canvas]);
+
+  // Which template is being applied right now (null = none). Applying
+  // disables every card so the guard in applyTemplate can't be raced by
+  // a second click.
+  const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
+
+  async function handleApplyTemplate(templateId: string) {
+    setApplyingTemplateId(templateId);
+    try {
+      await onApplyTemplate(templateId);
+    } finally {
+      setApplyingTemplateId(null);
+    }
+  }
 
   // Time dimension: null = "All season" (the unfiltered, default map).
   const [seasonMonth, setSeasonMonth] = useState<SeasonMonth>(null);
@@ -94,6 +114,7 @@ export function GardenMasterplan({
     );
     return hasNoonShadeConflict(selectedBed, fraction);
   }, [annotations, beds, canvas.northOffsetDeg, selectedBed]);
+
   // Destructured (rather than kept as one `viewport` object) so the
   // react-hooks/refs rule can see that only the callback ref goes to the
   // ref prop and everything else is plain render data.
@@ -108,6 +129,34 @@ export function GardenMasterplan({
   } = useMapViewport(metrics.width, metrics.height);
   const isEmpty = beds.length === 0 && annotations.length === 0;
 
+  // Plain DOM ref to find the scene <svg> for export; pan/zoom state
+  // never touches it.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [exporting, setExporting] = useState(false);
+  // Review panel and detail panel share the same screen edge; opening one
+  // closes the other so they never stack.
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  function handleSelect(next: SelectedItem) {
+    if (next) setReviewOpen(false);
+    onSelect(next);
+  }
+
+  async function handleExport(format: 'png' | 'svg') {
+    const svg = contentRef.current?.querySelector<SVGSVGElement>('svg.mp-scene');
+    if (!svg || exporting) return;
+    setExporting(true);
+    try {
+      if (format === 'svg') {
+        downloadSceneSvg(svg);
+      } else {
+        await downloadScenePng(svg);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="mp-explorer">
       <div
@@ -115,14 +164,14 @@ export function GardenMasterplan({
         className="mp-explorer__viewport"
         {...containerHandlers}
       >
-        <div className="mp-explorer__content" style={contentStyle}>
+        <div className="mp-explorer__content" style={contentStyle} ref={contentRef}>
           <IsoScene
             canvas={canvas}
             beds={beds}
             annotations={annotations}
             cropsByBedId={visibleCropsByBedId}
             selected={selected}
-            onSelect={onSelect}
+            onSelect={handleSelect}
             shouldIgnoreClick={shouldIgnoreClick}
             seasonMonth={seasonMonth}
             sunTime={sunTime}
@@ -158,6 +207,45 @@ export function GardenMasterplan({
             ⊡
           </button>
         </div>
+
+        {!isEmpty && (
+          <div className="mp-explorer__export" role="group" aria-label="Export the masterplan">
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                void handleExport('png');
+              }}
+              disabled={exporting}
+              title="Download the masterplan as a PNG image"
+            >
+              ⬇ PNG
+            </button>
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                void handleExport('svg');
+              }}
+              disabled={exporting}
+              title="Download the masterplan as an SVG file"
+            >
+              ⬇ SVG
+            </button>
+            <button
+              type="button"
+              className="mp-explorer__export-btn"
+              onClick={() => {
+                setReviewOpen(true);
+                onSelect(null);
+              }}
+              title="Get an AI review of your garden plan (Pro)"
+            >
+              ✨ Review
+            </button>
+            <SharePopover />
+          </div>
+        )}
 
         {!isEmpty && (
           <p className="mp-explorer__hint" aria-hidden="true">
@@ -218,13 +306,47 @@ export function GardenMasterplan({
           <div className="mp-explorer__empty">
             <h2>Your property, beautifully mapped</h2>
             <p>
-              Add beds, trees, paths, and structures in the layout editor and
-              they’ll appear here as an illustrated masterplan.
+              Add beds, trees, paths, and structures and they’ll appear here
+              as an illustrated masterplan.
             </p>
+            <h3 className="mp-templates__heading">Start from a template</h3>
+            <div className="mp-templates" role="list" aria-label="Starter garden templates">
+              {GARDEN_TEMPLATES.map((template) => (
+                <div key={template.id} className="mp-template-card" role="listitem">
+                  <h4 className="mp-template-card__name">{template.name}</h4>
+                  <p className="mp-template-card__desc">{template.description}</p>
+                  <p className="mp-template-card__stats">
+                    {template.stats.bedCount}{' '}
+                    {template.stats.bedCount === 1 ? 'bed' : 'beds'} ·{' '}
+                    {template.stats.annotationCount}{' '}
+                    {template.stats.annotationCount === 1 ? 'landmark' : 'landmarks'}
+                  </p>
+                  <button
+                    type="button"
+                    className="mp-template-card__use"
+                    disabled={applyingTemplateId !== null}
+                    onClick={() => {
+                      void handleApplyTemplate(template.id);
+                    }}
+                  >
+                    {applyingTemplateId === template.id
+                      ? 'Planting…'
+                      : 'Use this layout'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {applyingTemplateId !== null && (
+              <p className="mp-templates__progress" role="status">
+                Planting your starter garden…
+              </p>
+            )}
+            <p className="mp-templates__or">or start from scratch</p>
             <button
               type="button"
-              className="mp-panel__action"
+              className="mp-panel__action mp-templates__editor-btn"
               onClick={onOpenLayoutEditor}
+              disabled={applyingTemplateId !== null}
             >
               Open the layout editor
             </button>
@@ -232,7 +354,17 @@ export function GardenMasterplan({
         )}
       </div>
 
-      {(selectedBed || selectedAnnotation) && (
+      {reviewOpen && (
+        <GardenReviewPanel
+          onSelectBed={(bedId) => {
+            setReviewOpen(false);
+            onSelect({ kind: 'bed', id: bedId });
+          }}
+          onClose={() => setReviewOpen(false)}
+        />
+      )}
+
+      {!reviewOpen && (selectedBed || selectedAnnotation) && (
         <MasterplanDetailPanel
           key={selectedBed?.id ?? selectedAnnotation?.id}
           bed={selectedBed}
