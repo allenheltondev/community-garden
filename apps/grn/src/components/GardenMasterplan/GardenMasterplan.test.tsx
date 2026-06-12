@@ -18,6 +18,20 @@ beforeAll(() => {
     disconnect() {}
   }
   vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+  // jsdom lacks matchMedia; IsoCritters queries prefers-reduced-motion.
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }))
+  );
 });
 
 const canvas: GardenCanvas = {
@@ -530,6 +544,26 @@ describe('GardenMasterplan', () => {
       expect(screen.getByTestId('masterplan-detail-panel')).not.toHaveTextContent(
         /mostly in shade/i
       );
+    });
+  });
+
+  describe('ambient critters', () => {
+    it('renders an aria-hidden decorative critter layer for a lively garden', () => {
+      const { container } = renderMasterplan({
+        annotations: [
+          makeAnnotation({ id: 'coop', label: 'Chicken coop', icon: '🐔', shape: 'rect' }),
+        ],
+      });
+      const layer = container.querySelector('.mp-critters');
+      expect(layer).toBeInTheDocument();
+      expect(layer).toHaveAttribute('aria-hidden', 'true');
+      // Coop + planted bed → one flyer and the chicken, never more.
+      expect(layer!.querySelectorAll('.mp-critter')).toHaveLength(2);
+    });
+
+    it('renders no critters for an empty garden', () => {
+      const { container } = renderMasterplan({ beds: [], annotations: [], crops: [] });
+      expect(container.querySelector('.mp-critters')).not.toBeInTheDocument();
     });
   });
 

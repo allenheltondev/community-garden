@@ -4120,6 +4120,11 @@ body {
   filter: drop-shadow(0 0 4px rgba(224, 168, 88, 0.85));
 }
 
+/* Ambient critters are scenery: never a click target, never an outline. */
+.mp-critters {
+  pointer-events: none;
+}
+
 /* --- Motion preferences ---------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
