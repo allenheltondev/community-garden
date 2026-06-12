@@ -102,3 +102,35 @@ describe('designerHistory', () => {
     expect(h.entries[1].id).toBe('old');
   });
 });
+
+import { remapEntityId as remapBatch, pushEntry as pushBatch, EMPTY_HISTORY as EMPTY } from './designerHistory';
+
+describe('batch entries', () => {
+  it('remaps ids inside batch entries recursively', () => {
+    let h = pushBatch(EMPTY, {
+      kind: 'batch',
+      at: 0,
+      entries: [
+        {
+          kind: 'bed-update',
+          id: 'old',
+          before: { name: 'Bed', positionX: 0 },
+          after: { name: 'Bed', positionX: 12 },
+          at: 0,
+        },
+        {
+          kind: 'annotation-update',
+          id: 'old',
+          before: { label: 'Tree' },
+          after: { label: 'Oak' },
+          at: 0,
+        },
+      ],
+    });
+    h = remapBatch(h, 'bed', 'old', 'new');
+    const batch = h.entries[0];
+    if (batch.kind !== 'batch') throw new Error('expected batch');
+    expect(batch.entries[0].id).toBe('new');
+    expect(batch.entries[1].id).toBe('old');
+  });
+});

@@ -96,3 +96,25 @@ export function snapToNeighbors(args: {
 
   return { x: nextX, y: nextY, guides };
 }
+
+export interface MarqueeRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Axis-aligned overlap test for marquee selection. Rotated elements use
+// their unrotated bounding box — close enough for grab-everything-here.
+export function marqueeIntersects(rect: MarqueeRect, bounds: ElementBounds): boolean {
+  const left = Math.min(rect.x, rect.x + rect.width);
+  const right = Math.max(rect.x, rect.x + rect.width);
+  const top = Math.min(rect.y, rect.y + rect.height);
+  const bottom = Math.max(rect.y, rect.y + rect.height);
+  return (
+    bounds.left < right &&
+    bounds.right > left &&
+    bounds.top < bottom &&
+    bounds.bottom > top
+  );
+}

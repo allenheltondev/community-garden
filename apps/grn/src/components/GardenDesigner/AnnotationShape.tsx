@@ -25,8 +25,11 @@ interface AnnotationShapeProps {
   annotation: GardenAnnotation;
   pxPerInch: number;
   isSelected: boolean;
+  /** Member of the multi-selection (stroke highlight only; the
+   * Transformer stays on the primary selection). */
+  isGroupSelected?: boolean;
   isEditable: boolean;
-  onSelect: (annotationId: string) => void;
+  onSelect: (annotationId: string, shiftKey: boolean) => void;
   onMove: (annotationId: string, positionX: number, positionY: number) => void;
   /** Smart-alignment hook: given the in-flight drag position (inches),
    * returns the position nudged onto neighbor alignment lines. */
@@ -69,6 +72,7 @@ export function AnnotationShape({
   annotation,
   pxPerInch,
   isSelected,
+  isGroupSelected = false,
   isEditable,
   onSelect,
   onMove,
@@ -98,7 +102,7 @@ export function AnnotationShape({
 
   const fill = annotation.color ? applyAlpha(annotation.color, '22') : FALLBACK_FILL;
   const stroke = annotation.color ?? FALLBACK_STROKE;
-  const accent = isSelected ? '#3a7e5a' : stroke;
+  const accent = isSelected || isGroupSelected ? '#3a7e5a' : stroke;
   const strokeWidth = isSelected ? 3 : 2;
   const dashPattern = annotation.shape === 'line' ? undefined : [6, 4];
 
@@ -276,8 +280,8 @@ export function AnnotationShape({
         x={positionX}
         y={positionY}
         rotation={annotation.rotationDeg}
-        onMouseDown={() => onSelect(annotation.id)}
-        onTouchStart={() => onSelect(annotation.id)}
+        onMouseDown={(event) => onSelect(annotation.id, Boolean(event.evt.shiftKey))}
+        onTouchStart={() => onSelect(annotation.id, false)}
         onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         {...dragProps}
