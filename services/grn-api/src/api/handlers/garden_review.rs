@@ -404,7 +404,7 @@ fn overplanting_insight(bed: &ReviewBed, bed_crops: &[&ReviewCrop]) -> Option<Ga
         }
         counted_any = true;
         let plants = f64::from(crop.plant_count.unwrap_or(1).max(1));
-        used += plants * f64::from(spacing) * f64::from(spacing);
+        used = (plants * f64::from(spacing)).mul_add(f64::from(spacing), used);
     }
 
     if !counted_any || used <= usable {
