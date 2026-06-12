@@ -191,25 +191,32 @@ fn is_public_route(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> bool
     let method = event.http_method.as_ref().map(reqwest::Method::as_str);
     let path = event.path.as_deref().unwrap_or_default();
 
-    match method {
-        Some("GET") if path == "/api/catalog/crops" || path == "/catalog/crops" => true,
-        Some("GET")
-            if path.ends_with("/varieties")
-                && (path.starts_with("/api/catalog/crops/")
-                    || path.starts_with("/catalog/crops/")) =>
-        {
-            true
-        }
+    method == Some("GET") && is_public_get_path(path)
+}
+
+fn is_public_get_path(path: &str) -> bool {
+    // The authorizer sees the raw request path: direct execute-api calls may
+    // carry the `/api` stage, and requests through the shared custom domain
+    // (api.<domain>/grn/...) carry the `grn` base path, which API Gateway
+    // does not strip for REST proxy events. Remove both before matching the
+    // allow-list.
+    let path = strip_path_prefix(strip_path_prefix(path, "/api"), "/grn");
+
+    path == "/catalog/crops"
+        || (path.starts_with("/catalog/crops/") && path.ends_with("/varieties"))
         // Read-only shared-garden views are addressed by an unguessable
         // token; the handler returns a privacy-trimmed payload and a
         // constant 404 for unknown or revoked tokens.
-        Some("GET")
-            if path.starts_with("/api/shared-gardens/") || path.starts_with("/shared-gardens/") =>
-        {
-            true
-        }
-        _ => false,
+        || path.starts_with("/shared-gardens/")
+}
+
+fn strip_path_prefix<'a>(path: &'a str, prefix: &str) -> &'a str {
+    if path == prefix {
+        return "/";
     }
+    path.strip_prefix(prefix)
+        .filter(|stripped| stripped.starts_with('/'))
+        .unwrap_or(path)
 }
 
 async fn get_user_attributes(
@@ -559,5 +566,35 @@ mod tests {
     fn normalize_user_type_rejects_unsupported_values() {
         assert_eq!(normalize_user_type(""), None);
         assert_eq!(normalize_user_type("free"), None);
+    }
+
+    /// Regression guard: requests through the shared custom domain
+    /// (api.<domain>/grn/...) keep the `grn` base path in the authorizer
+    /// event path, so public routes used to fall through to a Deny.
+    #[test]
+    fn public_get_paths_match_through_stage_and_base_path_prefixes() {
+        for path in [
+            "/catalog/crops",
+            "/api/catalog/crops",
+            "/grn/catalog/crops",
+            "/api/grn/catalog/crops",
+        ] {
+            assert!(is_public_get_path(path), "{path} should be public");
+        }
+
+        assert!(is_public_get_path("/api/grn/catalog/crops/123/varieties"));
+        assert!(is_public_get_path("/catalog/crops/123/varieties"));
+        assert!(is_public_get_path("/grn/shared-gardens/some-token"));
+        assert!(is_public_get_path("/api/shared-gardens/some-token"));
+    }
+
+    #[test]
+    fn non_public_paths_stay_guarded() {
+        assert!(!is_public_get_path("/me"));
+        assert!(!is_public_get_path("/api/grn/me"));
+        assert!(!is_public_get_path("/grn/beds"));
+        assert!(!is_public_get_path("/grnxyz/catalog/crops"));
+        assert!(!is_public_get_path("/catalog/crops/123"));
+        assert!(!is_public_get_path("/shared-gardens"));
     }
 }
