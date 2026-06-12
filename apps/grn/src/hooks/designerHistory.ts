@@ -42,7 +42,9 @@ export type HistoryEntry =
       id: string;
       payload: UpsertGardenAnnotationRequest;
       at: number;
-    };
+    }
+  // Group operations (multi-select move/delete) undo as one step.
+  | { kind: 'batch'; entries: HistoryEntry[]; at: number };
 
 export interface DesignerHistory {
   entries: HistoryEntry[];
@@ -109,6 +111,23 @@ export function steppedForward(history: DesignerHistory): DesignerHistory {
 // Undoing a delete (or redoing a create) recreates the entity server-side
 // under a fresh id. Every other entry referring to the old id must follow,
 // or the rest of the stack would orphan.
+function remapEntry(
+  entry: HistoryEntry,
+  kind: HistoryEntityKind,
+  oldId: string,
+  newId: string
+): HistoryEntry {
+  if (entry.kind === 'batch') {
+    return {
+      ...entry,
+      entries: entry.entries.map((child) => remapEntry(child, kind, oldId, newId)),
+    };
+  }
+  return entry.kind.startsWith(kind) && entry.id === oldId
+    ? { ...entry, id: newId }
+    : entry;
+}
+
 export function remapEntityId(
   history: DesignerHistory,
   kind: HistoryEntityKind,
@@ -117,10 +136,6 @@ export function remapEntityId(
 ): DesignerHistory {
   return {
     ...history,
-    entries: history.entries.map((entry) =>
-      entry.kind.startsWith(kind) && entry.id === oldId
-        ? { ...entry, id: newId }
-        : entry
-    ),
+    entries: history.entries.map((entry) => remapEntry(entry, kind, oldId, newId)),
   };
 }

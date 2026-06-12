@@ -233,6 +233,10 @@ export function GardenDesignerPage() {
               }}
               onCancelPolygon={() => designer.setMode('idle')}
               onUpdateBedPoints={designer.updateBedPoints}
+              groupSelection={designer.groupSelection}
+              onToggleSelected={designer.toggleSelected}
+              onMarqueeSelect={designer.marqueeSelect}
+              onMoveGroup={designer.moveSelectedGroup}
               onCalibrationCaptured={setCalibrationDrawnLength}
               onCancelCalibration={cancelCalibration}
             />

@@ -38,13 +38,15 @@ import { BedShape } from './BedShape';
 import { Grid } from './Grid';
 import { VertexEditor } from './VertexEditor';
 import {
+  marqueeIntersects,
   snapToNeighbors,
   type AlignmentGuide,
   type ElementBounds,
+  type MarqueeRect,
 } from './alignment';
 import { formatInchesAsFeet } from './calibration';
 import { distanceInches, formatInchesAsFeetInches } from './measure';
-import type { SelectedItem } from '../../hooks/useGardenDesigner';
+import type { SelectedItem, SelectedRef } from '../../hooks/useGardenDesigner';
 import type { DesignerMode, GridSnap } from './Toolbar';
 
 interface DesignerCanvasProps {
@@ -87,6 +89,10 @@ interface DesignerCanvasProps {
   onUpdateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
   onCalibrationCaptured: (drawnLengthInches: number) => void;
   onCancelCalibration: () => void;
+  groupSelection: SelectedRef[];
+  onToggleSelected: (item: SelectedRef) => void;
+  onMarqueeSelect: (items: SelectedRef[]) => void;
+  onMoveGroup: (anchor: SelectedRef, positionX: number, positionY: number) => void;
 }
 
 export interface DesignerCanvasHandle {
@@ -141,6 +147,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       onUpdateBedPoints,
       onCalibrationCaptured,
       onCancelCalibration,
+      groupSelection,
+      onToggleSelected,
+      onMarqueeSelect,
+      onMoveGroup,
     },
     ref
   ) {
@@ -176,6 +186,9 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       x: number;
       y: number;
     } | null>(null);
+    // Shift+drag marquee selection, in canvas inches. Non-null start means
+    // a marquee is in progress (stage panning is suspended meanwhile).
+    const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
 
     // Refs used during touch gestures so handlers don't need to be
     // re-bound on every render. The pinch handler in particular runs
@@ -449,6 +462,10 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       // Calibration clicks are handled at the Stage level (they must land
       // even when the click hits a bed); don't double-handle them here.
       if (calibrating) return;
+      if (marqueeJustFinishedRef.current) {
+        marqueeJustFinishedRef.current = false;
+        return;
+      }
       if (!drawing) {
         onSelect(null);
         return;
@@ -495,6 +512,18 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
     }
 
     function handleStageMouseMove(event: KonvaEventObject<MouseEvent>) {
+      if (marquee) {
+        const stage = event.target.getStage();
+        const pointer = stage ? relativePointer(stage) : null;
+        if (pointer) {
+          setMarquee({
+            ...marquee,
+            width: pointer.x / PX_PER_INCH - marquee.x,
+            height: pointer.y / PX_PER_INCH - marquee.y,
+          });
+        }
+        return;
+      }
       if (!drawing && !measuring && !calibrating) return;
       const stage = event.target.getStage();
       if (!stage) return;
@@ -510,6 +539,58 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       const inchX = snapValue(Math.round(pointer.x / PX_PER_INCH), snap);
       const inchY = snapValue(Math.round(pointer.y / PX_PER_INCH), snap);
       setHoverPoint({ x: inchX, y: inchY });
+    }
+
+    // Click fires right after the marquee's mouseup; swallow that one so
+    // it doesn't immediately deselect what the marquee just picked.
+    const marqueeJustFinishedRef = useRef(false);
+
+    function handleWorldMouseDown(event: KonvaEventObject<MouseEvent>) {
+      if (drawing || measuring || calibrating) return;
+      if (!event.evt.shiftKey) return;
+      const stage = event.target.getStage();
+      if (!stage) return;
+      const pointer = relativePointer(stage);
+      if (!pointer) return;
+      stage.stopDrag();
+      setMarquee({
+        x: pointer.x / PX_PER_INCH,
+        y: pointer.y / PX_PER_INCH,
+        width: 0,
+        height: 0,
+      });
+    }
+
+    function handleStageMouseUp() {
+      if (!marquee) return;
+      const hits: SelectedRef[] = [];
+      for (const bed of beds) {
+        const x = bed.positionX ?? 12;
+        const y = bed.positionY ?? 12;
+        const bounds = {
+          left: x,
+          top: y,
+          right: x + (bed.lengthInches ?? 96),
+          bottom: y + (bed.widthInches ?? 48),
+        };
+        if (marqueeIntersects(marquee, bounds)) hits.push({ kind: 'bed', id: bed.id });
+      }
+      for (const annotation of annotations) {
+        const x = annotation.positionX ?? 12;
+        const y = annotation.positionY ?? 12;
+        const bounds = {
+          left: x,
+          top: y,
+          right: x + (annotation.lengthInches ?? 48),
+          bottom: y + (annotation.widthInches ?? 48),
+        };
+        if (marqueeIntersects(marquee, bounds)) {
+          hits.push({ kind: 'annotation', id: annotation.id });
+        }
+      }
+      setMarquee(null);
+      marqueeJustFinishedRef.current = true;
+      onMarqueeSelect(hits);
     }
 
     function handleMeasureClick(event: KonvaEventObject<MouseEvent | TouchEvent>) {
@@ -609,34 +690,38 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
       };
     }
 
+    function inGroup(kind: 'bed' | 'annotation', id: string): boolean {
+      return (
+        groupSelection.length > 1 &&
+        groupSelection.some((ref) => ref.kind === kind && ref.id === id)
+      );
+    }
+
     function handleBedMove(bedId: string, x: number, y: number) {
       const alignedToNeighbor = elementSnapActiveRef.current;
       elementSnapActiveRef.current = false;
       setAlignGuides([]);
-      if (alignedToNeighbor) {
-        // The drop position came from edge/center alignment; grid-snapping
-        // it afterwards would break the alignment the user just saw.
-        onMoveBed(bedId, Math.max(0, x), Math.max(0, y));
+      const nextX = alignedToNeighbor ? Math.max(0, x) : Math.max(0, snapValue(x, snap));
+      const nextY = alignedToNeighbor ? Math.max(0, y) : Math.max(0, snapValue(y, snap));
+      if (inGroup('bed', bedId)) {
+        // Dragging a multi-selection member moves the whole group.
+        onMoveGroup({ kind: 'bed', id: bedId }, nextX, nextY);
         return;
       }
-      const snappedX = snapValue(x, snap);
-      const snappedY = snapValue(y, snap);
-      onMoveBed(bedId, Math.max(0, snappedX), Math.max(0, snappedY));
+      onMoveBed(bedId, nextX, nextY);
     }
 
     function handleAnnotationMove(annotationId: string, x: number, y: number) {
       const alignedToNeighbor = elementSnapActiveRef.current;
       elementSnapActiveRef.current = false;
       setAlignGuides([]);
-      if (alignedToNeighbor) {
-        onMoveAnnotation(annotationId, Math.max(0, x), Math.max(0, y));
+      const nextX = alignedToNeighbor ? Math.max(0, x) : Math.max(0, snapValue(x, snap));
+      const nextY = alignedToNeighbor ? Math.max(0, y) : Math.max(0, snapValue(y, snap));
+      if (inGroup('annotation', annotationId)) {
+        onMoveGroup({ kind: 'annotation', id: annotationId }, nextX, nextY);
         return;
       }
-      onMoveAnnotation(
-        annotationId,
-        Math.max(0, snapValue(x, snap)),
-        Math.max(0, snapValue(y, snap))
-      );
+      onMoveAnnotation(annotationId, nextX, nextY);
     }
 
     const draftLinePoints = draftPoints.flatMap((p) => [
@@ -671,7 +756,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
             scaleY={scale}
             x={position.x}
             y={position.y}
-            draggable={!drawing && !calibrating}
+            draggable={!drawing && !calibrating && !marquee}
             onClick={(event) => {
               // While calibrating, every click anywhere on the stage
               // (beds included — they bubble) places a reference point.
@@ -696,6 +781,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
             onDblClick={handleStageDblClick}
             onDblTap={handleStageDblClick}
             onMouseMove={handleStageMouseMove}
+            onMouseUp={handleStageMouseUp}
             onWheel={handleStageWheel}
             onDragEnd={handleStageDragEnd}
           >
@@ -720,6 +806,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                 fill="rgba(0,0,0,0)"
                 onClick={handleEmptyClick}
                 onTap={handleEmptyClick}
+                onMouseDown={handleWorldMouseDown}
               />
             </Layer>
             <Layer>
@@ -732,9 +819,15 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     isSelected={
                       selected?.kind === 'annotation' && selected.id === item.annotation.id
                     }
+                    isGroupSelected={inGroup('annotation', item.annotation.id)}
                     isEditable={isEditable && !drawing && !calibrating}
-                    onSelect={(id) => {
-                      if (!calibrating) onSelect({ kind: 'annotation', id });
+                    onSelect={(id, shiftKey) => {
+                      if (calibrating) return;
+                      if (shiftKey) {
+                        onToggleSelected({ kind: 'annotation', id });
+                      } else {
+                        onSelect({ kind: 'annotation', id });
+                      }
                     }}
                     onMove={handleAnnotationMove}
                     onResize={onResizeAnnotation}
@@ -751,6 +844,7 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                     bed={item.bed}
                     pxPerInch={PX_PER_INCH}
                     isSelected={selected?.kind === 'bed' && selected.id === item.bed.id}
+                    isGroupSelected={inGroup('bed', item.bed.id)}
                     isEditable={
                       isEditable &&
                       !drawing &&
@@ -758,8 +852,13 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                       item.bed.id !== vertexEditBed?.id
                     }
                     crops={cropsByBedId.get(item.bed.id) ?? []}
-                    onSelect={(id) => {
-                      if (!calibrating) onSelect({ kind: 'bed', id });
+                    onSelect={(id, shiftKey) => {
+                      if (calibrating) return;
+                      if (shiftKey) {
+                        onToggleSelected({ kind: 'bed', id });
+                      } else {
+                        onSelect({ kind: 'bed', id });
+                      }
                     }}
                     onMove={handleBedMove}
                     onResize={onResizeBed}
@@ -809,6 +908,19 @@ export const DesignerCanvas = forwardRef<DesignerCanvasHandle, DesignerCanvasPro
                   y={hoverPoint.y * PX_PER_INCH}
                   radius={4}
                   fill="rgba(58, 126, 90, 0.4)"
+                  listening={false}
+                />
+              )}
+              {marquee && (
+                <Rect
+                  x={marquee.x * PX_PER_INCH}
+                  y={marquee.y * PX_PER_INCH}
+                  width={marquee.width * PX_PER_INCH}
+                  height={marquee.height * PX_PER_INCH}
+                  fill="rgba(58, 126, 90, 0.08)"
+                  stroke="#3a7e5a"
+                  strokeWidth={1}
+                  dash={[6, 4]}
                   listening={false}
                 />
               )}

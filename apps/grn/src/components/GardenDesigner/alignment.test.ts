@@ -79,3 +79,19 @@ describe('snapToNeighbors', () => {
     expect(result).toEqual({ x: 10, y: 10, guides: [] });
   });
 });
+
+import { marqueeIntersects } from './alignment';
+
+describe('marqueeIntersects', () => {
+  const bounds = { left: 100, top: 50, right: 196, bottom: 98 };
+
+  it('hits overlapping rects and respects negative drag direction', () => {
+    expect(marqueeIntersects({ x: 90, y: 40, width: 50, height: 20 }, bounds)).toBe(true);
+    expect(marqueeIntersects({ x: 140, y: 60, width: -50, height: -20 }, bounds)).toBe(true);
+  });
+
+  it('misses disjoint rects and edge-touching rects', () => {
+    expect(marqueeIntersects({ x: 0, y: 0, width: 50, height: 20 }, bounds)).toBe(false);
+    expect(marqueeIntersects({ x: 0, y: 0, width: 100, height: 50 }, bounds)).toBe(false);
+  });
+});

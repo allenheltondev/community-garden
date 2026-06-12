@@ -67,6 +67,8 @@ export type SelectedItem =
   | { kind: 'annotation'; id: string }
   | null;
 
+export type SelectedRef = NonNullable<SelectedItem>;
+
 export interface UseGardenDesignerResult {
   canvas: GardenCanvas | undefined;
   beds: GardenBed[];
@@ -77,6 +79,10 @@ export interface UseGardenDesignerResult {
   loadError: Error | null;
   selected: SelectedItem;
   setSelected: (next: SelectedItem) => void;
+  groupSelection: SelectedRef[];
+  toggleSelected: (item: SelectedRef) => void;
+  marqueeSelect: (items: SelectedRef[]) => void;
+  moveSelectedGroup: (anchor: SelectedRef, positionX: number, positionY: number) => void;
   selectedBed: GardenBed | undefined;
   selectedAnnotation: GardenAnnotation | undefined;
   mode: DesignerMode;
@@ -205,6 +211,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   // ends the moment focus moves off the bed being reshaped (deselect,
   // another element, a freshly created one). Re-clicking the same bed
   // keeps the handles up.
+  // Marquee / shift-click multi-selection. The primary `selected` keeps
+  // driving the inspector; the group drives group drag, nudge, and delete.
+  const [groupSelection, setGroupSelection] = useState<SelectedRef[]>([]);
+
   const selectItem = useCallback(
     (next: SelectedItem) => {
       setMode((current) => {
@@ -214,9 +224,37 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         return sameBed ? current : 'idle';
       });
       setSelected(next);
+      setGroupSelection(next ? [next] : []);
     },
     [selected]
   );
+
+  // Shift-click membership toggle. Removing the primary promotes the
+  // first remaining member.
+  const toggleSelected = useCallback(
+    (item: SelectedRef) => {
+      setMode((current) => (current === 'editing-vertices' ? 'idle' : current));
+      const exists = groupSelection.some(
+        (ref) => ref.kind === item.kind && ref.id === item.id
+      );
+      const next = exists
+        ? groupSelection.filter((ref) => !(ref.kind === item.kind && ref.id === item.id))
+        : [...groupSelection, item];
+      setGroupSelection(next);
+      if (exists && selected?.kind === item.kind && selected.id === item.id) {
+        setSelected(next[0] ?? null);
+      } else if (!exists && !selected) {
+        setSelected(item);
+      }
+    },
+    [groupSelection, selected]
+  );
+
+  const marqueeSelect = useCallback((items: SelectedRef[]) => {
+    setMode((current) => (current === 'editing-vertices' ? 'idle' : current));
+    setGroupSelection(items);
+    setSelected(items[0] ?? null);
+  }, []);
 
   const canvasQuery = useQuery({
     queryKey: CANVAS_QUERY_KEY,
@@ -848,49 +886,64 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     async (
       entry: HistoryEntry,
       direction: 'undo' | 'redo'
-    ): Promise<{ kind: HistoryEntityKind; oldId: string; newId: string } | null> => {
-      switch (entry.kind) {
+    ): Promise<Array<{ kind: HistoryEntityKind; oldId: string; newId: string }>> => {
+      type Remap = { kind: HistoryEntityKind; oldId: string; newId: string };
+      async function apply(current: HistoryEntry): Promise<Remap[]> {
+      switch (current.kind) {
+        case 'batch': {
+          // Undo replays children newest-first so dependent edits unwind
+          // in order; redo replays them as recorded.
+          const children =
+            direction === 'undo' ? [...current.entries].reverse() : current.entries;
+          const remaps: Remap[] = [];
+          for (const child of children) {
+            remaps.push(...(await apply(child)));
+          }
+          return remaps;
+        }
         case 'bed-update':
           await updateBedMutation.mutateAsync({
-            bedId: entry.id,
-            payload: direction === 'undo' ? entry.before : entry.after,
+            bedId: current.id,
+            payload: direction === 'undo' ? current.before : current.after,
           });
-          return null;
+          return [];
         case 'annotation-update':
           await updateAnnotationMutation.mutateAsync({
-            annotationId: entry.id,
-            payload: direction === 'undo' ? entry.before : entry.after,
+            annotationId: current.id,
+            payload: direction === 'undo' ? current.before : current.after,
           });
-          return null;
+          return [];
         case 'bed-create':
         case 'bed-delete': {
           const recreate =
-            (entry.kind === 'bed-create') === (direction === 'redo');
+            (current.kind === 'bed-create') === (direction === 'redo');
           if (!recreate) {
-            await deleteBedMutation.mutateAsync(entry.id);
-            if (selected?.kind === 'bed' && selected.id === entry.id) {
+            await deleteBedMutation.mutateAsync(current.id);
+            if (selected?.kind === 'bed' && selected.id === current.id) {
               setSelected(null);
             }
-            return null;
+            return [];
           }
-          const created = await createBedMutation.mutateAsync(entry.payload);
-          return { kind: 'bed', oldId: entry.id, newId: created.id };
+          const created = await createBedMutation.mutateAsync(current.payload);
+          return [{ kind: 'bed', oldId: current.id, newId: created.id }];
         }
         case 'annotation-create':
         case 'annotation-delete': {
           const recreate =
-            (entry.kind === 'annotation-create') === (direction === 'redo');
+            (current.kind === 'annotation-create') === (direction === 'redo');
           if (!recreate) {
-            await deleteAnnotationMutation.mutateAsync(entry.id);
-            if (selected?.kind === 'annotation' && selected.id === entry.id) {
+            await deleteAnnotationMutation.mutateAsync(current.id);
+            if (selected?.kind === 'annotation' && selected.id === current.id) {
               setSelected(null);
             }
-            return null;
+            return [];
           }
-          const created = await createAnnotationMutation.mutateAsync(entry.payload);
-          return { kind: 'annotation', oldId: entry.id, newId: created.id };
+          const created = await createAnnotationMutation.mutateAsync(current.payload);
+          return [{ kind: 'annotation', oldId: current.id, newId: created.id }];
         }
       }
+      }
+      return apply(entry);
     },
     [
       createAnnotationMutation,
@@ -911,8 +964,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       historyBusyRef.current = true;
       setHistory(direction === 'undo' ? steppedBack : steppedForward);
       try {
-        const remap = await applyEntry(entry, direction);
-        if (remap) {
+        const remaps = await applyEntry(entry, direction);
+        for (const remap of remaps) {
           setHistory((h) => remapEntityId(h, remap.kind, remap.oldId, remap.newId));
           setSelected((prev) =>
             prev && prev.id === remap.oldId ? { ...prev, id: remap.newId } : prev
@@ -985,11 +1038,130 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     selectedBed,
   ]);
 
+  // Dragging any member of a multi-selection moves the whole group by the
+  // same delta and records it as ONE undoable batch. The anchor lands
+  // exactly where it was dropped; everyone else shifts by the delta,
+  // clamped at the canvas origin.
+  const moveSelectedGroup = useCallback(
+    (anchor: SelectedRef, positionX: number, positionY: number) => {
+      if (!isEditable) return;
+      const anchorEntity =
+        anchor.kind === 'bed'
+          ? beds.find((b) => b.id === anchor.id)
+          : annotations.find((a) => a.id === anchor.id);
+      if (!anchorEntity) return;
+      const dx = positionX - (anchorEntity.positionX ?? 12);
+      const dy = positionY - (anchorEntity.positionY ?? 12);
+      if (dx === 0 && dy === 0) return;
+
+      const entries: HistoryEntry[] = [];
+      for (const ref of groupSelection) {
+        if (ref.kind === 'bed') {
+          const bed = beds.find((b) => b.id === ref.id);
+          if (!bed) continue;
+          const before = bedToUpsertPayload(bed);
+          const after = {
+            ...before,
+            positionX: Math.max(0, (bed.positionX ?? 12) + dx),
+            positionY: Math.max(0, (bed.positionY ?? 12) + dy),
+          };
+          entries.push({ kind: 'bed-update', id: bed.id, before, after, at: Date.now() });
+          updateBedMutation.mutate({ bedId: bed.id, payload: after });
+        } else {
+          const annotation = annotations.find((a) => a.id === ref.id);
+          if (!annotation) continue;
+          const before = annotationToUpsertPayload(annotation);
+          const after = {
+            ...before,
+            positionX: Math.max(0, (annotation.positionX ?? 12) + dx),
+            positionY: Math.max(0, (annotation.positionY ?? 12) + dy),
+          };
+          entries.push({
+            kind: 'annotation-update',
+            id: annotation.id,
+            before,
+            after,
+            at: Date.now(),
+          });
+          updateAnnotationMutation.mutate({ annotationId: annotation.id, payload: after });
+        }
+      }
+      if (entries.length > 0) {
+        record({ kind: 'batch', entries, at: Date.now() });
+      }
+    },
+    [
+      annotations,
+      beds,
+      groupSelection,
+      isEditable,
+      record,
+      updateAnnotationMutation,
+      updateBedMutation,
+    ]
+  );
+
+  // Multi-selection delete: snapshots first, then deletes, recorded as a
+  // single undoable batch.
+  const deleteSelectedGroup = useCallback(async () => {
+    if (!isEditable || groupSelection.length === 0) return;
+    const entries: HistoryEntry[] = [];
+    for (const ref of groupSelection) {
+      if (ref.kind === 'bed') {
+        const bed = beds.find((b) => b.id === ref.id);
+        if (!bed) continue;
+        await deleteBedMutation.mutateAsync(bed.id);
+        entries.push({
+          kind: 'bed-delete',
+          id: bed.id,
+          payload: bedToUpsertPayload(bed),
+          at: Date.now(),
+        });
+      } else {
+        const annotation = annotations.find((a) => a.id === ref.id);
+        if (!annotation) continue;
+        await deleteAnnotationMutation.mutateAsync(annotation.id);
+        entries.push({
+          kind: 'annotation-delete',
+          id: annotation.id,
+          payload: annotationToUpsertPayload(annotation),
+          at: Date.now(),
+        });
+      }
+    }
+    if (entries.length > 0) {
+      record({ kind: 'batch', entries, at: Date.now() });
+    }
+    setSelected(null);
+    setGroupSelection([]);
+  }, [
+    annotations,
+    beds,
+    deleteAnnotationMutation,
+    deleteBedMutation,
+    groupSelection,
+    isEditable,
+    record,
+  ]);
+
   // Arrow-key nudging for the selected element. Rapid presses coalesce
   // into a single undo step (see designerHistory).
   const nudgeSelected = useCallback(
     (dx: number, dy: number) => {
       if (!isEditable) return;
+      if (groupSelection.length > 1 && selected) {
+        const anchor =
+          selected.kind === 'bed'
+            ? beds.find((b) => b.id === selected.id)
+            : annotations.find((a) => a.id === selected.id);
+        if (!anchor) return;
+        moveSelectedGroup(
+          selected,
+          Math.max(0, (anchor.positionX ?? 12) + dx),
+          Math.max(0, (anchor.positionY ?? 12) + dy)
+        );
+        return;
+      }
       if (selected?.kind === 'bed' && selectedBed) {
         const payload = bedToUpsertPayload({
           ...selectedBed,
@@ -1007,9 +1179,13 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       }
     },
     [
+      annotations,
+      beds,
       commitAnnotationUpdate,
       commitBedUpdate,
+      groupSelection.length,
       isEditable,
+      moveSelectedGroup,
       selected,
       selectedAnnotation,
       selectedBed,
@@ -1150,6 +1326,17 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         // risk it nuking the whole bed.
         if (mode === 'editing-vertices') return;
         if (!isEditable || !selected) return;
+        if (groupSelection.length > 1) {
+          event.preventDefault();
+          if (
+            window.confirm(
+              `Delete ${groupSelection.length} selected elements? This can't be undone.`
+            )
+          ) {
+            void deleteSelectedGroup();
+          }
+          return;
+        }
         if (selected.kind === 'bed' && selectedBed) {
           event.preventDefault();
           const label = selectedBed.name.trim() || 'this bed';
@@ -1176,6 +1363,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isEditable,
     deleteBed,
     deleteAnnotation,
+    deleteSelectedGroup,
+    groupSelection.length,
     undo,
     redo,
     nudgeSelected,
@@ -1231,6 +1420,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       null,
     selected,
     setSelected: selectItem,
+    groupSelection,
+    toggleSelected,
+    marqueeSelect,
+    moveSelectedGroup,
     selectedBed,
     selectedAnnotation,
     mode,

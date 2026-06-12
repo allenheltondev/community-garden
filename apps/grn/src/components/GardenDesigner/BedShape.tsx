@@ -29,9 +29,12 @@ interface BedShapeProps {
   bed: GardenBed;
   pxPerInch: number;
   isSelected: boolean;
+  /** Member of the multi-selection (stroke highlight only; the
+   * Transformer stays on the primary selection). */
+  isGroupSelected?: boolean;
   isEditable: boolean;
   crops: GrowerCropItem[];
-  onSelect: (bedId: string) => void;
+  onSelect: (bedId: string, shiftKey: boolean) => void;
   onMove: (bedId: string, positionX: number, positionY: number) => void;
   /** Smart-alignment hook: given the in-flight drag position (inches),
    * returns the position nudged onto neighbor alignment lines. */
@@ -86,6 +89,7 @@ export function BedShape({
   bed,
   pxPerInch,
   isSelected,
+  isGroupSelected = false,
   isEditable,
   crops,
   onSelect,
@@ -122,7 +126,7 @@ export function BedShape({
   const fill = fillForBed(bed.bedType, bed.color);
   const stroke = strokeForBed(bed.bedType, bed.color);
   const strokeWidth = isSelected ? 4 : style.strokeWidth;
-  const accent = isSelected ? '#3a7e5a' : stroke;
+  const accent = isSelected || isGroupSelected ? '#3a7e5a' : stroke;
 
   // Wire up the Transformer to the group whenever this bed becomes the
   // selection. Detach it when not selected or not editable so we don't
@@ -300,8 +304,8 @@ export function BedShape({
       x={positionX}
       y={positionY}
       rotation={bed.rotationDeg}
-      onMouseDown={() => onSelect(bed.id)}
-      onTouchStart={() => onSelect(bed.id)}
+      onMouseDown={(event) => onSelect(bed.id, Boolean(event.evt.shiftKey))}
+      onTouchStart={() => onSelect(bed.id, false)}
       onTransform={handleTransform}
       onTransformEnd={handleTransformEnd}
       {...dragProps}
