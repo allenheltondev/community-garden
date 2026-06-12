@@ -212,7 +212,7 @@ pub async fn get_shared_garden(
 
     let canvas_row = client
         .query_opt(
-            "select width_inches, height_inches, north_offset_deg
+            "select width_inches, height_inches, north_offset_deg::int as north_offset_deg
              from garden_canvases where user_id = $1",
             &[&user_id],
         )
@@ -260,12 +260,12 @@ pub async fn get_shared_garden(
     // name only — no surplus, pricing, or contact data.
     let crop_rows = client
         .query(
-            "select bed_id, crop_name, plant_count
-             from grower_crop_library
-             where user_id = $1
-               and bed_id is not null
-               and deleted_at is null
-               and visibility in ('local', 'public')",
+            "select g.bed_id, g.crop_name, g.plant_count
+             from grower_crop_library g
+             join garden_beds b on b.id = g.bed_id and b.archived_at is null
+             where g.user_id = $1
+               and g.bed_id is not null
+               and g.visibility in ('local', 'public')",
             &[&user_id],
         )
         .await
