@@ -23,8 +23,10 @@ import {
   smoothClosedPath,
   type WorldPoint,
 } from './iso';
+import { chooseCritters } from './critters';
 import { IsoAnnotation } from './IsoAnnotation';
 import { IsoBed } from './IsoBed';
+import { IsoCritters } from './IsoCritters';
 import { KIND_LABELS, SCENE, annotationKind } from './palette';
 import type { SeasonMonth } from './season';
 import { collectShadowCasters, shadowPolygonsFor, type SunTime } from './shadows';
@@ -221,6 +223,21 @@ export const IsoScene = memo(function IsoScene({
     return list;
   }, [annotations, beds, cropsByBedId, onSelect, seasonMonth, selected, shouldIgnoreClick]);
 
+  // Ambient critters: deterministic per garden (seeded by the canvas id),
+  // purely decorative, free for every IsoScene consumer including the
+  // shared public garden page.
+  const critters = useMemo(
+    () =>
+      chooseCritters({
+        canvas: { widthInches: w, heightInches: h },
+        beds,
+        annotations,
+        cropsByBedId,
+        seed: canvas.id,
+      }),
+    [annotations, beds, canvas.id, cropsByBedId, h, w]
+  );
+
   // Compass + scale bar live in screen space at the plate corners.
   const plate = boundsOf(
     projectFootprint([
@@ -280,6 +297,7 @@ export const IsoScene = memo(function IsoScene({
         </g>
       )}
       <g className="mp-elements">{items.map((item) => item.node)}</g>
+      <IsoCritters critters={critters} />
       <g
         className="mp-compass"
         aria-hidden="true"
