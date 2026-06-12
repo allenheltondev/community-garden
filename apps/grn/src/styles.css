@@ -4272,3 +4272,111 @@ body {
   justify-content: flex-end;
   gap: 0.6rem;
 }
+
+/* ==========================================================================
+   Shared garden (public read-only page) + share popover
+   ========================================================================== */
+
+.grn-shared-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--og-color-paper, #fdfaf1);
+}
+
+.grn-shared-page__header {
+  padding: 1.1rem 1.4rem 0.4rem;
+}
+
+.grn-shared-page__title {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--og-color-soil);
+}
+
+.grn-shared-page__subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.grn-shared-page__map {
+  flex: 1;
+  min-height: 70vh;
+}
+
+.mp-share {
+  position: relative;
+}
+
+.mp-share__panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  width: 19rem;
+  background: #fff;
+  border: 1px solid rgba(91, 58, 28, 0.16);
+  border-radius: var(--og-radius-md, 12px);
+  box-shadow: 0 10px 30px rgba(58, 43, 26, 0.18);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+  z-index: 8;
+}
+
+.mp-share__explain {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgba(79, 56, 37, 0.8);
+}
+
+.mp-share__status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.mp-share__link-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.mp-share__url {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(91, 58, 28, 0.2);
+  border-radius: var(--og-radius-sm);
+  color: var(--og-color-soil);
+  background: rgba(253, 250, 241, 0.7);
+}
+
+.mp-share__copy {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-moss);
+  color: var(--og-color-paper);
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+
+.mp-share__revoke {
+  font: inherit;
+  font-size: 0.82rem;
+  border: 1px solid rgba(173, 32, 27, 0.4);
+  color: #8b1f1a;
+  background: transparent;
+  border-radius: var(--og-radius-sm);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.mp-share__revoke:disabled,
+.mp-share__copy:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

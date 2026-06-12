@@ -270,3 +270,74 @@
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '503':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+# ── Garden sharing ───────────────────────────────────────
+/garden/share:
+  get:
+    tags: [Garden, Idempotent]
+    summary: Get the caller's active garden share link
+    operationId: getMyGardenShareLink
+    responses:
+      '200':
+        description: Active share link
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenShareLink'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [Garden]
+    summary: Create (or return) the caller's garden share link
+    description: |-
+      Idempotent: an active link is returned unchanged; a revoked or
+      missing one gets a freshly minted token so a previously leaked URL
+      stays dead.
+    operationId: createMyGardenShareLink
+    responses:
+      '200':
+        description: Existing active share link
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenShareLink'
+      '201':
+        description: Newly created share link
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/GardenShareLink'
+  delete:
+    tags: [Garden]
+    summary: Revoke the caller's garden share link
+    operationId: revokeMyGardenShareLink
+    responses:
+      '204':
+        description: Link revoked (or no link existed)
+
+/shared-gardens/{token}:
+  get:
+    tags: [Garden, Public, Idempotent]
+    summary: Public read-only view of a shared garden
+    description: |-
+      Unauthenticated. Returns a privacy-trimmed snapshot of the garden:
+      canvas dimensions, bed and annotation geometry, and the names of
+      non-private crops. No user identity, free-text notes, or contact
+      data. Unknown and revoked tokens both return a constant 404.
+    operationId: getSharedGarden
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+    responses:
+      '200':
+        description: Shared garden snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/garden.yaml#/SharedGardenResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'

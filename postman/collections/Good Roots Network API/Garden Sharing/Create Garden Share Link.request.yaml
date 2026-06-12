@@ -1,0 +1,32 @@
+$kind: http-request
+name: Create Garden Share Link
+description: |-
+  Create (or idempotently return) the caller's public garden share link.
+  Captures the token for the public shared-garden requests that follow.
+method: POST
+url: '{{baseUrl}}/garden/share'
+order: 1600
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200 or 201", function () {
+          pm.expect([200, 201]).to.include(pm.response.code);
+      });
+
+      pm.test("Response carries a 32-char hex token and createdAt", function () {
+          const response = pm.response.json();
+          pm.expect(response).to.have.property("token");
+          pm.expect(response.token).to.match(/^[0-9a-f]{32}$/);
+          pm.expect(response).to.have.property("createdAt");
+      });
+
+      const response = pm.response.json();
+      if (response.token) {
+          pm.collectionVariables.set("gardenShareToken", response.token);
+      }

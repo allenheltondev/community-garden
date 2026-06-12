@@ -1,0 +1,40 @@
+$kind: http-request
+name: Get Shared Garden (Public)
+description: |-
+  Public, unauthenticated read of a shared garden by token. Asserts the
+  privacy contract: geometry and crop names only, no user identity or
+  free-text fields.
+method: GET
+url: '{{baseUrl}}/shared-gardens/{{gardenShareToken}}'
+order: 1610
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Snapshot has canvas, beds, annotations, crops", function () {
+          const response = pm.response.json();
+          pm.expect(response).to.have.property("canvas");
+          pm.expect(response.canvas).to.have.property("widthInches");
+          pm.expect(response.canvas).to.have.property("heightInches");
+          pm.expect(Array.isArray(response.beds)).to.be.true;
+          pm.expect(Array.isArray(response.annotations)).to.be.true;
+          pm.expect(Array.isArray(response.crops)).to.be.true;
+      });
+
+      pm.test("No user identity or private text leaks", function () {
+          const response = pm.response.json();
+          const raw = pm.response.text();
+          pm.expect(raw).to.not.include("userId");
+          response.beds.forEach((bed) => {
+              pm.expect(bed).to.not.have.property("description");
+              pm.expect(bed).to.not.have.property("locationNotes");
+          });
+          response.crops.forEach((crop) => {
+              pm.expect(crop).to.not.have.property("notes");
+              pm.expect(crop).to.not.have.property("surplusEnabled");
+          });
+      });
