@@ -1,4 +1,13 @@
-import { memo, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import {
+  memo,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import type {
   GardenAnnotation,
   GardenBed,
@@ -18,9 +27,12 @@ import {
   PX_PER_INCH,
   boundsOf,
   depthOf,
+  project,
   projectFootprint,
   scaleFootprint,
+  screenDeltaToWorld,
   smoothClosedPath,
+  type ScreenPoint,
   type WorldPoint,
 } from './iso';
 import { chooseCritters } from './critters';
@@ -53,37 +65,187 @@ function groundRing(w: number, h: number, margin: number): WorldPoint[] {
   return points;
 }
 
+// Past this much pointer travel (in scene units) a press becomes a drag
+// rather than a click — mirrors the viewport's own click/pan threshold so
+// the two feel consistent.
+const DRAG_THRESHOLD = 4;
+
+interface DragState {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  // Inverse of the scene <svg>'s screen CTM captured at grab time, so we
+  // can convert client pixels into scene units regardless of pan/zoom.
+  toScene: DOMMatrix | null;
+  moved: boolean;
+  worldX: number;
+  worldY: number;
+}
+
 interface IsoElementProps {
   label: string;
   isSelected: boolean;
   onSelect: () => void;
   shouldIgnoreClick: () => boolean;
   children: ReactNode;
+  // Editing (all optional; the read-only masterplan and shared view leave
+  // these unset). When draggable is true and onMove + basePosition are
+  // provided, pressing and dragging slides the element across the ground
+  // plane and commits the new world position on release.
+  draggable?: boolean;
+  basePosition?: WorldPoint;
+  snapInches?: number;
+  onMove?: (x: number, y: number) => void;
+}
+
+function clientToScene(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+  inverse: DOMMatrix
+): ScreenPoint {
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const mapped = point.matrixTransform(inverse);
+  return { x: mapped.x, y: mapped.y };
 }
 
 // Shared interaction shell: focusable, labelled, and class-driven so
 // hover/dim/selection styling stays in CSS where it can be GPU-animated.
-function IsoElement({ label, isSelected, onSelect, shouldIgnoreClick, children }: IsoElementProps) {
+// When editable, it also owns pointer-drag repositioning; a live screen
+// translate gives instant feedback and the committed position only lands
+// on release.
+function IsoElement({
+  label,
+  isSelected,
+  onSelect,
+  shouldIgnoreClick,
+  children,
+  draggable = false,
+  basePosition,
+  snapInches = 0,
+  onMove,
+}: IsoElementProps) {
+  const [dragTranslate, setDragTranslate] = useState<ScreenPoint | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const canDrag = draggable && !!onMove && !!basePosition;
+
   function handleClick(event: MouseEvent) {
     event.stopPropagation();
     if (shouldIgnoreClick()) return;
-    onSelect();
+    // For draggable elements selection already happened on pointerdown;
+    // re-selecting here is harmless but skipped to keep intent clear.
+    if (!canDrag) onSelect();
   }
+
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       onSelect();
     }
   }
+
+  function handlePointerDown(event: ReactPointerEvent<SVGGElement>) {
+    if (!canDrag || event.button > 0) return;
+    event.stopPropagation();
+    const svg = event.currentTarget.ownerSVGElement;
+    let ctm: DOMMatrix | null = null;
+    try {
+      ctm = svg?.getScreenCTM() ?? null;
+    } catch {
+      // Not all environments implement getScreenCTM (e.g. jsdom); fall
+      // back to raw client deltas, which are 1:1 with scene units at the
+      // default zoom.
+    }
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      toScene: ctm ? ctm.inverse() : null,
+      moved: false,
+      worldX: basePosition!.x,
+      worldY: basePosition!.y,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort; some environments reject it.
+    }
+    // Grab-to-select: dragging an unselected element selects it first.
+    onSelect();
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<SVGGElement>) {
+    const state = dragRef.current;
+    if (!state || event.pointerId !== state.pointerId) return;
+    event.stopPropagation();
+    const svg = event.currentTarget.ownerSVGElement;
+    let sceneDx: number;
+    let sceneDy: number;
+    if (state.toScene && svg) {
+      const from = clientToScene(svg, state.startClientX, state.startClientY, state.toScene);
+      const to = clientToScene(svg, event.clientX, event.clientY, state.toScene);
+      sceneDx = to.x - from.x;
+      sceneDy = to.y - from.y;
+    } else {
+      sceneDx = event.clientX - state.startClientX;
+      sceneDy = event.clientY - state.startClientY;
+    }
+    if (!state.moved && Math.hypot(sceneDx, sceneDy) < DRAG_THRESHOLD) return;
+    state.moved = true;
+    const delta = screenDeltaToWorld(sceneDx, sceneDy);
+    let nextX = Math.max(0, basePosition!.x + delta.x);
+    let nextY = Math.max(0, basePosition!.y + delta.y);
+    if (snapInches > 0) {
+      nextX = Math.round(nextX / snapInches) * snapInches;
+      nextY = Math.round(nextY / snapInches) * snapInches;
+    }
+    state.worldX = nextX;
+    state.worldY = nextY;
+    // Live feedback: project the committed ground delta back to screen so
+    // the whole illustration (walls, crops, shadow) slides as one piece.
+    setDragTranslate(project(nextX - basePosition!.x, nextY - basePosition!.y, 0));
+  }
+
+  function endDrag(event: ReactPointerEvent<SVGGElement>) {
+    const state = dragRef.current;
+    if (!state || event.pointerId !== state.pointerId) return;
+    event.stopPropagation();
+    try {
+      event.currentTarget.releasePointerCapture(state.pointerId);
+    } catch {
+      // Capture may already be gone (e.g. pointercancel); ignore.
+    }
+    dragRef.current = null;
+    if (state.moved && onMove) {
+      onMove(Math.round(state.worldX), Math.round(state.worldY));
+    }
+    setDragTranslate(null);
+  }
+
+  const dragProps = canDrag
+    ? {
+        onPointerDown: handlePointerDown,
+        onPointerMove: handlePointerMove,
+        onPointerUp: endDrag,
+        onPointerCancel: endDrag,
+      }
+    : {};
+
   return (
     <g
-      className={`mp-el${isSelected ? ' mp-el--selected' : ''}`}
+      className={`mp-el${isSelected ? ' mp-el--selected' : ''}${
+        canDrag ? ' mp-el--draggable' : ''
+      }${dragTranslate ? ' mp-el--dragging' : ''}`}
       role="button"
       tabIndex={0}
       aria-label={label}
       aria-pressed={isSelected}
+      transform={dragTranslate ? `translate(${dragTranslate.x} ${dragTranslate.y})` : undefined}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      {...dragProps}
     >
       {children}
     </g>
@@ -102,6 +264,12 @@ interface IsoSceneProps {
   seasonMonth?: SeasonMonth;
   /** Time of day for cast sun shadows, or null to hide the layer. */
   sunTime?: SunTime | null;
+  /** When true, elements can be dragged to reposition them on the ground plane. */
+  editable?: boolean;
+  /** Grid snap for drag repositioning, in inches (0 = free placement). */
+  snapInches?: number;
+  onMoveBed?: (bedId: string, positionX: number, positionY: number) => void;
+  onMoveAnnotation?: (annotationId: string, positionX: number, positionY: number) => void;
 }
 
 interface RenderItem {
@@ -129,6 +297,10 @@ export const IsoScene = memo(function IsoScene({
   shouldIgnoreClick,
   seasonMonth = null,
   sunTime = null,
+  editable = false,
+  snapInches = 0,
+  onMoveBed,
+  onMoveAnnotation,
 }: IsoSceneProps) {
   const metrics = sceneMetrics(canvas);
   const w = canvas.widthInches;
@@ -177,6 +349,14 @@ export const IsoScene = memo(function IsoScene({
             isSelected={selected?.kind === 'annotation' && selected.id === annotation.id}
             onSelect={() => onSelect({ kind: 'annotation', id: annotation.id })}
             shouldIgnoreClick={shouldIgnoreClick}
+            draggable={editable}
+            basePosition={{ x: annotation.positionX ?? 12, y: annotation.positionY ?? 12 }}
+            snapInches={snapInches}
+            onMove={
+              onMoveAnnotation
+                ? (x, y) => onMoveAnnotation(annotation.id, x, y)
+                : undefined
+            }
           >
             <IsoAnnotation
               annotation={annotation}
@@ -200,6 +380,10 @@ export const IsoScene = memo(function IsoScene({
             isSelected={selected?.kind === 'bed' && selected.id === bed.id}
             onSelect={() => onSelect({ kind: 'bed', id: bed.id })}
             shouldIgnoreClick={shouldIgnoreClick}
+            draggable={editable}
+            basePosition={{ x: bed.positionX ?? 12, y: bed.positionY ?? 12 }}
+            snapInches={snapInches}
+            onMove={onMoveBed ? (x, y) => onMoveBed(bed.id, x, y) : undefined}
           >
             <IsoBed
               bed={bed}
@@ -221,7 +405,19 @@ export const IsoScene = memo(function IsoScene({
         a.layer - b.layer || Number(b.flat) - Number(a.flat) || a.depth - b.depth
     );
     return list;
-  }, [annotations, beds, cropsByBedId, onSelect, seasonMonth, selected, shouldIgnoreClick]);
+  }, [
+    annotations,
+    beds,
+    cropsByBedId,
+    onSelect,
+    seasonMonth,
+    selected,
+    shouldIgnoreClick,
+    editable,
+    snapInches,
+    onMoveBed,
+    onMoveAnnotation,
+  ]);
 
   // Ambient critters: deterministic per garden (seeded by the canvas id),
   // purely decorative, free for every IsoScene consumer including the

@@ -3450,6 +3450,148 @@ body {
   cursor: progress;
 }
 
+/* --- Masterplan design bar (editable plan) ------------------------------- */
+
+.mp-design {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100% - 6.5rem);
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--og-radius-pill);
+  border: 1px solid rgba(91, 58, 28, 0.15);
+  background: rgba(253, 250, 241, 0.94);
+  box-shadow: 0 6px 16px rgba(91, 58, 28, 0.14);
+  z-index: 6;
+}
+
+.mp-design__group {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.mp-design__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.15rem 0.1rem;
+  background: rgba(91, 58, 28, 0.16);
+}
+
+.mp-design__btn {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--og-color-soil);
+  background: transparent;
+  border: none;
+  border-radius: var(--og-radius-pill);
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mp-design__btn:hover:not(:disabled),
+.mp-design__btn:focus-visible {
+  background: rgba(91, 140, 74, 0.12);
+  outline: none;
+}
+
+.mp-design__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mp-design__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.mp-design__field select {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--og-color-soil);
+  background: #fff;
+  border: 1px solid rgba(91, 58, 28, 0.2);
+  border-radius: var(--og-radius-pill);
+  padding: 0.25rem 0.45rem;
+  cursor: pointer;
+}
+
+.mp-design__saving {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(79, 56, 37, 0.6);
+  padding-right: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .mp-design__btn-label,
+  .mp-design__field-label {
+    display: none;
+  }
+}
+
+/* Draggable elements on the editable plan get a grab affordance. */
+.mp-el--draggable {
+  cursor: grab;
+}
+
+.mp-el--dragging {
+  cursor: grabbing;
+}
+
+/* --- Masterplan detail panel quick actions ------------------------------- */
+
+.mp-panel__quick {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mp-panel__quick-btn {
+  flex: 1;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+  background: transparent;
+  border: 1px solid rgba(91, 58, 28, 0.2);
+  border-radius: var(--og-radius-pill);
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.mp-panel__quick-btn:hover,
+.mp-panel__quick-btn:focus-visible {
+  background: rgba(91, 58, 28, 0.06);
+  outline: none;
+}
+
+.mp-panel__quick-btn--danger {
+  color: #8b1f1a;
+  border-color: rgba(139, 31, 26, 0.3);
+}
+
+.mp-panel__quick-btn--danger:hover,
+.mp-panel__quick-btn--danger:focus-visible {
+  background: rgba(139, 31, 26, 0.08);
+}
+
 /* --- AI garden review panel ---------------------------------------------- */
 
 .mp-review__list {

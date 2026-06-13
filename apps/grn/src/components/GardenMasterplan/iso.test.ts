@@ -14,10 +14,52 @@ import {
   project,
   rectFootprint,
   scaleFootprint,
+  screenDeltaToWorld,
   smoothClosedPath,
   toPath,
+  unprojectGround,
   worldCentroid,
 } from './iso';
+
+describe('unprojectGround', () => {
+  it('round-trips any ground-plane point through project()', () => {
+    for (const [x, y] of [
+      [0, 0],
+      [96, 48],
+      [12, 240],
+      [333, 7],
+    ]) {
+      const back = unprojectGround(project(x, y, 0));
+      expect(back.x).toBeCloseTo(x);
+      expect(back.y).toBeCloseTo(y);
+    }
+  });
+
+  it('inverts the screen origin to the world origin', () => {
+    const back = unprojectGround({ x: 0, y: 0 });
+    expect(back.x).toBeCloseTo(0);
+    expect(back.y).toBeCloseTo(0);
+  });
+});
+
+describe('screenDeltaToWorld', () => {
+  it('maps a screen-space delta to the world delta project() would undo', () => {
+    const world = screenDeltaToWorld(...(() => {
+      const p = project(30, -18, 0);
+      return [p.x, p.y] as const;
+    })());
+    expect(world.x).toBeCloseTo(30);
+    expect(world.y).toBeCloseTo(-18);
+  });
+
+  it('is origin-independent (a delta is a delta)', () => {
+    const a = project(50, 50, 0);
+    const b = project(70, 35, 0);
+    const world = screenDeltaToWorld(b.x - a.x, b.y - a.y);
+    expect(world.x).toBeCloseTo(20);
+    expect(world.y).toBeCloseTo(-15);
+  });
+});
 
 describe('project', () => {
   it('maps the world origin to the screen origin', () => {

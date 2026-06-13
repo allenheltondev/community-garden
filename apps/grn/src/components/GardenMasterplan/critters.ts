@@ -21,6 +21,18 @@ import { IN_GROUND_BED_HEIGHT, MOUND_HEIGHT, RAISED_BED_HEIGHT } from './shadows
 
 export type CritterKind = 'rabbit' | 'bee' | 'butterfly' | 'chicken';
 
+/**
+ * keyPoints/keyTimes for a SMIL <animateMotion calcMode="linear">. Holding
+ * the same keyPoint across two keyTimes parks the critter in place, which
+ * is how a ground critter reads as "lope, then stop and nose around" rather
+ * than gliding a constant loop. Both strings carry the same number of
+ * semicolon-separated entries.
+ */
+export interface MotionTimeline {
+  keyPoints: string;
+  keyTimes: string;
+}
+
 export interface Critter {
   kind: CritterKind;
   /** Looping route in world inches; the renderer closes the loop. */
@@ -28,6 +40,67 @@ export interface Critter {
   /** Travel height above the ground plane (0 for ground critters). */
   heightInches: number;
   durationSeconds: number;
+  /**
+   * Optional stop-and-go timeline for the loop. Present on ground critters
+   * (rabbit, chicken) so they pause at waypoints; absent on flyers, which
+   * cruise at a steady speed.
+   */
+  motion?: MotionTimeline;
+}
+
+// How a ground critter spends its loop: it covers the gap between two
+// waypoints (travel), then often lingers (dwell). Dwell is deliberately
+// lumpy — some stops are a brief hesitation, others a long graze — so the
+// wandering never feels metronomic. Returned weights are unitless; the
+// renderer's dur spreads them across real time.
+function travelWeight(seed: string, i: number): number {
+  // 0.7–1.3: travel pace wobbles a little leg to leg.
+  return 0.7 + hashSeed(`${seed}:t${i}`) * 0.6;
+}
+
+function dwellWeight(seed: string, i: number): number {
+  const roll = hashSeed(`${seed}:d${i}`);
+  // ~45% of stops are a near-instant hesitation; the rest are a real
+  // pause to nose around, scaled by the roll so no two match.
+  if (roll < 0.45) return 0.12;
+  return 0.9 + roll * 1.8;
+}
+
+/**
+ * Build a move-pause-move timeline that visits each waypoint of a closed
+ * loop in order, dwelling at most of them. `stops` is the waypoint count;
+ * fewer than two can't form a loop, so it returns null (the renderer then
+ * falls back to steady motion). Seeded, so a critter always wanders the
+ * same way.
+ */
+export function dwellTimeline(stops: number, seed: string): MotionTimeline | null {
+  if (stops < 2) return null;
+  const travel: number[] = [];
+  const dwell: number[] = [];
+  let total = 0;
+  for (let i = 0; i < stops; i += 1) {
+    const t = travelWeight(seed, i);
+    const d = dwellWeight(seed, i);
+    travel.push(t);
+    dwell.push(d);
+    total += t + d;
+  }
+  const points = ['0'];
+  const times = ['0'];
+  let acc = 0;
+  for (let i = 0; i < stops; i += 1) {
+    const fraction = (i + 1) / stops;
+    acc += travel[i] / total;
+    points.push(fraction.toFixed(4));
+    times.push(acc.toFixed(4));
+    acc += dwell[i] / total;
+    points.push(fraction.toFixed(4));
+    times.push(acc.toFixed(4));
+  }
+  // Pin the final keyTime to exactly 1 so the loop closes cleanly despite
+  // accumulated rounding.
+  times[times.length - 1] = '1';
+  return { keyPoints: points.join(';'), keyTimes: times.join(';') };
 }
 
 export interface ChooseCrittersArgs {
@@ -230,18 +303,27 @@ export function chooseCritters({
 
   const ground: Critter[] = [];
   if (coop) {
+    const chickenWaypoints = chickenRoute(coop, `${seed}:chicken`);
     ground.push({
       kind: 'chicken',
-      waypoints: chickenRoute(coop, `${seed}:chicken`),
+      waypoints: chickenWaypoints,
       heightInches: 0,
-      durationSeconds: seededDuration(`${seed}:chicken:dur`, 28, 45),
+      // Pecking is mostly standing still, so the loop runs long and the
+      // dwells do the talking.
+      durationSeconds: seededDuration(`${seed}:chicken:dur`, 34, 52),
+      motion: dwellTimeline(chickenWaypoints.length, `${seed}:chicken:dwell`) ?? undefined,
     });
   }
+  const rabbitWaypoints = rabbitRoute(canvas, beds, `${seed}:rabbit`);
   ground.push({
     kind: 'rabbit',
-    waypoints: rabbitRoute(canvas, beds, `${seed}:rabbit`),
+    waypoints: rabbitWaypoints,
     heightInches: 0,
-    durationSeconds: seededDuration(`${seed}:rabbit:dur`, 40, 60),
+    // Slower than before, and most of the loop is now spent paused: the
+    // rabbit covers a leg in a few quick hops, then settles to nose around
+    // before moving on. The longer span keeps the hops from looking frantic.
+    durationSeconds: seededDuration(`${seed}:rabbit:dur`, 64, 92),
+    motion: dwellTimeline(rabbitWaypoints.length, `${seed}:rabbit:dwell`) ?? undefined,
   });
 
   for (const critter of ground) {
