@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { BedType, GardenBed, GrowerCropItem, SunExposure } from '../../types/listing';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
-import { AddCropModal } from './AddCropModal';
+import { QuickAddCrop, type QuickAddCropInput } from './QuickAddCrop';
 import { InspectorShell } from './InspectorShell';
 import { bedCapacitySummary, capacityLabel } from './capacity';
 import {
@@ -27,6 +27,7 @@ interface BedInspectorProps {
   isVertexEditing: boolean;
   onToggleVertexEditing: () => void;
   onChange: (patch: Partial<GardenBed>) => void;
+  onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   onDuplicate: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -54,6 +55,7 @@ export function BedInspector({
   isVertexEditing,
   onToggleVertexEditing,
   onChange,
+  onAddCrop,
   onDuplicate,
   onDelete,
   onClose,
@@ -71,7 +73,6 @@ export function BedInspector({
   const [soils, setSoils] = useState<string[]>(parseSoilField(bed.soilType));
   const [notes, setNotes] = useState(bed.locationNotes ?? '');
   const [color, setColor] = useState<string | null>(bed.color);
-  const [addCropOpen, setAddCropOpen] = useState(false);
 
   const lengthValue = draftLength !== null
     ? draftLength
@@ -414,14 +415,6 @@ export function BedInspector({
       <section className="grn-designer-inspector__crops" aria-label="Crops in this bed">
         <header className="grn-designer-inspector__crops-header">
           <h3>Crops</h3>
-          <button
-            type="button"
-            className="grn-designer-inspector__add-crop"
-            onClick={() => setAddCropOpen(true)}
-            disabled={!isEditable}
-          >
-            + Add crop
-          </button>
         </header>
         {cropsForBed.length === 0 ? (
           <p className="grn-designer-inspector__empty">
@@ -445,6 +438,7 @@ export function BedInspector({
             })}
           </ul>
         )}
+        {isEditable && <QuickAddCrop onAdd={onAddCrop} />}
       </section>
 
       <footer className="grn-designer-inspector__footer">
@@ -476,12 +470,6 @@ export function BedInspector({
           </button>
         </div>
       </footer>
-      <AddCropModal
-        bed={bed}
-        cropsForBed={cropsForBed}
-        open={addCropOpen}
-        onClose={() => setAddCropOpen(false)}
-      />
     </InspectorShell>
   );
 }

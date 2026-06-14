@@ -2970,29 +2970,6 @@ body {
   gap: 0.5rem;
 }
 
-.grn-designer-inspector__add-crop {
-  font: inherit;
-  font-size: 0.85rem;
-  color: var(--og-color-moss);
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.grn-designer-inspector__add-crop:hover:not(:disabled),
-.grn-designer-inspector__add-crop:focus-visible {
-  text-decoration: underline;
-  outline: none;
-}
-
-.grn-designer-inspector__add-crop:disabled {
-  color: rgba(79, 56, 37, 0.4);
-  cursor: not-allowed;
-}
-
 .grn-designer-inspector__empty {
   margin: 0;
   font-size: 0.85rem;
@@ -3030,6 +3007,78 @@ body {
 .grn-designer-inspector__crop-count {
   font-size: 0.75rem;
   color: rgba(79, 56, 37, 0.6);
+}
+
+/* Inline quick-add: a crop picker, an optional qty, and an Add button on
+   one line so crops drop onto a bed without a modal or a page change. */
+.grn-quick-add {
+  margin-top: 0.35rem;
+}
+
+.grn-quick-add__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.grn-quick-add__picker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grn-quick-add__count {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 3.5rem;
+  flex: 0 0 auto;
+}
+
+.grn-quick-add__count-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(79, 56, 37, 0.7);
+}
+
+.grn-quick-add__count input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.4rem;
+  border: 1px solid rgba(91, 58, 28, 0.25);
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-paper);
+  color: var(--og-color-soil);
+}
+
+.grn-quick-add__submit {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0.85rem;
+  border: none;
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-moss);
+  color: var(--og-color-paper);
+  cursor: pointer;
+}
+
+.grn-quick-add__submit:hover:not(:disabled),
+.grn-quick-add__submit:focus-visible {
+  background: var(--og-color-soil);
+  outline: none;
+}
+
+.grn-quick-add__submit:disabled {
+  background: rgba(91, 140, 74, 0.35);
+  cursor: not-allowed;
+}
+
+.grn-quick-add__error {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: #b3261e;
 }
 
 .grn-designer-inspector__footer {

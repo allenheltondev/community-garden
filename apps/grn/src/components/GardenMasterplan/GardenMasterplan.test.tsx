@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type {
   GardenAnnotation,
@@ -150,6 +151,7 @@ function renderMasterplan(args?: {
         onAddAnnotation: () => {},
         onDeleteBed: () => {},
         onDeleteAnnotation: () => {},
+        onAddCrop: async () => {},
         onDuplicate: () => {},
         canUndo: false,
         canRedo: false,
@@ -159,28 +161,33 @@ function renderMasterplan(args?: {
         ...args.editing,
       }
     : undefined;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <GardenMasterplan
-      canvas={canvas}
-      beds={beds}
-      annotations={annotations}
-      cropsByBedId={cropsByBedId}
-      selected={selected as never}
-      selectedBed={
-        selected?.kind === 'bed' ? beds.find((b) => b.id === selected.id) : undefined
-      }
-      selectedAnnotation={
-        selected?.kind === 'annotation'
-          ? annotations.find((a) => a.id === selected.id)
-          : undefined
-      }
-      onSelect={(args?.onSelect ?? (() => {})) as never}
-      onPatchBed={args?.onPatchBed ?? (() => {})}
-      onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
-      onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
-      onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
-      editing={editing}
-    />
+    <QueryClientProvider client={queryClient}>
+      <GardenMasterplan
+        canvas={canvas}
+        beds={beds}
+        annotations={annotations}
+        cropsByBedId={cropsByBedId}
+        selected={selected as never}
+        selectedBed={
+          selected?.kind === 'bed' ? beds.find((b) => b.id === selected.id) : undefined
+        }
+        selectedAnnotation={
+          selected?.kind === 'annotation'
+            ? annotations.find((a) => a.id === selected.id)
+            : undefined
+        }
+        onSelect={(args?.onSelect ?? (() => {})) as never}
+        onPatchBed={args?.onPatchBed ?? (() => {})}
+        onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
+        onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
+        onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
+        editing={editing}
+      />
+    </QueryClientProvider>
   );
 }
 

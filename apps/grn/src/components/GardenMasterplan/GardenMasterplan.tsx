@@ -7,6 +7,7 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
+import type { QuickAddCropInput } from '../GardenDesigner/QuickAddCrop';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
 import type { GridSnap } from '../GardenDesigner/Toolbar';
 import { downloadScenePng, downloadSceneSvg } from './exportScene';
@@ -49,6 +50,8 @@ export interface MasterplanEditing {
   onAddAnnotation: (presetId: string) => void;
   onDeleteBed: (bedId: string) => void;
   onDeleteAnnotation: (annotationId: string) => void;
+  /** Attach a crop to the currently-selected bed from the detail panel. */
+  onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   onDuplicate: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -446,6 +449,7 @@ export function GardenMasterplan({
                     else if (selectedAnnotation)
                       editing.onDeleteAnnotation(selectedAnnotation.id);
                   },
+                  onAddCrop: editing.onAddCrop,
                 }
               : undefined
           }

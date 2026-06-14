@@ -173,6 +173,11 @@ export function GardenDesignerPage() {
                   onDeleteAnnotation: (annotationId) => {
                     void designer.deleteAnnotation(annotationId);
                   },
+                  onAddCrop: (input) =>
+                    designer.addCrop({
+                      ...input,
+                      bedId: designer.selectedBed!.id,
+                    }),
                   onDuplicate: () => {
                     void designer.duplicateSelected();
                   },
@@ -300,6 +305,12 @@ export function GardenDesignerPage() {
                     designer.patchBed(designer.selectedBed.id, patch);
                   }
                 }}
+                onAddCrop={(input) =>
+                  designer.addCrop({
+                    ...input,
+                    bedId: designer.selectedBed!.id,
+                  })
+                }
                 onDuplicate={() => {
                   void designer.duplicateSelected();
                 }}
