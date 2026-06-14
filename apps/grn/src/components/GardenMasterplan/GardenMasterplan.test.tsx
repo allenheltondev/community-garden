@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type {
@@ -8,7 +8,8 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
-import { GardenMasterplan } from './GardenMasterplan';
+import { GardenMasterplan, type MasterplanEditing } from './GardenMasterplan';
+import { screenDeltaToWorld } from './iso';
 
 beforeAll(() => {
   // jsdom has no ResizeObserver; the viewport hook only needs construct/observe.
@@ -128,6 +129,7 @@ function renderMasterplan(args?: {
   onPatchAnnotation?: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor?: () => void;
   onApplyTemplate?: (templateId: string) => Promise<void>;
+  editing?: Partial<MasterplanEditing>;
 }) {
   const beds = args?.beds ?? [makeBed({})];
   const annotations = args?.annotations ?? [makeAnnotation({})];
@@ -138,6 +140,25 @@ function renderMasterplan(args?: {
     cropsByBedId.set(crop.bedId, [...(cropsByBedId.get(crop.bedId) ?? []), crop]);
   }
   const selected = args?.selected ?? null;
+  const editing: MasterplanEditing | undefined = args?.editing
+    ? {
+        snap: 'off',
+        onSnapChange: () => {},
+        onMoveBed: () => {},
+        onMoveAnnotation: () => {},
+        onAddBed: () => {},
+        onAddAnnotation: () => {},
+        onDeleteBed: () => {},
+        onDeleteAnnotation: () => {},
+        onDuplicate: () => {},
+        canUndo: false,
+        canRedo: false,
+        onUndo: () => {},
+        onRedo: () => {},
+        isSaving: false,
+        ...args.editing,
+      }
+    : undefined;
   return render(
     <GardenMasterplan
       canvas={canvas}
@@ -158,6 +179,7 @@ function renderMasterplan(args?: {
       onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
       onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
       onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
+      editing={editing}
     />
   );
 }
@@ -580,5 +602,52 @@ describe('GardenMasterplan', () => {
     expect(
       screen.getByRole('button', { name: /back fence \(fence\)/i })
     ).toBeInTheDocument();
+  });
+
+  describe('editable plan', () => {
+    it('shows the design bar only when editing is enabled', () => {
+      const { rerender } = renderMasterplan();
+      expect(
+        screen.queryByRole('toolbar', { name: /design tools/i })
+      ).not.toBeInTheDocument();
+      rerender(<></>);
+      renderMasterplan({ editing: {} });
+      expect(
+        screen.getByRole('toolbar', { name: /design tools/i })
+      ).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /add a landmark/i })).toBeInTheDocument();
+    });
+
+    it('marks elements draggable and commits a dragged bed to onMoveBed', () => {
+      const onMoveBed = vi.fn();
+      renderMasterplan({ editing: { onMoveBed } });
+      const bed = screen.getByRole('button', { name: /herb spiral/i });
+      expect(bed).toHaveClass('mp-el--draggable');
+
+      // jsdom has no layout/CTM, so client deltas map 1:1 to scene units.
+      fireEvent.pointerDown(bed, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(bed, { pointerId: 1, clientX: 150, clientY: 130 });
+      fireEvent.pointerUp(bed, { pointerId: 1, clientX: 150, clientY: 130 });
+
+      const world = screenDeltaToWorld(50, 30);
+      // Base bed position is (24, 24); the move adds the unprojected delta.
+      expect(onMoveBed).toHaveBeenCalledTimes(1);
+      expect(onMoveBed).toHaveBeenCalledWith(
+        'bed-1',
+        Math.round(24 + world.x),
+        Math.round(24 + world.y)
+      );
+    });
+
+    it('treats a press without movement as a selection, not a move', () => {
+      const onMoveBed = vi.fn();
+      const onSelect = vi.fn();
+      renderMasterplan({ editing: { onMoveBed }, onSelect });
+      const bed = screen.getByRole('button', { name: /herb spiral/i });
+      fireEvent.pointerDown(bed, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerUp(bed, { pointerId: 1, clientX: 101, clientY: 100 });
+      expect(onMoveBed).not.toHaveBeenCalled();
+      expect(onSelect).toHaveBeenCalledWith({ kind: 'bed', id: 'bed-1' });
+    });
   });
 });

@@ -114,8 +114,8 @@ export function GardenDesignerPage() {
           <h1 className="grn-designer-page__title">Garden</h1>
           <p className="grn-designer-page__subtitle">
             {view === 'masterplan'
-              ? 'An illustrated masterplan of your growing space — click anything to explore.'
-              : 'Lay out your beds, drop in crops, and watch it come together.'}
+              ? 'Design right on the illustrated plan — drag elements to arrange, add beds and landmarks, and click anything to edit.'
+              : 'Precision tools: resize, rotate, draw custom shapes, measure, and trace a site photo.'}
           </p>
         </div>
         <div className="grn-view-toggle" role="group" aria-label="Garden view">
@@ -135,7 +135,7 @@ export function GardenDesignerPage() {
             aria-pressed={view === 'layout'}
             onClick={() => switchView('layout')}
           >
-            Layout editor
+            Precision editor
           </button>
         </div>
       </header>
@@ -154,6 +154,36 @@ export function GardenDesignerPage() {
           onPatchAnnotation={designer.patchAnnotation}
           onOpenLayoutEditor={() => switchView('layout')}
           onApplyTemplate={designer.applyTemplate}
+          editing={
+            designer.isEditable
+              ? {
+                  snap: designer.snap,
+                  onSnapChange: designer.setSnap,
+                  onMoveBed: designer.moveBed,
+                  onMoveAnnotation: designer.moveAnnotation,
+                  onAddBed: (shape) => {
+                    void designer.addBed(shape);
+                  },
+                  onAddAnnotation: (presetId) => {
+                    void designer.addAnnotation(presetId);
+                  },
+                  onDeleteBed: (bedId) => {
+                    void designer.deleteBed(bedId);
+                  },
+                  onDeleteAnnotation: (annotationId) => {
+                    void designer.deleteAnnotation(annotationId);
+                  },
+                  onDuplicate: () => {
+                    void designer.duplicateSelected();
+                  },
+                  canUndo: designer.canUndo,
+                  canRedo: designer.canRedo,
+                  onUndo: designer.undo,
+                  onRedo: designer.redo,
+                  isSaving: designer.isSaving,
+                }
+              : undefined
+          }
         />
       ) : (
         <>

@@ -6,7 +6,7 @@ import type {
 } from '../../types/listing';
 import { annotationFootprint, bedFootprint } from './footprints';
 import { worldCentroid } from './iso';
-import { chooseCritters, type Critter } from './critters';
+import { chooseCritters, dwellTimeline, type Critter } from './critters';
 
 const canvas = { widthInches: 360, heightInches: 240 };
 
@@ -232,7 +232,36 @@ describe('chooseCritters', () => {
     }
   });
 
-  it('keeps every duration in the ambient 25–60s band', () => {
+  it('gives ground critters a stop-and-go motion timeline but leaves flyers cruising', () => {
+    const critters = chooseCritters({
+      canvas,
+      beds: [makeBed({})],
+      annotations: [coop],
+      cropsByBedId: cropsFor('bed-1'),
+      seed: 's',
+    });
+    const chicken = critters.find((c) => c.kind === 'chicken');
+    const flyer = critters.find((c) => c.kind === 'bee' || c.kind === 'butterfly');
+    expect(chicken?.motion).toBeDefined();
+    expect(flyer?.motion).toBeUndefined();
+  });
+
+  it('runs the rabbit on a longer, more relaxed loop than the flyers', () => {
+    const critters = chooseCritters({
+      canvas,
+      beds: [makeBed({})],
+      annotations: [],
+      cropsByBedId: new Map(),
+      seed: 'paced',
+    });
+    const rabbit = critters.find((c) => c.kind === 'rabbit');
+    expect(rabbit?.motion).toBeDefined();
+    // The relaxed loop runs well past the old 40–60s ceiling.
+    expect(rabbit!.durationSeconds).toBeGreaterThanOrEqual(64);
+    expect(rabbit!.durationSeconds).toBeLessThanOrEqual(92);
+  });
+
+  it('keeps every flyer and chicken duration in the ambient 25–60s band', () => {
     const critters = chooseCritters({
       canvas,
       beds: [makeBed({})],
@@ -244,5 +273,43 @@ describe('chooseCritters', () => {
       expect(critter.durationSeconds).toBeGreaterThanOrEqual(25);
       expect(critter.durationSeconds).toBeLessThanOrEqual(60);
     }
+  });
+});
+
+describe('dwellTimeline', () => {
+  it('returns null when there are too few stops to form a loop', () => {
+    expect(dwellTimeline(1, 's')).toBeNull();
+    expect(dwellTimeline(0, 's')).toBeNull();
+  });
+
+  it('produces matched keyPoints/keyTimes that span the whole loop', () => {
+    const timeline = dwellTimeline(6, 'loop');
+    expect(timeline).not.toBeNull();
+    const points = timeline!.keyPoints.split(';').map(Number);
+    const times = timeline!.keyTimes.split(';').map(Number);
+    expect(points.length).toBe(times.length);
+    expect(points[0]).toBe(0);
+    expect(points[points.length - 1]).toBe(1);
+    expect(times[0]).toBe(0);
+    expect(times[times.length - 1]).toBe(1);
+  });
+
+  it('keeps keyTimes monotonically non-decreasing', () => {
+    const timeline = dwellTimeline(8, 'mono')!;
+    const times = timeline.keyTimes.split(';').map(Number);
+    for (let i = 1; i < times.length; i += 1) {
+      expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    }
+  });
+
+  it('holds a keyPoint across two keyTimes so the critter actually pauses', () => {
+    const timeline = dwellTimeline(7, 'pause')!;
+    const points = timeline.keyPoints.split(';');
+    const held = points.some((p, i) => i > 0 && p === points[i - 1]);
+    expect(held).toBe(true);
+  });
+
+  it('is deterministic for the same stop count and seed', () => {
+    expect(dwellTimeline(5, 'same')).toEqual(dwellTimeline(5, 'same'));
   });
 });

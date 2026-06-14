@@ -44,6 +44,11 @@ interface MasterplanDetailPanelProps {
   onArrange: (direction: 'forward' | 'backward') => void;
   onClose: () => void;
   onOpenLayoutEditor: () => void;
+  /** Quick edit actions, present only when the plan is an editable surface. */
+  editing?: {
+    onDuplicate: () => void;
+    onDelete: () => void;
+  };
 }
 
 /**
@@ -62,6 +67,7 @@ export function MasterplanDetailPanel({
   onArrange,
   onClose,
   onOpenLayoutEditor,
+  editing,
 }: MasterplanDetailPanelProps) {
   if (!bed && !annotation) return null;
 
@@ -232,8 +238,28 @@ export function MasterplanDetailPanel({
             ↑ Bring forward
           </button>
         </div>
+        {editing && (
+          <div className="mp-panel__quick" role="group" aria-label="Quick actions">
+            <button
+              type="button"
+              className="mp-panel__quick-btn"
+              onClick={editing.onDuplicate}
+              title="Duplicate this element (Ctrl+D)"
+            >
+              ⧉ Duplicate
+            </button>
+            <button
+              type="button"
+              className="mp-panel__quick-btn mp-panel__quick-btn--danger"
+              onClick={editing.onDelete}
+              title="Delete this element"
+            >
+              🗑 Delete
+            </button>
+          </div>
+        )}
         <button type="button" className="mp-panel__action" onClick={onOpenLayoutEditor}>
-          Edit in layout editor
+          {editing ? 'Resize & fine-tune →' : 'Edit in layout editor'}
         </button>
       </footer>
     </aside>

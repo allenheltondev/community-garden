@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type {
+  BedShape,
   GardenAnnotation,
   GardenBed,
   GardenCanvas,
@@ -7,11 +8,13 @@ import type {
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
+import type { GridSnap } from '../GardenDesigner/Toolbar';
 import { downloadScenePng, downloadSceneSvg } from './exportScene';
 import { SharePopover } from './SharePopover';
 import { sceneMetrics } from './footprints';
 import { GardenReviewPanel } from './GardenReviewPanel';
 import { IsoScene } from './IsoScene';
+import { MasterplanDesignBar } from './MasterplanDesignBar';
 import { MasterplanDetailPanel } from './MasterplanDetailPanel';
 import {
   MONTH_LABELS_FULL,
@@ -30,6 +33,30 @@ const SUN_OPTIONS: Array<{ value: SunTime | null; label: string; title: string }
   { value: 'evening', label: 'PM', title: 'Evening sun (low in the west)' },
 ];
 
+/**
+ * Direct-manipulation editing on the illustrated plan. When supplied, the
+ * masterplan becomes the primary design surface: elements drag to
+ * reposition on the ground plane, and the floating design bar adds beds /
+ * landmarks and drives undo-redo. Omit it for read-only contexts (the
+ * public shared garden) and the plan stays explore-only.
+ */
+export interface MasterplanEditing {
+  snap: GridSnap;
+  onSnapChange: (snap: GridSnap) => void;
+  onMoveBed: (bedId: string, positionX: number, positionY: number) => void;
+  onMoveAnnotation: (annotationId: string, positionX: number, positionY: number) => void;
+  onAddBed: (shape: BedShape) => void;
+  onAddAnnotation: (presetId: string) => void;
+  onDeleteBed: (bedId: string) => void;
+  onDeleteAnnotation: (annotationId: string) => void;
+  onDuplicate: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  isSaving: boolean;
+}
+
 interface GardenMasterplanProps {
   canvas: GardenCanvas;
   beds: GardenBed[];
@@ -43,7 +70,11 @@ interface GardenMasterplanProps {
   onPatchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   onOpenLayoutEditor: () => void;
   onApplyTemplate: (templateId: string) => Promise<void>;
+  /** Present when the plan is an editable design surface. */
+  editing?: MasterplanEditing;
 }
+
+const SNAP_INCHES: Record<GridSnap, number> = { off: 0, '6': 6, '12': 12 };
 
 /**
  * The masterplan explorer: an isometric illustrated map of the whole
@@ -65,6 +96,7 @@ export function GardenMasterplan({
   onPatchAnnotation,
   onOpenLayoutEditor,
   onApplyTemplate,
+  editing,
 }: GardenMasterplanProps) {
   const metrics = useMemo(() => sceneMetrics(canvas), [canvas]);
 
@@ -175,8 +207,26 @@ export function GardenMasterplan({
             shouldIgnoreClick={shouldIgnoreClick}
             seasonMonth={seasonMonth}
             sunTime={sunTime}
+            editable={Boolean(editing)}
+            snapInches={editing ? SNAP_INCHES[editing.snap] : 0}
+            onMoveBed={editing?.onMoveBed}
+            onMoveAnnotation={editing?.onMoveAnnotation}
           />
         </div>
+
+        {editing && !isEmpty && (
+          <MasterplanDesignBar
+            snap={editing.snap}
+            onSnapChange={editing.onSnapChange}
+            onAddBed={editing.onAddBed}
+            onAddAnnotation={editing.onAddAnnotation}
+            canUndo={editing.canUndo}
+            canRedo={editing.canRedo}
+            onUndo={editing.onUndo}
+            onRedo={editing.onRedo}
+            isSaving={editing.isSaving}
+          />
+        )}
 
         <div className="mp-explorer__zoom" role="group" aria-label="Map zoom controls">
           <button
@@ -249,7 +299,9 @@ export function GardenMasterplan({
 
         {!isEmpty && (
           <p className="mp-explorer__hint" aria-hidden="true">
-            Drag to explore · scroll to zoom · click anything for details
+            {editing
+              ? 'Drag an element to move it · scroll to zoom · drag the lawn to pan'
+              : 'Drag to explore · scroll to zoom · click anything for details'}
           </p>
         )}
 
@@ -385,6 +437,18 @@ export function GardenMasterplan({
           }}
           onClose={() => onSelect(null)}
           onOpenLayoutEditor={onOpenLayoutEditor}
+          editing={
+            editing
+              ? {
+                  onDuplicate: editing.onDuplicate,
+                  onDelete: () => {
+                    if (selectedBed) editing.onDeleteBed(selectedBed.id);
+                    else if (selectedAnnotation)
+                      editing.onDeleteAnnotation(selectedAnnotation.id);
+                  },
+                }
+              : undefined
+          }
         />
       )}
     </div>

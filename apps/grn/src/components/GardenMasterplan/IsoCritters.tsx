@@ -18,13 +18,27 @@ const WING_HIND = shade(mute('#c2674f', 0.3), 0.28);
 // Hand-authored flat silhouettes, drawn around the origin with feet (or
 // body center, for flyers) at 0,0 so animateMotion can carry the group.
 
-function RabbitSprite() {
+function RabbitSprite({ animate }: { animate: boolean }) {
   return (
     <g>
-      <path
-        d="M-2.5 -10.5 C-4.5 -15 -4 -19.5 -2 -20 C-0.5 -20.3 0.4 -15.5 0.2 -11 Z M2.2 -10.8 C2 -15.5 3.4 -19.2 5 -18.6 C6.4 -18 5 -13 3.6 -10 Z"
-        fill={RABBIT_EAR}
-      />
+      {/* Ears twitch on their own slow cycle, pivoting at their base
+          (~0,-10), so a paused rabbit still reads as alert and alive. */}
+      <g>
+        <path
+          d="M-2.5 -10.5 C-4.5 -15 -4 -19.5 -2 -20 C-0.5 -20.3 0.4 -15.5 0.2 -11 Z M2.2 -10.8 C2 -15.5 3.4 -19.2 5 -18.6 C6.4 -18 5 -13 3.6 -10 Z"
+          fill={RABBIT_EAR}
+        />
+        {animate && (
+          <animateTransform
+            attributeName="transform"
+            type="rotate"
+            values="0 0 -10;0 0 -10;-13 0 -10;5 0 -10;0 0 -10"
+            keyTimes="0;0.8;0.87;0.93;1"
+            dur="4.5s"
+            repeatCount="indefinite"
+          />
+        )}
+      </g>
       <path
         d="M-8.5 0 C-10 -4.5 -8 -8.5 -4.5 -9.5 C-3.5 -11.5 -0.5 -12 1.5 -11 C4 -11.8 6.5 -10.5 7.5 -8 C9.5 -6.5 10 -3 8.5 0 Z"
         fill={RABBIT_BODY}
@@ -124,7 +138,7 @@ function ButterflySprite({ animate }: { animate: boolean }) {
 function CritterBody({ critter, animate }: { critter: Critter; animate: boolean }) {
   switch (critter.kind) {
     case 'rabbit':
-      return <RabbitSprite />;
+      return <RabbitSprite animate={animate} />;
     case 'chicken':
       return <ChickenSprite />;
     case 'bee':
@@ -178,6 +192,21 @@ function CritterFigure({ critter, index, reducedMotion }: CritterFigureProps) {
   const dur = `${critter.durationSeconds}s`;
   const begin = `${-index * 13}s`;
 
+  // Ground critters carry a stop-and-go timeline; both the body and its
+  // shadow share it so they stay locked together as the critter pauses.
+  const motionAttrs = critter.motion
+    ? {
+        keyPoints: critter.motion.keyPoints,
+        keyTimes: critter.motion.keyTimes,
+        calcMode: 'linear' as const,
+      }
+    : {};
+
+  // A small vertical lilt: a brisk hop for the rabbit, a slower bob for
+  // the chicken, layered on top of the path motion via an inner group.
+  const groundLilt = critter.kind === 'rabbit' ? '0 0;0 -1.8;0 0' : '0 0;0 -0.9;0 0';
+  const liltDur = critter.kind === 'rabbit' ? '1.05s' : '1.9s';
+
   return (
     <g className="mp-critter">
       <g>
@@ -189,7 +218,13 @@ function CritterFigure({ critter, index, reducedMotion }: CritterFigureProps) {
           fill={SCENE.elementShadowSoft}
           opacity={shadow.opacity}
         />
-        <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={groundPath} />
+        <animateMotion
+          dur={dur}
+          begin={begin}
+          repeatCount="indefinite"
+          path={groundPath}
+          {...motionAttrs}
+        />
       </g>
       <g>
         {flyer ? (
@@ -205,9 +240,25 @@ function CritterFigure({ critter, index, reducedMotion }: CritterFigureProps) {
             />
           </g>
         ) : (
-          <CritterBody critter={critter} animate />
+          <g>
+            <CritterBody critter={critter} animate />
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              values={groundLilt}
+              dur={liltDur}
+              repeatCount="indefinite"
+              additive="sum"
+            />
+          </g>
         )}
-        <animateMotion dur={dur} begin={begin} repeatCount="indefinite" path={travelPath} />
+        <animateMotion
+          dur={dur}
+          begin={begin}
+          repeatCount="indefinite"
+          path={travelPath}
+          {...motionAttrs}
+        />
       </g>
     </g>
   );

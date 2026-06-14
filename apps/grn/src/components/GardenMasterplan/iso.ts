@@ -43,6 +43,24 @@ export function projectPoint(p: WorldPoint, z = 0): ScreenPoint {
   return project(p.x, p.y, z);
 }
 
+// Inverse of project() on the ground plane (z = 0): turns a scene-space SVG
+// point back into world inches. Used by the isometric editor to translate
+// pointer movement into bed/annotation repositioning. Off the ground plane
+// the mapping is ambiguous (a screen point is a whole ray), so this is
+// ground-only by design.
+export function unprojectGround(screen: ScreenPoint): WorldPoint {
+  const u = screen.x / (ISO_COS * PX_PER_INCH); // = x - y
+  const v = screen.y / (ISO_SIN * PX_PER_INCH); // = x + y
+  return { x: (v + u) / 2, y: (v - u) / 2 };
+}
+
+// A scene-space delta (SVG px) translated into a ground-plane world delta
+// (inches). project() is linear in (x, y) at z = 0, so a delta maps the
+// same way a point does — independent of where the drag started.
+export function screenDeltaToWorld(dx: number, dy: number): WorldPoint {
+  return unprojectGround({ x: dx, y: dy });
+}
+
 export function projectFootprint(points: WorldPoint[], z = 0): ScreenPoint[] {
   return points.map((p) => project(p.x, p.y, z));
 }
