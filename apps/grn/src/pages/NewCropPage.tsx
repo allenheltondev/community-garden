@@ -7,10 +7,11 @@ import { PlantLoader } from '../components/branding/PlantLoader';
 import { getMe, listMyBeds } from '../services/api';
 
 /**
- * Standalone page wrapper around <CropForm/>. The same form is also
- * embedded in a modal from the garden designer's bed inspector — that
- * lives in components/GardenDesigner/AddCropModal.tsx and reuses the
- * same component so the two surfaces never drift.
+ * Standalone page wrapper around <CropForm/> — the full add-a-crop form
+ * with planting plan and sharing options. The garden designer no longer
+ * embeds this form; it uses a lightweight inline quick-add
+ * (components/GardenDesigner/QuickAddCrop.tsx) so adding crops while
+ * designing stays fast and doesn't interrupt the flow.
  */
 export function NewCropPage() {
   const navigate = useNavigate();

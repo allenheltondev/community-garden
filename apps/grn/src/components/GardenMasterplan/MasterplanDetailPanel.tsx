@@ -14,6 +14,7 @@ import {
 import { bedCapacitySummary, capacityLabel } from '../GardenDesigner/capacity';
 import { CROP_ICON_PATHS } from '../CropPlanner/cropIconPaths';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
+import { QuickAddCrop, type QuickAddCropInput } from '../GardenDesigner/QuickAddCrop';
 import { KIND_LABELS, annotationKind, mute } from './palette';
 import { MONTH_LABELS_FULL, type SeasonMonth } from './season';
 
@@ -48,6 +49,7 @@ interface MasterplanDetailPanelProps {
   editing?: {
     onDuplicate: () => void;
     onDelete: () => void;
+    onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   };
 }
 
@@ -211,6 +213,7 @@ export function MasterplanDetailPanel({
                 })}
               </ul>
             )}
+            {editing && <QuickAddCrop onAdd={editing.onAddCrop} />}
           </section>
         )}
 

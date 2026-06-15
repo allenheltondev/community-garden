@@ -17,6 +17,7 @@ import {
 import {
   createMyAnnotation,
   createMyBed,
+  createMyCrop,
   deleteMyAnnotation,
   deleteMyBed,
   getMyGardenCanvas,
@@ -60,7 +61,10 @@ import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolba
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
 const ANNOTATIONS_QUERY_KEY = ['my-garden-annotations'];
-const CROPS_QUERY_KEY = ['my-crops'];
+// Shared with the planner, profile, and listing surfaces so a crop added
+// from any of them — including the inline quick-add here — shows up
+// everywhere without a manual refetch.
+const CROPS_QUERY_KEY = ['myCrops'];
 
 export type SelectedItem =
   | { kind: 'bed'; id: string }
@@ -68,6 +72,14 @@ export type SelectedItem =
   | null;
 
 export type SelectedRef = NonNullable<SelectedItem>;
+
+/** Minimal payload for the inline quick-add-crop flow on a bed. */
+export interface QuickAddCropPayload {
+  bedId: string;
+  cropName: string;
+  canonicalId?: string | null;
+  plantCount?: number | null;
+}
 
 export interface UseGardenDesignerResult {
   canvas: GardenCanvas | undefined;
@@ -93,6 +105,7 @@ export interface UseGardenDesignerResult {
   isEditable: boolean;
   isSaving: boolean;
   addBed: (shape: BedShape) => Promise<void>;
+  addCrop: (input: QuickAddCropPayload) => Promise<void>;
   duplicateSelected: () => Promise<void>;
   applyTemplate: (templateId: string) => Promise<void>;
   commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
@@ -365,6 +378,56 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     },
   });
 
+  // Inline quick-add inserts the new crop optimistically so its chip
+  // lands on the bed the instant the grower hits Add — no spinner, no
+  // wait. A temp id holds the spot until the server row replaces it on
+  // refetch; a failed create rolls the optimistic row back out.
+  const createCropMutation = useMutation({
+    mutationFn: createMyCrop,
+    onMutate: async (payload) => {
+      startMutation();
+      await queryClient.cancelQueries({ queryKey: CROPS_QUERY_KEY });
+      const previous = queryClient.getQueryData<GrowerCropItem[]>(CROPS_QUERY_KEY);
+      const bedList = queryClient.getQueryData<GardenBed[]>(BEDS_QUERY_KEY);
+      const now = new Date().toISOString();
+      const optimistic: GrowerCropItem = {
+        id: `temp-${now}-${Math.random().toString(36).slice(2)}`,
+        userId: '',
+        canonicalId: payload.canonicalId ?? null,
+        cropName: payload.cropName,
+        varietyId: payload.varietyId ?? null,
+        status: payload.status,
+        visibility: payload.visibility,
+        surplusEnabled: payload.surplusEnabled,
+        nickname: payload.nickname ?? null,
+        defaultUnit: payload.defaultUnit ?? null,
+        notes: payload.notes ?? null,
+        bedId: payload.bedId ?? null,
+        bedName: bedList?.find((b) => b.id === payload.bedId)?.name ?? null,
+        plantingDate: payload.plantingDate ?? null,
+        expectedHarvestDate: payload.expectedHarvestDate ?? null,
+        plantCount: payload.plantCount ?? null,
+        spacingInches: payload.spacingInches ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      queryClient.setQueryData<GrowerCropItem[]>(CROPS_QUERY_KEY, [
+        ...(previous ?? []),
+        optimistic,
+      ]);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(CROPS_QUERY_KEY, context.previous);
+      }
+    },
+    onSettled: () => {
+      endMutation();
+      void queryClient.invalidateQueries({ queryKey: CROPS_QUERY_KEY });
+    },
+  });
+
   const createAnnotationMutation = useMutation({
     mutationFn: createMyAnnotation,
     onMutate: startMutation,
@@ -602,6 +665,28 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       selectItem({ kind: 'bed', id: created.id });
     },
     [beds.length, canvasQuery.data, createBedMutation, isEditable, record, selectItem]
+  );
+
+  // Attach a crop to a bed straight from the design surfaces. The heavier
+  // planting details (status, dates, spacing, sharing) get low-friction
+  // defaults here — "planning", shared with the local community, no
+  // surplus listing — and stay editable later in the crop planner.
+  const addCrop = useCallback(
+    async ({ bedId, cropName, canonicalId, plantCount }: QuickAddCropPayload) => {
+      if (!isEditable) return;
+      const name = cropName.trim();
+      if (!name) return;
+      await createCropMutation.mutateAsync({
+        cropName: name,
+        canonicalId: canonicalId ?? undefined,
+        status: 'planning',
+        visibility: 'local',
+        surplusEnabled: false,
+        bedId,
+        plantCount: plantCount ?? null,
+      });
+    },
+    [createCropMutation, isEditable]
   );
 
   // Seeds an empty garden from a starter template: create every bed, then
@@ -1434,6 +1519,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isEditable,
     isSaving,
     addBed,
+    addCrop,
     duplicateSelected,
     applyTemplate,
     commitPolygon,
