@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, Card, FormFeedback, SectionHeading } from '@olivias/ui';
+import {
+  Button,
+  Card,
+  FormFeedback,
+  isColorVariation,
+  resolveColorSwatch,
+  SectionHeading,
+} from '@olivias/ui';
 import { getProductBySlug, type StoreProduct } from '../api';
 import { formatMoney, useCart } from '../cart/CartContext';
 
@@ -160,34 +167,47 @@ export function ProductPage() {
 
           {product.variations.length > 0 ? (
             <div className="store-variations">
-              {product.variations.map((variation) => (
-                <div key={variation.name} className="store-variations__group">
-                  <span className="store-variations__label">{variation.name}</span>
-                  <div className="store-variations__options" role="radiogroup" aria-label={variation.name}>
-                    {variation.values.map((value) => {
-                      const isSelected = selectedVariations[variation.name] === value;
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          role="radio"
-                          aria-checked={isSelected}
-                          className={`store-variations__option${isSelected ? ' is-selected' : ''}`}
-                          onClick={() => {
-                            setSelectedVariations((current) => ({
-                              ...current,
-                              [variation.name]: value,
-                            }));
-                            setVariationError(null);
-                          }}
-                        >
-                          {value}
-                        </button>
-                      );
-                    })}
+              {product.variations.map((variation) => {
+                const showSwatches = isColorVariation(variation.name);
+                return (
+                  <div key={variation.name} className="store-variations__group">
+                    <span className="store-variations__label">{variation.name}</span>
+                    <div className="store-variations__options" role="radiogroup" aria-label={variation.name}>
+                      {variation.values.map((value) => {
+                        const isSelected = selectedVariations[variation.name] === value;
+                        const swatch = showSwatches ? resolveColorSwatch(value) : null;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            className={`store-variations__option${isSelected ? ' is-selected' : ''}${
+                              swatch ? ' has-swatch' : ''
+                            }`}
+                            onClick={() => {
+                              setSelectedVariations((current) => ({
+                                ...current,
+                                [variation.name]: value,
+                              }));
+                              setVariationError(null);
+                            }}
+                          >
+                            {swatch ? (
+                              <span
+                                className="store-variations__swatch"
+                                style={{ background: swatch }}
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            {value}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {variationError ? (
                 <FormFeedback tone="error">{variationError}</FormFeedback>
               ) : null}
