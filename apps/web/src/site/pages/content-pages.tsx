@@ -11,7 +11,10 @@ import {
   Section,
   WorkIcon,
 } from '../chrome';
-import { foundationOrganization } from '../organization';
+import { boardMembers, foundationOrganization } from '../organization';
+import { testimonials } from '../community-content';
+import { NewsletterSignup } from '../components/NewsletterSignup';
+import { StatsRow } from '../components/StatsRow';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
 import { facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
 
@@ -197,6 +200,26 @@ export function HomePage({ onNavigate }: { onNavigate: (path: string) => void; }
           </article>
         </div>
       </Section>
+
+      {testimonials.length > 0 ? (
+        <Section title="In their words" className="section-testimonials">
+          <div className="home-testimonials">
+            {testimonials.map((testimonial) => (
+              <figure className="home-testimonial" key={testimonial.quote}>
+                <blockquote className="home-testimonial__quote">{testimonial.quote}</blockquote>
+                <figcaption className="home-testimonial__attribution">
+                  {testimonial.attribution}
+                  {testimonial.role ? <span className="home-testimonial__role">{testimonial.role}</span> : null}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      <section className="page-section section-newsletter" aria-label="Newsletter signup">
+        <NewsletterSignup source="home" />
+      </section>
     </>
   );
 }
@@ -326,6 +349,30 @@ export function AboutPage() {
         <p>
           We are still learning. We are building in public. And we are glad you found us.
         </p>
+      </section>
+
+      <hr className="about-divider" />
+
+      <section className="about-prose-block about-governance" aria-label="Governance" id="governance">
+        <p className="about-prose-block__eyebrow">Governance</p>
+        <p>
+          {foundationOrganization.legalName} is a Texas nonprofit and an IRS-recognized 501(c)(3)
+          public charity (EIN {foundationOrganization.ein}), determined {foundationOrganization.irsDeterminationDate}.
+          Our governing documents, conflict-of-interest policy, and most recent financial filings are
+          available on request at{' '}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+        </p>
+        {boardMembers.length > 0 ? (
+          <ul className="about-governance__board">
+            {boardMembers.map((member) => (
+              <li className="about-governance__member" key={member.name}>
+                <p className="about-governance__member-name">{member.name}</p>
+                <p className="about-governance__member-role">{member.role}</p>
+                {member.bio ? <p className="about-governance__member-bio">{member.bio}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
     </div>
@@ -467,6 +514,13 @@ export function ImpactPage({ onNavigate }: { onNavigate: (path: string) => void;
       />
 
       <Section
+        title="By the numbers."
+        body="A few signals of the work so far. Live numbers come from the Okra Project map; others are tracked by hand and dated."
+      >
+        <StatsRow />
+      </Section>
+
+      <Section
         title="What's already growing."
         body="The work is active and productive."
       >
@@ -481,6 +535,28 @@ export function ImpactPage({ onNavigate }: { onNavigate: (path: string) => void;
           tomatoes, peppers, onions, artichokes, beans, zucchini, cucumbers. Borage, zinnias,
           cosmos, day lilies, forget-me-nots, and Colossus marigolds from border to border.
         </p>
+      </Section>
+
+      <Section title="A story from the garden.">
+        <div className="impact-story">
+          <div>
+            {/* PLACEHOLDER story — replace with a real, approved story and photo. */}
+            <p className="page-text">
+              A family came for free okra seeds and left with their first raised bed plan. By late
+              summer they sent back a photo of their kids eating okra straight off the plant — the
+              exact thing Olivia loved most. Small starts like this are the whole point.
+            </p>
+            <p className="impact-story__attribution">— A McKinney family, first-season grower</p>
+          </div>
+          <figure className="photo-card impact-story__photo">
+            <ResponsiveImage
+              src="/images/home/produce-basket.jpg"
+              alt="A basket of produce harvested from the garden."
+              sizes="(max-width: 760px) 100vw, 40vw"
+            />
+            <figcaption>Harvests like these start with a single packet of seeds.</figcaption>
+          </figure>
+        </div>
       </Section>
 
       <Section

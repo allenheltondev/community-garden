@@ -3923,3 +3923,150 @@ html {
   font-size: 0.88rem;
   color: var(--site-ink-muted, rgba(76, 52, 38, 0.7));
 }
+
+/* Home testimonials */
+.home-testimonials {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.25rem;
+}
+
+.home-testimonial {
+  margin: 0;
+  padding: 1.5rem 1.6rem;
+  background: var(--site-paper, #fffaf1);
+  border: 1px solid var(--site-border, rgba(76, 52, 38, 0.14));
+  border-radius: 16px;
+  box-shadow: var(--site-shadow, none);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.home-testimonial__quote {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--site-ink, #2e2318);
+}
+
+.home-testimonial__quote::before {
+  content: '\201C';
+  margin-right: 0.1rem;
+}
+
+.home-testimonial__quote::after {
+  content: '\201D';
+  margin-left: 0.1rem;
+}
+
+.home-testimonial__attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-weight: 600;
+  color: var(--site-branch, #4c3426);
+}
+
+.home-testimonial__role {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--site-muted, #6a5848);
+}
+
+/* Other ways to give */
+.donate-other-ways {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.donate-other-ways__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.donate-other-ways__item {
+  padding: 1.2rem 1.3rem;
+  background: var(--site-paper, #fffaf1);
+  border: 1px solid var(--site-border, rgba(76, 52, 38, 0.14));
+  border-radius: 14px;
+}
+
+.donate-other-ways__item h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.donate-other-ways__item p {
+  margin: 0;
+  color: var(--site-muted, #6a5848);
+}
+
+/* Governance / board disclosure */
+.about-governance {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.about-governance__board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-governance__member {
+  padding: 1.1rem 1.2rem;
+  background: var(--site-paper, #fffaf1);
+  border: 1px solid var(--site-border, rgba(76, 52, 38, 0.14));
+  border-radius: 14px;
+}
+
+.about-governance__member-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.about-governance__member-role {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  color: var(--site-branch, #4c3426);
+}
+
+.about-governance__member-bio {
+  margin: 0.5rem 0 0;
+  color: var(--site-muted, #6a5848);
+}
+
+/* Impact story */
+.impact-story {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 1.75rem;
+  align-items: center;
+}
+
+.impact-story__photo {
+  margin: 0;
+}
+
+.impact-story__attribution {
+  margin: 0.75rem 0 0;
+  font-weight: 600;
+  color: var(--site-branch, #4c3426);
+}
+
+@media (max-width: 760px) {
+  .impact-story {
+    grid-template-columns: 1fr;
+  }
+}
