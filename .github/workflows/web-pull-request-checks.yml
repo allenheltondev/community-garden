@@ -240,6 +240,7 @@ jobs:
       signup_slack_webhook_url: ${{ secrets.FOUNDATION_SIGNUP_SLACK_WEBHOOK_URL_STAGING }}
       web_stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY_STAGING }}
       web_donation_slack_webhook_url: ${{ secrets.FOUNDATION_SIGNUP_SLACK_WEBHOOK_URL_STAGING }}
+      web_newsletter_api_key: ${{ secrets.NEWSLETTER_API_KEY }}
 
   stage-ui-tests:
     name: Foundation Web Stage UI Tests
