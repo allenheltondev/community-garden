@@ -25,4 +25,8 @@ export type BoardMember = {
 // practice for a 501(c)(3). Fill this in with the real board roster — name,
 // role, and a one-line bio each. The Governance section renders the member
 // list automatically once at least one member is listed.
-export const boardMembers: BoardMember[] = [];
+export const boardMembers: BoardMember[] = [
+  { name: 'Mallory Helton', role: 'President' },
+  { name: 'Allen Helton', role: 'Vice President' },
+  { name: 'Isabella Helton', role: 'Treasurer' },
+];

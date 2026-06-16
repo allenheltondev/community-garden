@@ -41,6 +41,6 @@ export const manualImpactStatsAsOf = 'June 2026';
 // Manually-tracked impact numbers. Replace the em dashes with real figures as
 // they are measured; tiles still render with a clear "as of" caption.
 export const manualImpactStats: ManualImpactStat[] = [
-  { label: 'Volunteer hours logged', value: '—' },
-  { label: 'Pounds harvested', value: '—' },
+  { label: 'Volunteer hours logged', value: '2,733' },
+  { label: 'Pounds harvested', value: '36' },
 ];
