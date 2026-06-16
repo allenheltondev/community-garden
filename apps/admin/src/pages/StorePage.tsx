@@ -4,6 +4,8 @@ import {
   Card,
   FormFeedback,
   Input,
+  isColorVariation,
+  resolveColorSwatch,
   SectionHeading,
   Select,
   Textarea,
@@ -65,6 +67,27 @@ const fulfillmentOptions = [
 
 const MAX_PRODUCT_IMAGES = 8;
 const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// Standard apparel sizes are consistent enough to pre-fill; colors vary per
+// product, so the Color preset starts empty and offers suggestion chips.
+const SIZE_PRESET_VALUES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
+const COMMON_COLOR_VALUES = [
+  'Black',
+  'White',
+  'Navy',
+  'Heather Gray',
+  'Royal Blue',
+  'Red',
+  'Forest Green',
+  'Maroon',
+];
+const COMMON_SIZE_VALUES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
+
+function suggestedValuesFor(name: string): string[] {
+  if (isColorVariation(name)) return COMMON_COLOR_VALUES;
+  if (/\bsizes?\b/i.test(name)) return COMMON_SIZE_VALUES;
+  return [];
+}
 
 type ProductImageFormItem = Pick<
   StoreProductImage,
@@ -239,8 +262,11 @@ export function StorePage({ session }: StorePageProps) {
     setProductForm((current) => ({ ...current, variations: next }));
   };
 
-  const addVariation = () => {
-    updateVariations([...variations, { name: '', values: [] }]);
+  const addVariation = (preset?: ProductVariation) => {
+    updateVariations([
+      ...variations,
+      preset ? { name: preset.name, values: [...preset.values] } : { name: '', values: [] },
+    ]);
   };
 
   const removeVariation = (index: number) => {
@@ -251,15 +277,29 @@ export function StorePage({ session }: StorePageProps) {
     updateVariations(variations.map((variation, i) => (i === index ? { ...variation, name } : variation)));
   };
 
+  // Accepts one or many values: anything separated by commas or newlines is
+  // added in a single step, so admins can paste "Red, Blue, Green" at once.
+  // Dedupe is case-insensitive to match the API's uniqueness check.
   const addVariationValue = (index: number, value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
+    const additions = value
+      .split(/[,\n]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (additions.length === 0) return;
     updateVariations(
-      variations.map((variation, i) =>
-        i === index && !variation.values.includes(trimmed)
-          ? { ...variation, values: [...variation.values, trimmed] }
-          : variation
-      )
+      variations.map((variation, i) => {
+        if (i !== index) return variation;
+        const seen = new Set(variation.values.map((existing) => existing.toLowerCase()));
+        const values = [...variation.values];
+        for (const addition of additions) {
+          const key = addition.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            values.push(addition);
+          }
+        }
+        return { ...variation, values };
+      })
     );
   };
 
@@ -617,7 +657,7 @@ export function StorePage({ session }: StorePageProps) {
 
 interface VariationsEditorProps {
   variations: ProductVariation[];
-  onAdd: () => void;
+  onAdd: (preset?: ProductVariation) => void;
   onRemove: (index: number) => void;
   onNameChange: (index: number, name: string) => void;
   onAddValue: (index: number, value: string) => void;
@@ -642,7 +682,9 @@ function VariationsEditor({
   };
 
   const handleValueKey = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (event.key === 'Enter' || event.key === ',') {
+    // Comma is handled inside onAddValue (it splits on commas), so only Enter
+    // needs to flush the draft here.
+    if (event.key === 'Enter') {
       event.preventDefault();
       submitValue(index);
     }
@@ -654,65 +696,126 @@ function VariationsEditor({
         <div>
           <p className="og-section-label">Variations (optional)</p>
           <h4>Customer-selectable options</h4>
-          <small>e.g. Color: Red, Blue · Ink: Black, White. Each option requires a name and at least one value.</small>
+          <small>
+            Add a Color or Size to start, then click suggestions or paste a comma-separated
+            list (e.g. “Red, Blue, Green”) to add values fast. Each option needs a name and at
+            least one value.
+          </small>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={onAdd}>
-          Add variation
-        </Button>
+        <div className="admin-store-variations__presets">
+          <Button type="button" variant="secondary" size="sm" onClick={() => onAdd({ name: 'Color', values: [] })}>
+            + Color
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => onAdd({ name: 'Size', values: SIZE_PRESET_VALUES })}
+          >
+            + Size
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onAdd()}>
+            + Custom
+          </Button>
+        </div>
       </div>
       {variations.length === 0 ? (
         <p className="admin-store-variations__empty">No variations. Customers buy a single SKU.</p>
       ) : (
         <ul className="admin-store-variations__list">
-          {variations.map((variation, index) => (
-            <li key={index} className="admin-store-variations__item">
-              <div className="admin-store-variations__row">
-                <Input
-                  label="Option name"
-                  placeholder="Color"
-                  value={variation.name}
-                  onChange={(event) => onNameChange(index, event.target.value)}
-                />
-                <Button type="button" variant="secondary" size="sm" onClick={() => onRemove(index)}>
-                  Remove
-                </Button>
-              </div>
-              <div className="admin-store-variations__values">
-                {variation.values.map((value, valueIndex) => (
-                  <span key={valueIndex} className="admin-store-variations__chip">
-                    {value}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${value}`}
-                      onClick={() => onRemoveValue(index, valueIndex)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="admin-store-variations__row">
-                <Input
-                  label="Add value"
-                  placeholder="Red"
-                  value={drafts[index] ?? ''}
-                  onChange={(event) =>
-                    setDrafts((current) => ({ ...current, [index]: event.target.value }))
-                  }
-                  onKeyDown={(event) => handleValueKey(event, index)}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => submitValue(index)}
-                  disabled={!drafts[index]?.trim()}
-                >
-                  Add value
-                </Button>
-              </div>
-            </li>
-          ))}
+          {variations.map((variation, index) => {
+            const showSwatches = isColorVariation(variation.name);
+            const existing = new Set(variation.values.map((value) => value.toLowerCase()));
+            const suggestions = suggestedValuesFor(variation.name).filter(
+              (value) => !existing.has(value.toLowerCase())
+            );
+            return (
+              <li key={index} className="admin-store-variations__item">
+                <div className="admin-store-variations__row">
+                  <Input
+                    label="Option name"
+                    placeholder="Color"
+                    value={variation.name}
+                    onChange={(event) => onNameChange(index, event.target.value)}
+                  />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => onRemove(index)}>
+                    Remove
+                  </Button>
+                </div>
+                {variation.values.length > 0 ? (
+                  <div className="admin-store-variations__values">
+                    {variation.values.map((value, valueIndex) => {
+                      const swatch = showSwatches ? resolveColorSwatch(value) : null;
+                      return (
+                        <span key={valueIndex} className="admin-store-variations__chip">
+                          {swatch ? (
+                            <span
+                              className="admin-store-variations__swatch"
+                              style={{ background: swatch }}
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          {value}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${value}`}
+                            onClick={() => onRemoveValue(index, valueIndex)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {suggestions.length > 0 ? (
+                  <div className="admin-store-variations__suggestions">
+                    <span className="admin-store-variations__suggestions-label">Quick add:</span>
+                    {suggestions.map((value) => {
+                      const swatch = showSwatches ? resolveColorSwatch(value) : null;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className="admin-store-variations__suggestion"
+                          onClick={() => onAddValue(index, value)}
+                        >
+                          {swatch ? (
+                            <span
+                              className="admin-store-variations__swatch"
+                              style={{ background: swatch }}
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          {value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <div className="admin-store-variations__row">
+                  <Input
+                    label="Add value(s)"
+                    placeholder="Red, Blue, Green"
+                    value={drafts[index] ?? ''}
+                    onChange={(event) =>
+                      setDrafts((current) => ({ ...current, [index]: event.target.value }))
+                    }
+                    onKeyDown={(event) => handleValueKey(event, index)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => submitValue(index)}
+                    disabled={!drafts[index]?.trim()}
+                  >
+                    Add value
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

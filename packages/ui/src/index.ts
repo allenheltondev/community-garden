@@ -27,6 +27,7 @@ export {
   theme,
   typography,
 } from './theme.ts';
+export { resolveColorSwatch, isColorVariation } from './swatch.ts';
 export type { FormFeedbackProps, FormFeedbackTone } from './components/FormFeedback.tsx';
 export type { FormFieldProps } from './components/FormField.tsx';
 export type { InputProps } from './components/Input.tsx';
