@@ -27,6 +27,10 @@ import {
   replaceImpactMetrics,
   validateImpactMetricsPayload
 } from '../src/services/impact.mjs';
+import {
+  replaceTestimonials,
+  validateTestimonialsPayload
+} from '../src/services/testimonials.mjs';
 
 async function testAuthorizer() {
   assert.equal(
@@ -543,9 +547,48 @@ async function testReplaceImpactMetricsRequiresAdmin() {
   );
 }
 
+function testTestimonialsHelpers() {
+  const normalized = validateTestimonialsPayload({
+    testimonials: [
+      { quote: '  The okra seeds were a hit.  ', attribution: ' Seed recipient ', role: ' McKinney, TX ' },
+      { quote: 'A work day taught me a lot.', attribution: 'Volunteer' }
+    ]
+  });
+  assert.deepEqual(normalized, [
+    { quote: 'The okra seeds were a hit.', attribution: 'Seed recipient', role: 'McKinney, TX' },
+    { quote: 'A work day taught me a lot.', attribution: 'Volunteer', role: null }
+  ]);
+
+  assert.deepEqual(validateTestimonialsPayload({ testimonials: [] }), []);
+
+  assert.throws(() => validateTestimonialsPayload(null), /Request body is required/);
+  assert.throws(() => validateTestimonialsPayload({}), /testimonials must be an array/);
+  assert.throws(
+    () => validateTestimonialsPayload({ testimonials: [{ attribution: 'A' }] }),
+    /testimonials\[0\]\.quote is required/
+  );
+  assert.throws(
+    () => validateTestimonialsPayload({ testimonials: [{ quote: 'Q' }] }),
+    /testimonials\[0\]\.attribution is required/
+  );
+}
+
+async function testReplaceTestimonialsRequiresAdmin() {
+  await assert.rejects(
+    () =>
+      replaceTestimonials(
+        { requestContext: { authorizer: { userId: 'user-1', isAdmin: 'false' } } },
+        { testimonials: [] }
+      ),
+    /Forbidden/
+  );
+}
+
 await testAuthorizer();
 testImpactHelpers();
 await testReplaceImpactMetricsRequiresAdmin();
+testTestimonialsHelpers();
+await testReplaceTestimonialsRequiresAdmin();
 testAuthAndHttpHelpers();
 testActivityHelpers();
 testFinanceHelpers();

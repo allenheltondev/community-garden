@@ -12,9 +12,9 @@ import {
   WorkIcon,
 } from '../chrome';
 import { boardMembers, foundationOrganization } from '../organization';
-import { testimonials } from '../community-content';
 import { NewsletterSignup } from '../components/NewsletterSignup';
 import { StatsRow } from '../components/StatsRow';
+import { Testimonials } from '../components/Testimonials';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
 import { facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
 
@@ -201,21 +201,7 @@ export function HomePage({ onNavigate }: { onNavigate: (path: string) => void; }
         </div>
       </Section>
 
-      {testimonials.length > 0 ? (
-        <Section title="In their words" className="section-testimonials">
-          <div className="home-testimonials">
-            {testimonials.map((testimonial) => (
-              <figure className="home-testimonial" key={testimonial.quote}>
-                <blockquote className="home-testimonial__quote">{testimonial.quote}</blockquote>
-                <figcaption className="home-testimonial__attribution">
-                  {testimonial.attribution}
-                  {testimonial.role ? <span className="home-testimonial__role">{testimonial.role}</span> : null}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </Section>
-      ) : null}
+      <Testimonials />
 
       <section className="page-section section-newsletter" aria-label="Newsletter signup">
         <NewsletterSignup source="home" />

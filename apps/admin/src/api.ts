@@ -671,3 +671,41 @@ export async function saveImpactMetrics(
   );
   return response.items;
 }
+
+export interface Testimonial {
+  id: string;
+  quote: string;
+  attribution: string;
+  role: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export interface TestimonialInput {
+  quote: string;
+  attribution: string;
+  role?: string | null;
+}
+
+export async function listTestimonials(accessToken: string): Promise<Testimonial[]> {
+  const response = await requestJson<{ items: Testimonial[] }>(
+    `${getAdminApiBaseUrl()}/admin/testimonials`,
+    accessToken
+  );
+  return response.items;
+}
+
+export async function saveTestimonials(
+  accessToken: string,
+  testimonials: TestimonialInput[]
+): Promise<Testimonial[]> {
+  const response = await requestJson<{ items: Testimonial[] }>(
+    `${getAdminApiBaseUrl()}/admin/testimonials`,
+    accessToken,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ testimonials }),
+    }
+  );
+  return response.items;
+}

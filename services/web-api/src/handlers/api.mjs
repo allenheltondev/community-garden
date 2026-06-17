@@ -32,6 +32,7 @@ import {
   subscribeToNewsletter
 } from '../services/newsletter.mjs';
 import { listPublicImpactMetrics } from '../services/impact-metrics.mjs';
+import { listPublicTestimonials } from '../services/testimonials.mjs';
 import {
   cancelMyWorkshopSignup,
   getPublicWorkshopBySlug,
@@ -389,6 +390,27 @@ app.get('/impact-metrics', async ({ event }) => {
     };
   } catch (error) {
     logger.error('GET /impact-metrics failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  try {
+    const result = await listPublicTestimonials();
+    return {
+      statusCode: 200,
+      headers: {
+        'x-correlation-id': correlationId,
+        'cache-control': 'public, max-age=300, stale-while-revalidate=60'
+      },
+      body: result
+    };
+  } catch (error) {
+    logger.error('GET /testimonials failed', {
       correlationId,
       error: error instanceof Error ? error.message : String(error)
     });

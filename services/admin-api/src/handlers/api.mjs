@@ -26,6 +26,10 @@ import {
   replaceImpactMetrics
 } from '../services/impact.mjs';
 import {
+  listTestimonials,
+  replaceTestimonials
+} from '../services/testimonials.mjs';
+import {
   createWorkshop,
   createWorkshopImageUploadIntent,
   deleteWorkshop,
@@ -231,6 +235,43 @@ app.put('/admin/impact-metrics', async ({ event }) => {
     return jsonResponse(200, result, correlationId);
   } catch (error) {
     logger.error('PUT /admin/impact-metrics failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/admin/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('GET /admin/testimonials', event);
+
+  try {
+    const result = await listTestimonials();
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('GET /admin/testimonials failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.put('/admin/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('PUT /admin/testimonials', event);
+
+  try {
+    const payload = parseJsonBody(event);
+    const result = await replaceTestimonials(event, payload);
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('PUT /admin/testimonials failed', {
       correlationId,
       error: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : 'UnknownError',

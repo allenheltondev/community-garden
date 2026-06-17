@@ -88,6 +88,8 @@ export function mapApiError(error, correlationId) {
     || message.includes('price_cents must be an integer')
     || message.includes('metrics must')
     || message.includes('metrics[')
+    || message.includes('testimonials must')
+    || message.includes('testimonials[')
   ) {
     return errorResponse(400, message, correlationId);
   }

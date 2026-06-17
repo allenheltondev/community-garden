@@ -1,0 +1,29 @@
+$kind: http-request
+name: Save Testimonials - Invalid Body
+description: |-
+  Ensure PUT /admin/testimonials rejects a malformed body. Validation runs
+  before any database write, so this does not mutate stored testimonials.
+method: PUT
+url: '{{baseUrl}}/admin/testimonials'
+order: 2701
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "testimonials": "not-an-array"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("PUT /admin/testimonials rejects a malformed body", function () {
+          pm.response.to.have.status(400);
+      });
+
+      pm.test("Response surfaces a validation error", function () {
+          const body = pm.response.json();
+          pm.expect(body.error || body.message).to.be.a("string").and.not.empty;
+      });

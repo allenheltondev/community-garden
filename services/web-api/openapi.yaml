@@ -34,6 +34,35 @@ paths:
                           type: [string, 'null']
                         sortOrder:
                           type: integer
+  /testimonials:
+    get:
+      summary: List admin-managed testimonials for the public site
+      description: |
+        Public read of the testimonials configured in the admin app (Impact section). Returns an
+        empty list when none are configured or before the backing table has been migrated.
+      responses:
+        '200':
+          description: Testimonials list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        quote:
+                          type: string
+                        attribution:
+                          type: string
+                        role:
+                          type: [string, 'null']
+                        sortOrder:
+                          type: integer
   /newsletter:
     post:
       summary: Subscribe an email address to the foundation newsletter
