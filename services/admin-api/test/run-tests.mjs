@@ -23,6 +23,10 @@ import {
   parseDateBoundary,
   resolveGranularity
 } from '../src/services/finance.mjs';
+import {
+  replaceImpactMetrics,
+  validateImpactMetricsPayload
+} from '../src/services/impact.mjs';
 
 async function testAuthorizer() {
   assert.equal(
@@ -494,7 +498,54 @@ async function testGetRevenueSummary() {
   assert.equal(result.buckets.length, 1);
 }
 
+function testImpactHelpers() {
+  // Valid payload trims fields and normalizes empty captions to null.
+  const normalized = validateImpactMetricsPayload({
+    metrics: [
+      { label: '  Volunteer hours  ', value: ' 2,733 ', caption: ' as of June 2026 ' },
+      { label: 'Pounds harvested', value: '36' }
+    ]
+  });
+  assert.deepEqual(normalized, [
+    { label: 'Volunteer hours', value: '2,733', caption: 'as of June 2026' },
+    { label: 'Pounds harvested', value: '36', caption: null }
+  ]);
+
+  // An empty list is allowed (clears all metrics).
+  assert.deepEqual(validateImpactMetricsPayload({ metrics: [] }), []);
+
+  assert.throws(() => validateImpactMetricsPayload(null), /Request body is required/);
+  assert.throws(() => validateImpactMetricsPayload({}), /metrics must be an array/);
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ value: '1' }] }),
+    /metrics\[0\]\.label is required/
+  );
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ label: 'Hours' }] }),
+    /metrics\[0\]\.value is required/
+  );
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ label: 'x'.repeat(81), value: '1' }] }),
+    /metrics\[0\]\.label must be at most/
+  );
+}
+
+async function testReplaceImpactMetricsRequiresAdmin() {
+  // requireAdmin runs before any database access, so a non-admin caller is
+  // rejected without a DB connection.
+  await assert.rejects(
+    () =>
+      replaceImpactMetrics(
+        { requestContext: { authorizer: { userId: 'user-1', isAdmin: 'false' } } },
+        { metrics: [] }
+      ),
+    /Forbidden/
+  );
+}
+
 await testAuthorizer();
+testImpactHelpers();
+await testReplaceImpactMetricsRequiresAdmin();
 testAuthAndHttpHelpers();
 testActivityHelpers();
 testFinanceHelpers();

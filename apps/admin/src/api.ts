@@ -633,3 +633,41 @@ export async function uploadWorkshopImage(
 
   return { s3Key: intent.s3Key };
 }
+
+export interface ImpactMetric {
+  id: string;
+  label: string;
+  value: string;
+  caption: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export interface ImpactMetricInput {
+  label: string;
+  value: string;
+  caption?: string | null;
+}
+
+export async function listImpactMetrics(accessToken: string): Promise<ImpactMetric[]> {
+  const response = await requestJson<{ items: ImpactMetric[] }>(
+    `${getAdminApiBaseUrl()}/admin/impact-metrics`,
+    accessToken
+  );
+  return response.items;
+}
+
+export async function saveImpactMetrics(
+  accessToken: string,
+  metrics: ImpactMetricInput[]
+): Promise<ImpactMetric[]> {
+  const response = await requestJson<{ items: ImpactMetric[] }>(
+    `${getAdminApiBaseUrl()}/admin/impact-metrics`,
+    accessToken,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ metrics }),
+    }
+  );
+  return response.items;
+}

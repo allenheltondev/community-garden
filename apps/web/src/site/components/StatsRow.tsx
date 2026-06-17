@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { okraMapUrl } from '../../okra/api';
-import { manualImpactStats, manualImpactStatsAsOf } from '../community-content';
+import { webApiBase } from '../routes';
 import './StatsRow.css';
 
 type OkraStats = {
@@ -10,7 +10,16 @@ type OkraStats = {
   seed_packets_sent: number;
 };
 
+type ImpactMetric = {
+  id: string;
+  label: string;
+  value: string;
+  caption: string | null;
+  sortOrder: number;
+};
+
 type Tile = {
+  key: string;
   label: string;
   value: string;
   caption?: string;
@@ -25,25 +34,26 @@ function buildLiveTiles(stats: OkraStats | null): Tile[] {
 
   const tiles: Tile[] = [];
   if (stats.seed_packets_sent > 0) {
-    tiles.push({ label: 'Seed packets mailed', value: numberFormat.format(stats.seed_packets_sent) });
+    tiles.push({ key: 'seed-packets', label: 'Seed packets mailed', value: numberFormat.format(stats.seed_packets_sent) });
   }
   if (stats.contributor_count > 0) {
-    tiles.push({ label: 'Growers on the Okra map', value: numberFormat.format(stats.contributor_count) });
+    tiles.push({ key: 'growers', label: 'Growers on the Okra map', value: numberFormat.format(stats.contributor_count) });
   }
   if (stats.country_count > 0) {
-    tiles.push({ label: 'Countries reached', value: numberFormat.format(stats.country_count) });
+    tiles.push({ key: 'countries', label: 'Countries reached', value: numberFormat.format(stats.country_count) });
   }
   return tiles;
 }
 
 /**
  * StatsRow — small metrics band combining live numbers from the Okra map with
- * manually-tracked foundation figures. Live tiles are omitted while loading or
- * if they have no data yet, so the row never shows a zero or a spinner in place
- * of a real number.
+ * admin-managed foundation figures served by the web API. Live tiles are
+ * omitted while loading or if they have no data yet, so the row never shows a
+ * zero or a spinner in place of a real number.
  */
 export function StatsRow({ className }: { className?: string }) {
   const [stats, setStats] = useState<OkraStats | null>(null);
+  const [metrics, setMetrics] = useState<ImpactMetric[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -59,19 +69,29 @@ export function StatsRow({ className }: { className?: string }) {
         // Live numbers are best-effort; manual tiles still render.
       });
 
+    fetch(`${webApiBase}/impact-metrics`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { items?: ImpactMetric[] } | null) => {
+        if (active && data?.items) {
+          setMetrics(data.items);
+        }
+      })
+      .catch(() => {
+        // Manual metrics are best-effort; live tiles still render.
+      });
+
     return () => {
       active = false;
     };
   }, []);
 
   const liveTiles = buildLiveTiles(stats);
-  const manualTiles: Tile[] = manualImpactStats
-    .filter((stat) => stat.value && stat.value !== '—')
-    .map((stat) => ({
-      label: stat.label,
-      value: stat.value,
-      caption: stat.note ?? `as of ${manualImpactStatsAsOf}`,
-    }));
+  const manualTiles: Tile[] = metrics.map((metric) => ({
+    key: metric.id,
+    label: metric.label,
+    value: metric.value,
+    caption: metric.caption ?? undefined,
+  }));
 
   const tiles = [...liveTiles, ...manualTiles];
   if (tiles.length === 0) {
@@ -81,7 +101,7 @@ export function StatsRow({ className }: { className?: string }) {
   return (
     <dl className={['stats-row', className].filter(Boolean).join(' ')}>
       {tiles.map((tile) => (
-        <div className="stats-row__tile" key={tile.label}>
+        <div className="stats-row__tile" key={tile.key}>
           <dt className="stats-row__value">{tile.value}</dt>
           <dd className="stats-row__label">
             {tile.label}

@@ -2064,3 +2064,51 @@ body {
     flex-direction: column-reverse;
   }
 }
+
+/* Impact metrics editor */
+.admin-muted {
+  color: var(--og-color-soil);
+}
+
+.admin-impact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-impact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.admin-impact-row__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
+  gap: 0.75rem;
+  flex: 1 1 22rem;
+}
+
+.admin-impact-row__actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.admin-impact-save {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .admin-impact-row__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-impact-row__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

@@ -86,6 +86,8 @@ export function mapApiError(error, correlationId) {
     || message.includes('location must be a string')
     || message.includes('image_s3_key must be a string')
     || message.includes('price_cents must be an integer')
+    || message.includes('metrics must')
+    || message.includes('metrics[')
   ) {
     return errorResponse(400, message, correlationId);
   }

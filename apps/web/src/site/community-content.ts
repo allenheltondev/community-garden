@@ -1,9 +1,8 @@
 // Editable community content surfaced on the public site.
 //
-// These are intentionally kept in one place so non-engineers can update copy
-// and numbers without touching page components. Swap the placeholder
-// testimonials below for real, approved quotes, and fill in the manual impact
-// numbers as they are tracked.
+// Testimonials live here so copy can be updated in one place. Impact numbers
+// are NOT hardcoded — they are managed in the admin app (Impact section) and
+// served by the web API; see components/StatsRow.tsx.
 
 export type Testimonial = {
   quote: string;
@@ -26,21 +25,4 @@ export const testimonials: Testimonial[] = [
     attribution: 'Volunteer',
     role: 'Garden work day',
   },
-];
-
-export type ManualImpactStat = {
-  label: string;
-  value: string;
-  note?: string;
-};
-
-// Date shown alongside manually-tracked numbers so visitors know how current
-// they are. Update whenever you refresh the values below.
-export const manualImpactStatsAsOf = 'June 2026';
-
-// Manually-tracked impact numbers. Replace the em dashes with real figures as
-// they are measured; tiles still render with a clear "as of" caption.
-export const manualImpactStats: ManualImpactStat[] = [
-  { label: 'Volunteer hours logged', value: '2,733' },
-  { label: 'Pounds harvested', value: '36' },
 ];

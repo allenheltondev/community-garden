@@ -4,6 +4,36 @@ info:
   version: 0.1.0
   description: Public-site donation checkout API. Stripe donation lifecycle events arrive through EventBridge.
 paths:
+  /impact-metrics:
+    get:
+      summary: List admin-managed impact metrics for the public site
+      description: |
+        Public read of the impact numbers configured in the admin app (Impact section). The
+        foundation site blends these with live Okra map figures. Returns an empty list when none
+        are configured or before the backing table has been migrated.
+      responses:
+        '200':
+          description: Impact metrics list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                        caption:
+                          type: [string, 'null']
+                        sortOrder:
+                          type: integer
   /newsletter:
     post:
       summary: Subscribe an email address to the foundation newsletter
