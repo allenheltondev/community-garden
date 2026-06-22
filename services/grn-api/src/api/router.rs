@@ -1,7 +1,7 @@
 use crate::handlers::{
-    agent_task, ai_copilot, analytics, annotation, bed, billing, catalog, claim, claim_read, crop,
-    feed, garden_canvas, garden_review, garden_share, listing, listing_discovery, reminder,
-    request, user,
+    agent_task, ai_copilot, analytics, annotation, api_key, bed, billing, catalog, claim,
+    claim_read, crop, feed, garden_canvas, garden_review, garden_share, listing, listing_discovery,
+    reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -172,6 +172,10 @@ async fn route_dynamic_routes(
     correlation_id: &str,
     request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
+    if let Some(result) = route_api_key_request(event, correlation_id, request_path).await {
+        return handle(result);
+    }
+
     if let Some(rest) = request_path.strip_prefix("/crops/") {
         if let Some(crop_library_id) = rest.strip_suffix("/harvests") {
             let result = match event.method().as_str() {
@@ -266,6 +270,29 @@ async fn route_dynamic_routes(
         .header("content-type", "application/json")
         .body(Body::from(r#"{"error":"Not Found"}"#))
         .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
+async fn route_api_key_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if request_path == "/me/api-keys" {
+        return Some(match event.method().as_str() {
+            "GET" => api_key::list_api_keys(event, correlation_id).await,
+            "POST" => api_key::create_api_key(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if let Some(api_key_id) = request_path.strip_prefix("/me/api-keys/") {
+        return Some(match event.method().as_str() {
+            "GET" => api_key::get_api_key(event, correlation_id, api_key_id).await,
+            "PUT" => api_key::update_api_key(event, correlation_id, api_key_id).await,
+            "DELETE" => api_key::delete_api_key(event, correlation_id, api_key_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    None
 }
 
 async fn route_garden_designer_request(
@@ -411,6 +438,8 @@ fn map_api_error_to_response(
         || message.contains("title is required")
         || message.contains("unit is required")
         || message.contains("crop_name is required")
+        || message.contains("name is required")
+        || message.contains("name must be")
         || message.contains("bed name is required")
         || message.contains("bed name must be")
         || message.contains("Invalid sunExposure")

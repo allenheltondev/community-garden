@@ -1,4 +1,5 @@
 pub mod annotation;
+pub mod api_key;
 pub mod bed;
 pub mod catalog;
 pub mod crop;

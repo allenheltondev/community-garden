@@ -1318,4 +1318,50 @@ export async function fetchSharedGarden(token: string): Promise<SharedGardenSnap
   return (await response.json()) as SharedGardenSnapshot;
 }
 
+// --- API keys ---------------------------------------------------------------
+// Personal keys for programmatic access. The plaintext secret is only ever
+// returned once, by createApiKey; afterwards only non-secret metadata is
+// available. Backend responses are already camelCase, so no mapping is needed.
+
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatedApiKey extends ApiKeyItem {
+  /** The full plaintext key. Shown once; store it securely. */
+  key: string;
+}
+
+export interface ApiKeyListResponse {
+  items: ApiKeyItem[];
+}
+
+export async function listApiKeys(): Promise<ApiKeyListResponse> {
+  return apiFetch<ApiKeyListResponse>('/me/api-keys');
+}
+
+export async function createApiKey(name: string): Promise<CreatedApiKey> {
+  return apiFetch<CreatedApiKey>('/me/api-keys', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function renameApiKey(apiKeyId: string, name: string): Promise<ApiKeyItem> {
+  return apiFetch<ApiKeyItem>(`/me/api-keys/${encodeURIComponent(apiKeyId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deleteApiKey(apiKeyId: string): Promise<void> {
+  await apiFetch(`/me/api-keys/${encodeURIComponent(apiKeyId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export default apiFetch;

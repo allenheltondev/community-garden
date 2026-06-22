@@ -32,6 +32,9 @@ const RequestsPage = lazy(() =>
 const RemindersPage = lazy(() =>
   import('../pages/RemindersPage').then((m) => ({ default: m.RemindersPage }))
 );
+const SettingsPage = lazy(() =>
+  import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
 
 function MainLoader() {
   return (
@@ -69,6 +72,7 @@ export function AuthenticatedRoot() {
               <Route path="/listings" element={<ListingsPage />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </OnboardingGuard>

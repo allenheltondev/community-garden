@@ -15,6 +15,8 @@ tags:
     description: Authenticated user profile and onboarding
   - name: Entitlements
     description: Tier and entitlement introspection
+  - name: API Keys
+    description: Personal API keys for programmatic access; authenticate as the owning user
   - name: Billing
     description: Stripe checkout and webhook lifecycle
   - name: Crop Library
@@ -52,6 +54,10 @@ paths:
     $ref: 'openapi/paths/profile.yaml#/~1me'
   /me/entitlements:
     $ref: 'openapi/paths/profile.yaml#/~1me~1entitlements'
+  /me/api-keys:
+    $ref: 'openapi/paths/api-keys.yaml#/~1me~1api-keys'
+  /me/api-keys/{apiKeyId}:
+    $ref: 'openapi/paths/api-keys.yaml#/~1me~1api-keys~1{apiKeyId}'
   /users/{userId}:
     $ref: 'openapi/paths/profile.yaml#/~1users~1{userId}'
   /billing/checkout-session:

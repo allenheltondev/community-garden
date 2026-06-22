@@ -4,12 +4,19 @@ use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::str::FromStr;
 use tokio_postgres::config::{ChannelBinding, Config};
+use tokio_postgres::Client;
 use tokio_postgres_rustls::MakeRustlsConnect;
 use tracing::{error, warn};
 use uuid::Uuid;
+
+/// Prefix on every GRN API key. Used to distinguish an API key from a JWT when
+/// both arrive in the `Authorization: Bearer <token>` header. Must match the
+/// prefix produced by the API key handler.
+const API_KEY_PREFIX: &str = "grnk_";
 #[derive(Clone)]
 struct AppState {
     cognito: CognitoClient,
@@ -122,7 +129,86 @@ async fn handle_authorization(
     }
 
     let token = auth_header.trim_start_matches("Bearer ");
-    handle_jwt_auth(token, event, state).await
+
+    // API keys and JWTs both travel in the Authorization header; the key prefix
+    // tells them apart. This keeps the existing Authorization-based authorizer
+    // identity caching intact.
+    if looks_like_api_key(token) {
+        handle_api_key_auth(token, event, state).await
+    } else {
+        handle_jwt_auth(token, event, state).await
+    }
+}
+
+fn looks_like_api_key(token: &str) -> bool {
+    token.starts_with(API_KEY_PREFIX)
+}
+
+async fn handle_api_key_auth(
+    token: &str,
+    event: &ApiGatewayCustomAuthorizerRequestTypeRequest,
+    state: &AppState,
+) -> Result<PolicyResponse, Error> {
+    let key_hash = sha256_hex(token);
+
+    let client = connect_db(&state.database_url)
+        .await
+        .ok_or("Database unavailable for API key authorization")?;
+
+    let row = client
+        .query_opt(
+            "select ak.id, ak.user_id, u.user_type, u.tier, u.email::text as email
+               from api_keys ak
+               join users u on u.id = ak.user_id
+              where ak.key_hash = $1
+                and ak.revoked_at is null
+                and u.deleted_at is null",
+            &[&key_hash],
+        )
+        .await
+        .map_err(|err| format!("API key lookup failed: {err}"))?
+        .ok_or("Invalid or revoked API key")?;
+
+    let key_id: Uuid = row.get("id");
+    let user_id: Uuid = row.get("user_id");
+    let user_type = row
+        .get::<_, Option<String>>("user_type")
+        .and_then(|raw| normalize_user_type(&raw));
+    let tier = row
+        .get::<_, Option<String>>("tier")
+        .unwrap_or_else(|| "free".to_string());
+    let email = row.get::<_, Option<String>>("email");
+
+    // Best-effort last-used tracking; a failure here must not block auth. With
+    // authorizer result caching this only runs on cache misses.
+    if let Err(err) = client
+        .execute(
+            "update api_keys set last_used_at = now() where id = $1",
+            &[&key_id],
+        )
+        .await
+    {
+        warn!(error = %err, api_key_id = %key_id, "Failed to update api key last_used_at");
+    }
+
+    let principal_id = user_id.to_string();
+    let api_arn = get_api_arn_pattern(event.method_arn.as_deref().unwrap_or_default());
+    let context = build_context([
+        ("userId", Some(principal_id.clone())),
+        ("userType", user_type),
+        ("email", email),
+        ("tier", Some(tier)),
+        ("isAdmin", Some("false".to_string())),
+        ("authMethod", Some("api_key".to_string())),
+    ]);
+
+    Ok(generate_policy(&principal_id, "Allow", &api_arn, context))
+}
+
+fn sha256_hex(input: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    hex::encode(hasher.finalize())
 }
 
 fn get_authorization_header(
@@ -271,7 +357,10 @@ async fn get_user_tier(
         }
     }
 }
-async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<String> {
+/// Open a one-shot Postgres connection for the authorizer. Returns None on any
+/// failure (logged) so callers can degrade gracefully. Shared by the userType
+/// lookup and API key authorization paths.
+async fn connect_db(database_url: &str) -> Option<Client> {
     let mut config = match Config::from_str(database_url) {
         Ok(config) => config,
         Err(err) => {
@@ -291,14 +380,14 @@ async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<Str
     if !cert_result.errors.is_empty() {
         error!(
             error_count = cert_result.errors.len(),
-            "Errors occurred while loading native root certificates for userType lookup"
+            "Errors occurred while loading native root certificates for authorizer db connection"
         );
     }
 
     let mut root_store = RootCertStore::empty();
     let (added, _) = root_store.add_parsable_certificates(cert_result.certs);
     if added == 0 {
-        error!("No native root certificates available for userType lookup");
+        error!("No native root certificates available for authorizer db connection");
         return None;
     }
 
@@ -313,7 +402,7 @@ async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<Str
             error!(
                 error = %err,
                 error_debug = ?err,
-                "Failed to connect to database for userType lookup"
+                "Failed to connect to database in authorizer"
             );
             return None;
         }
@@ -324,6 +413,12 @@ async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<Str
             error!(error = %err, error_debug = ?err, "Postgres connection error in authorizer");
         }
     });
+
+    Some(client)
+}
+
+async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<String> {
+    let client = connect_db(database_url).await?;
 
     match client
         .query_opt(
@@ -469,6 +564,28 @@ fn get_api_arn_pattern(method_arn: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_key_prefix_is_recognized() {
+        assert!(looks_like_api_key("grnk_abc123"));
+        assert!(!looks_like_api_key(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig"
+        ));
+        assert!(!looks_like_api_key(""));
+        assert!(!looks_like_api_key("grnkabc"));
+    }
+
+    #[test]
+    fn sha256_hex_is_stable_and_lowercase_hex() {
+        let a = sha256_hex("grnk_sample");
+        let b = sha256_hex("grnk_sample");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 64);
+        assert!(a
+            .bytes()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert_ne!(sha256_hex("grnk_a"), sha256_hex("grnk_b"));
+    }
 
     #[test]
     fn get_api_arn_pattern_expands_resource() {

@@ -1,0 +1,67 @@
+ApiKeyItem:
+  type: object
+  description: |
+    Non-secret metadata about an API key. The full secret is never returned
+    here; it is only shown once, at creation, via CreatedApiKeyResponse.
+  required: [id, name, keyPrefix, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    keyPrefix:
+      type: string
+      description: Non-secret display prefix (e.g. `grnk_1a2b3c4d`) to identify the key.
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+CreatedApiKeyResponse:
+  type: object
+  description: |
+    Returned exactly once, immediately after a key is created. Contains the
+    full plaintext secret, which cannot be retrieved again. Only a SHA-256 hash
+    is stored server-side.
+  required: [id, name, keyPrefix, key, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    keyPrefix:
+      type: string
+    key:
+      type: string
+      description: The full plaintext API key. Shown once; store it securely.
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+ApiKeyListResponse:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ApiKeyItem'
+
+UpsertApiKeyRequest:
+  type: object
+  description: Create a new API key or rename an existing one.
+  required: [name]
+  properties:
+    name:
+      type: string
+      maxLength: 100
+      description: A human-friendly label so the owner can identify the key.

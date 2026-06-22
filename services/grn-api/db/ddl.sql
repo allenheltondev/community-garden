@@ -1137,3 +1137,27 @@ create table if not exists garden_share_links (
 create index if not exists idx_garden_share_links_token
   on garden_share_links (token)
   where revoked_at is null;
+
+-- ============================
+-- API KEYS (personal programmatic access)
+-- ============================
+-- Per-user API keys. When presented (Authorization: Bearer <key>) the key
+-- authenticates as its owning user. Only a SHA-256 hash is stored; the secret
+-- is shown once at creation. Revocation is a soft delete.
+create table if not exists api_keys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  key_prefix text not null,          -- non-secret display prefix, e.g. "grnk_1a2b3c4d"
+  key_hash text not null,            -- sha256 hex of the full presented key
+  last_used_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  revoked_at timestamptz,
+
+  constraint api_keys_name_not_empty check (length(trim(name)) > 0),
+  constraint api_keys_key_hash_unique unique (key_hash)
+);
+
+create index if not exists idx_api_keys_user on api_keys(user_id) where revoked_at is null;
+create index if not exists idx_api_keys_hash_active on api_keys(key_hash) where revoked_at is null;

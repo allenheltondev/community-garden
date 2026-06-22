@@ -1,0 +1,41 @@
+$kind: http-request
+name: Create API Key
+description: Create a new API key and capture the one-time secret and id.
+method: POST
+url: '{{baseUrl}}/me/api-keys'
+order: 1000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman integration key"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+
+      pm.test("Response returns the one-time secret and metadata", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("id");
+          pm.expect(body).to.have.property("name", "Postman integration key");
+          pm.expect(body).to.have.property("keyPrefix");
+          pm.expect(body).to.have.property("key");
+          pm.expect(body.key).to.be.a("string").and.match(/^grnk_/);
+          pm.expect(body.keyPrefix).to.match(/^grnk_/);
+
+          if (!body.id) {
+              pm.expect.fail("Missing api key id; aborting chained run.");
+              pm.execution.setNextRequest(null);
+              return;
+          }
+          pm.collectionVariables.set("apiKeyId", body.id);
+      });

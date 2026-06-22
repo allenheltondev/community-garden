@@ -140,6 +140,20 @@ const remindersNavItem: NavItem = {
   ),
 };
 
+const settingsNavItem: NavItem = {
+  id: 'settings',
+  path: '/settings',
+  label: 'Settings',
+  icon: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 5a7.9 7.9 0 0 0 0-2l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1l-.4-2.5H9.6l-.4 2.5a8 8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.9 7.9 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.4 2.5h4.8l.4-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
+        fill="currentColor"
+      />
+    </svg>
+  ),
+};
+
 const footerLinks = [
   { id: 'home', label: 'Foundation home', href: `${foundationHomeUrl}/` },
   { id: 'about', label: 'About', href: `${foundationHomeUrl}/about` },
@@ -233,6 +247,7 @@ export function AppShell({ user, children }: AppShellProps) {
     ...(user?.userType === 'grower' ? growerNavItems : []),
     ...(user?.userType === 'gatherer' ? gathererNavItems : []),
     remindersNavItem,
+    settingsNavItem,
   ];
 
   const headerNavItems = foundationHeaderNav.map((item) => ({
