@@ -49,12 +49,103 @@ GrowerCropItem:
     notes:
       type: string
       nullable: true
+    total_harvested:
+      type: string
+      description: |
+        Running total of everything harvested for this crop, summed across all
+        logged harvests. Serialized as a string to preserve precision. Only
+        present on the crop detail read (GET /crops/{cropLibraryId}); omitted
+        from the list response.
+    harvest_count:
+      type: integer
+      format: int64
+      description: |
+        Number of harvest entries logged for this crop. Only present on the
+        crop detail read.
     created_at:
       type: string
       format: date-time
     updated_at:
       type: string
       format: date-time
+
+RecordHarvestRequest:
+  type: object
+  description: Log a harvest against a crop in the user's library.
+  required: [amount]
+  properties:
+    amount:
+      type: number
+      format: double
+      description: How much was brought in. Must be greater than 0.
+    unit:
+      type: string
+      nullable: true
+      description: "Unit for the amount (e.g. \"lb\", \"bunch\"). Falls back to the crop's default_unit when omitted."
+    harvestedOn:
+      type: string
+      format: date
+      description: Date the harvest was brought in (YYYY-MM-DD). Defaults to today when omitted.
+    notes:
+      type: string
+      nullable: true
+
+HarvestItem:
+  type: object
+  required: [id, growerCropId, amount, harvestedOn, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    growerCropId:
+      type: string
+      format: uuid
+    amount:
+      type: string
+      description: Amount brought in, serialized as a string to preserve precision.
+    unit:
+      type: string
+      nullable: true
+    harvestedOn:
+      type: string
+      format: date
+    notes:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+HarvestLogResponse:
+  type: object
+  required: [growerCropId, totalHarvested, harvestCount, harvests]
+  properties:
+    growerCropId:
+      type: string
+      format: uuid
+    totalHarvested:
+      type: string
+      description: Running total across all logged harvests, serialized as a string.
+    harvestCount:
+      type: integer
+      format: int64
+    harvests:
+      type: array
+      items:
+        $ref: '#/HarvestItem'
+
+RecordHarvestResponse:
+  type: object
+  required: [harvest, totalHarvested, harvestCount]
+  properties:
+    harvest:
+      $ref: '#/HarvestItem'
+    totalHarvested:
+      type: string
+      description: Updated running total after this harvest, serialized as a string.
+    harvestCount:
+      type: integer
+      format: int64
 
 UpsertGrowerCropRequest:
   type: object

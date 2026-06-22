@@ -1,9 +1,9 @@
 $kind: http-request
-name: Get Crop
-description: Retrieve a specific crop from the user's crop library.
+name: List Harvests
+description: Retrieve the harvest log for the user's crop, including the running total and entries.
 method: GET
-url: '{{baseUrl}}/crops/:cropLibraryId'
-order: 3000
+url: '{{baseUrl}}/crops/:cropLibraryId/harvests'
+order: 4300
 headers:
   - key: Authorization
     value: 'Bearer {{authToken}}'
@@ -32,15 +32,14 @@ scripts:
           pm.response.to.have.status(200);
       });
 
-      pm.test("Response matches requested crop", function () {
-          const crop = pm.response.json();
-          pm.expect(crop).to.have.property("id", pm.collectionVariables.get("cropLibraryId"));
-          pm.expect(crop).to.have.property("crop_name");
-          pm.expect(crop).to.have.property("status");
-      });
-
-      pm.test("Detail read includes harvest aggregates", function () {
-          const crop = pm.response.json();
-          pm.expect(crop).to.have.property("total_harvested");
-          pm.expect(crop).to.have.property("harvest_count");
+      pm.test("Harvest log matches the crop and contract", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("growerCropId", pm.collectionVariables.get("cropLibraryId"));
+          pm.expect(body).to.have.property("totalHarvested");
+          pm.expect(body).to.have.property("harvestCount");
+          pm.expect(body.harvestCount).to.be.at.least(1);
+          pm.expect(body).to.have.property("harvests").that.is.an("array");
+          pm.expect(body.harvests.length).to.be.at.least(1);
+          pm.expect(body.harvests[0]).to.have.property("amount");
+          pm.expect(body.harvests[0]).to.have.property("harvestedOn");
       });

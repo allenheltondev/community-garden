@@ -172,30 +172,24 @@ async fn route_dynamic_routes(
     correlation_id: &str,
     request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    if request_path == "/me/api-keys" {
-        let result = match event.method().as_str() {
-            "GET" => api_key::list_api_keys(event, correlation_id).await,
-            "POST" => api_key::create_api_key(event, correlation_id).await,
-            _ => method_not_allowed(),
-        };
+    if let Some(result) = route_api_key_request(event, correlation_id, request_path).await {
         return handle(result);
     }
 
-    if let Some(api_key_id) = request_path.strip_prefix("/me/api-keys/") {
-        let result = match event.method().as_str() {
-            "GET" => api_key::get_api_key(event, correlation_id, api_key_id).await,
-            "PUT" => api_key::update_api_key(event, correlation_id, api_key_id).await,
-            "DELETE" => api_key::delete_api_key(event, correlation_id, api_key_id).await,
-            _ => method_not_allowed(),
-        };
-        return handle(result);
-    }
+    if let Some(rest) = request_path.strip_prefix("/crops/") {
+        if let Some(crop_library_id) = rest.strip_suffix("/harvests") {
+            let result = match event.method().as_str() {
+                "GET" => crop::list_harvests(event, correlation_id, crop_library_id).await,
+                "POST" => crop::record_harvest(event, correlation_id, crop_library_id).await,
+                _ => method_not_allowed(),
+            };
+            return handle(result);
+        }
 
-    if let Some(crop_library_id) = request_path.strip_prefix("/crops/") {
         let result = match event.method().as_str() {
-            "GET" => crop::get_my_crop(event, correlation_id, crop_library_id).await,
-            "PUT" => crop::update_my_crop(event, correlation_id, crop_library_id).await,
-            "DELETE" => crop::delete_my_crop(event, correlation_id, crop_library_id).await,
+            "GET" => crop::get_my_crop(event, correlation_id, rest).await,
+            "PUT" => crop::update_my_crop(event, correlation_id, rest).await,
+            "DELETE" => crop::delete_my_crop(event, correlation_id, rest).await,
             _ => method_not_allowed(),
         };
         return handle(result);
@@ -276,6 +270,29 @@ async fn route_dynamic_routes(
         .header("content-type", "application/json")
         .body(Body::from(r#"{"error":"Not Found"}"#))
         .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
+async fn route_api_key_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if request_path == "/me/api-keys" {
+        return Some(match event.method().as_str() {
+            "GET" => api_key::list_api_keys(event, correlation_id).await,
+            "POST" => api_key::create_api_key(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    if let Some(api_key_id) = request_path.strip_prefix("/me/api-keys/") {
+        return Some(match event.method().as_str() {
+            "GET" => api_key::get_api_key(event, correlation_id, api_key_id).await,
+            "PUT" => api_key::update_api_key(event, correlation_id, api_key_id).await,
+            "DELETE" => api_key::delete_api_key(event, correlation_id, api_key_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+    None
 }
 
 async fn route_garden_designer_request(
@@ -431,6 +448,8 @@ fn map_api_error_to_response(
         || is_garden_designer_validation_message(&message)
         || message.contains("plantingDate must be")
         || message.contains("expectedHarvestDate must be")
+        || message.contains("harvestedOn must be")
+        || message.contains("amount must be greater than 0")
         || message.contains("plantCount must be")
         || message.contains("spacingInches must be")
         || message.contains("does not reference an existing catalog crop")

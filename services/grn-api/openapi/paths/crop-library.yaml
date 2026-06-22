@@ -97,3 +97,63 @@
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/crops/{cropLibraryId}/harvests:
+  parameters:
+    - in: path
+      name: cropLibraryId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  get:
+    tags: [Crop Library, Idempotent]
+    summary: List harvests logged for one crop
+    description: |
+      Returns the private harvest log for a single crop: the running total
+      brought in, the number of entries, and every logged harvest newest-first.
+      This is personal bookkeeping and is separate from surplus listings.
+    operationId: listCropHarvests
+    responses:
+      '200':
+        description: Harvest log for the crop
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/crop-library.yaml#/HarvestLogResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [Crop Library]
+    summary: Log a harvest for one crop
+    description: |
+      Records how much was brought in for this crop and returns the new entry
+      plus the updated running total. When `unit` is omitted it falls back to
+      the crop's `default_unit`; when `harvestedOn` is omitted it defaults to
+      today.
+    operationId: recordCropHarvest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/crop-library.yaml#/RecordHarvestRequest'
+    responses:
+      '201':
+        description: Harvest recorded
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/crop-library.yaml#/RecordHarvestResponse'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
