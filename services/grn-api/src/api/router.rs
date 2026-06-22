@@ -172,11 +172,20 @@ async fn route_dynamic_routes(
     correlation_id: &str,
     request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    if let Some(crop_library_id) = request_path.strip_prefix("/crops/") {
+    if let Some(rest) = request_path.strip_prefix("/crops/") {
+        if let Some(crop_library_id) = rest.strip_suffix("/harvests") {
+            let result = match event.method().as_str() {
+                "GET" => crop::list_harvests(event, correlation_id, crop_library_id).await,
+                "POST" => crop::record_harvest(event, correlation_id, crop_library_id).await,
+                _ => method_not_allowed(),
+            };
+            return handle(result);
+        }
+
         let result = match event.method().as_str() {
-            "GET" => crop::get_my_crop(event, correlation_id, crop_library_id).await,
-            "PUT" => crop::update_my_crop(event, correlation_id, crop_library_id).await,
-            "DELETE" => crop::delete_my_crop(event, correlation_id, crop_library_id).await,
+            "GET" => crop::get_my_crop(event, correlation_id, rest).await,
+            "PUT" => crop::update_my_crop(event, correlation_id, rest).await,
+            "DELETE" => crop::delete_my_crop(event, correlation_id, rest).await,
             _ => method_not_allowed(),
         };
         return handle(result);
@@ -410,6 +419,8 @@ fn map_api_error_to_response(
         || is_garden_designer_validation_message(&message)
         || message.contains("plantingDate must be")
         || message.contains("expectedHarvestDate must be")
+        || message.contains("harvestedOn must be")
+        || message.contains("amount must be greater than 0")
         || message.contains("plantCount must be")
         || message.contains("spacingInches must be")
         || message.contains("does not reference an existing catalog crop")

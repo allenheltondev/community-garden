@@ -1,0 +1,57 @@
+$kind: http-request
+name: Record Harvest
+description: Log a harvest against the user's crop and verify the running total is returned.
+method: POST
+url: '{{baseUrl}}/crops/:cropLibraryId/harvests'
+order: 4200
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: cropLibraryId
+    value: '{{cropLibraryId}}'
+    description: UUID of the grower crop
+body:
+  type: json
+  content: |-
+    {
+      "amount": 3.5,
+      "unit": "lb",
+      "harvestedOn": "2026-06-22",
+      "notes": "First picking of the season"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const cropLibraryId = pm.collectionVariables.get("cropLibraryId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("cropLibraryId is set and valid UUID", function () {
+          pm.expect(cropLibraryId, "cropLibraryId is required").to.be.a("string").and.not.empty;
+          pm.expect(cropLibraryId).to.match(uuidRe);
+      });
+
+      if (!cropLibraryId || !uuidRe.test(cropLibraryId)) {
+          postman.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+
+      pm.test("Response returns the harvest and updated total", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("harvest");
+          pm.expect(body.harvest).to.have.property("id");
+          pm.expect(body.harvest).to.have.property("growerCropId", pm.collectionVariables.get("cropLibraryId"));
+          pm.expect(body.harvest).to.have.property("amount", "3.5");
+          pm.expect(body.harvest).to.have.property("unit", "lb");
+          pm.expect(body.harvest).to.have.property("harvestedOn", "2026-06-22");
+          pm.expect(body).to.have.property("totalHarvested");
+          pm.expect(body).to.have.property("harvestCount");
+          pm.expect(body.harvestCount).to.be.at.least(1);
+      });

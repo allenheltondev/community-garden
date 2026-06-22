@@ -1,6 +1,9 @@
 use crate::auth::{extract_auth_context_with_fallback, require_grower};
 use crate::db;
-use crate::models::crop::{ErrorResponse, GrowerCropItem, UpsertGrowerCropRequest};
+use crate::models::crop::{
+    ErrorResponse, GrowerCropItem, HarvestItem, HarvestLogResponse, RecordHarvestRequest,
+    RecordHarvestResponse, UpsertGrowerCropRequest,
+};
 use chrono::NaiveDate;
 use lambda_http::{Body, Request, Response};
 use serde::Serialize;
@@ -71,7 +74,11 @@ pub async fn get_my_crop(
         .map_err(|error| db_error(&error))?;
 
     if let Some(row) = maybe_row {
-        return json_response(200, &row_to_item(&row));
+        let mut item = row_to_item(&row);
+        let (total, count) = harvest_totals(&client, id).await?;
+        item.total_harvested = Some(total);
+        item.harvest_count = Some(count);
+        return json_response(200, &item);
     }
 
     json_response(
@@ -80,6 +87,185 @@ pub async fn get_my_crop(
             error: "Grower crop record not found".to_string(),
         },
     )
+}
+
+/// Sum and count of every harvest logged against a grower crop. Returns the
+/// total as a string (matching how amounts are serialized elsewhere) and the
+/// number of entries. A crop with no harvests yields ("0", 0).
+async fn harvest_totals(
+    client: &Client,
+    grower_crop_id: Uuid,
+) -> Result<(String, i64), lambda_http::Error> {
+    let row = client
+        .query_one(
+            "select coalesce(sum(amount), 0)::text as total, count(*) as cnt
+             from crop_harvests where grower_crop_id = $1",
+            &[&grower_crop_id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+    Ok((row.get("total"), row.get("cnt")))
+}
+
+/// Verify the crop library entry belongs to the user and return its
+/// `default_unit` (used as the fallback unit for harvests). Returns Ok(None)
+/// when the crop does not exist or is not owned by the user.
+async fn crop_default_unit(
+    client: &Client,
+    grower_crop_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<Option<String>>, lambda_http::Error> {
+    let maybe_row = client
+        .query_opt(
+            "select default_unit from grower_crop_library where id = $1 and user_id = $2",
+            &[&grower_crop_id, &user_id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+    Ok(maybe_row.map(|row| row.get::<_, Option<String>>("default_unit")))
+}
+
+pub async fn record_harvest(
+    request: &Request,
+    correlation_id: &str,
+    crop_library_id: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context_with_fallback(request).await?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
+    let id = parse_uuid(crop_library_id, "crop library id")?;
+    let payload: RecordHarvestRequest = parse_json_body(request)?;
+
+    validate_harvest_amount(payload.amount)?;
+    let harvested_on = parse_optional_date(payload.harvested_on.as_deref(), "harvestedOn")?;
+
+    let client = db::connect().await?;
+
+    // Ownership check; also gives us the crop's default unit as a fallback.
+    let Some(default_unit) = crop_default_unit(&client, id, user_id).await? else {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "Grower crop record not found".to_string(),
+            },
+        );
+    };
+
+    let unit = payload
+        .unit
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or(default_unit);
+    let notes = payload
+        .notes
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    let row = client
+        .query_one(
+            "insert into crop_harvests
+                (user_id, grower_crop_id, amount, unit, harvested_on, notes)
+             values
+                ($1, $2, $3, $4, coalesce($5, current_date), $6)
+             returning id, grower_crop_id, amount::text as amount, unit,
+                       harvested_on, notes, created_at",
+            &[&user_id, &id, &payload.amount, &unit, &harvested_on, &notes],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+
+    let harvest = row_to_harvest(&row);
+    let (total, count) = harvest_totals(&client, id).await?;
+
+    info!(
+        correlation_id = correlation_id,
+        user_id = %user_id,
+        crop_library_id = %id,
+        harvest_id = %harvest.id,
+        "Recorded crop harvest"
+    );
+
+    json_response(
+        201,
+        &RecordHarvestResponse {
+            harvest,
+            total_harvested: total,
+            harvest_count: count,
+        },
+    )
+}
+
+pub async fn list_harvests(
+    request: &Request,
+    _correlation_id: &str,
+    crop_library_id: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context_with_fallback(request).await?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
+    let id = parse_uuid(crop_library_id, "crop library id")?;
+    let client = db::connect().await?;
+
+    if crop_default_unit(&client, id, user_id).await?.is_none() {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "Grower crop record not found".to_string(),
+            },
+        );
+    }
+
+    let rows = client
+        .query(
+            "select id, grower_crop_id, amount::text as amount, unit,
+                    harvested_on, notes, created_at
+             from crop_harvests
+             where grower_crop_id = $1
+             order by harvested_on desc, created_at desc",
+            &[&id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+
+    let harvests = rows.iter().map(row_to_harvest).collect::<Vec<_>>();
+    let (total, count) = harvest_totals(&client, id).await?;
+
+    json_response(
+        200,
+        &HarvestLogResponse {
+            grower_crop_id: id.to_string(),
+            total_harvested: total,
+            harvest_count: count,
+            harvests,
+        },
+    )
+}
+
+fn row_to_harvest(row: &Row) -> HarvestItem {
+    HarvestItem {
+        id: row.get::<_, Uuid>("id").to_string(),
+        grower_crop_id: row.get::<_, Uuid>("grower_crop_id").to_string(),
+        amount: row.get("amount"),
+        unit: row.get("unit"),
+        harvested_on: row
+            .get::<_, NaiveDate>("harvested_on")
+            .format("%Y-%m-%d")
+            .to_string(),
+        notes: row.get("notes"),
+        created_at: row
+            .get::<_, chrono::DateTime<chrono::Utc>>("created_at")
+            .to_rfc3339(),
+    }
 }
 
 pub async fn create_my_crop(
@@ -309,6 +495,16 @@ pub async fn delete_my_crop(
         .status(204)
         .body(Body::Empty)
         .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
+fn validate_harvest_amount(amount: f64) -> Result<(), lambda_http::Error> {
+    if amount.is_finite() && amount > 0.0 {
+        Ok(())
+    } else {
+        Err(lambda_http::Error::from(
+            "amount must be greater than 0".to_string(),
+        ))
+    }
 }
 
 fn validate_upsert_payload(payload: &UpsertGrowerCropRequest) -> Result<(), lambda_http::Error> {
@@ -546,6 +742,10 @@ fn row_to_item(row: &Row) -> GrowerCropItem {
         plant_count: row.get("plant_count"),
         spacing_inches: row.get("spacing_inches"),
         pyramid_tier: row.get("pyramid_tier"),
+        // Harvest aggregates are attached separately on the detail read; the
+        // shared list query does not compute them.
+        total_harvested: None,
+        harvest_count: None,
         created_at: row
             .get::<_, chrono::DateTime<chrono::Utc>>("created_at")
             .to_rfc3339(),
@@ -584,7 +784,7 @@ pub fn error_response(status: u16, message: &str) -> Result<Response<Body>, lamb
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_upsert_payload, UpsertGrowerCropRequest};
+    use super::{validate_harvest_amount, validate_upsert_payload, UpsertGrowerCropRequest};
 
     fn valid_payload() -> UpsertGrowerCropRequest {
         UpsertGrowerCropRequest {
@@ -654,6 +854,27 @@ mod tests {
         payload.planting_date = Some("2026-05-01".to_string());
         payload.expected_harvest_date = Some("2026-08-01".to_string());
         assert!(validate_upsert_payload(&payload).is_ok());
+    }
+
+    #[test]
+    fn harvest_amount_accepts_positive_value() {
+        assert!(validate_harvest_amount(3.5).is_ok());
+    }
+
+    #[test]
+    fn harvest_amount_rejects_zero() {
+        assert!(validate_harvest_amount(0.0).is_err());
+    }
+
+    #[test]
+    fn harvest_amount_rejects_negative() {
+        assert!(validate_harvest_amount(-1.0).is_err());
+    }
+
+    #[test]
+    fn harvest_amount_rejects_non_finite() {
+        assert!(validate_harvest_amount(f64::NAN).is_err());
+        assert!(validate_harvest_amount(f64::INFINITY).is_err());
     }
 
     #[test]

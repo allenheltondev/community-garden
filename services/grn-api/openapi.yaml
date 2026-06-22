@@ -62,6 +62,8 @@ paths:
     $ref: 'openapi/paths/crop-library.yaml#/~1crops'
   /crops/{cropLibraryId}:
     $ref: 'openapi/paths/crop-library.yaml#/~1crops~1{cropLibraryId}'
+  /crops/{cropLibraryId}/harvests:
+    $ref: 'openapi/paths/crop-library.yaml#/~1crops~1{cropLibraryId}~1harvests'
   /beds:
     $ref: 'openapi/paths/garden.yaml#/~1beds'
   /beds/{bedId}:
