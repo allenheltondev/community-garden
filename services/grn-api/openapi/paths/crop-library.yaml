@@ -157,3 +157,61 @@
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/crops/{cropLibraryId}/harvests/{harvestId}:
+  parameters:
+    - in: path
+      name: cropLibraryId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - in: path
+      name: harvestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  put:
+    tags: [Crop Library]
+    summary: Edit a logged harvest
+    description: |
+      Updates one harvest entry and returns it plus the recomputed running
+      total. When `harvestedOn` is omitted the existing date is kept; when
+      `unit` is omitted it falls back to the crop's `default_unit`.
+    operationId: updateCropHarvest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/crop-library.yaml#/RecordHarvestRequest'
+    responses:
+      '200':
+        description: Harvest updated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/crop-library.yaml#/RecordHarvestResponse'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  delete:
+    tags: [Crop Library]
+    summary: Delete a logged harvest
+    description: Permanently removes one harvest entry. The running total is recomputed on the next read.
+    operationId: deleteCropHarvest
+    responses:
+      '204':
+        description: Deleted
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'

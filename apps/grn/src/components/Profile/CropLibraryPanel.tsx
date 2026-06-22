@@ -7,6 +7,7 @@ import { Button, Card } from '@olivias/ui';
 import { createLogger } from '../../utils/logging';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
+import { HarvestLogModal } from '../Harvests/HarvestLogModal';
 
 const logger = createLogger('crop-library');
 
@@ -57,6 +58,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'growing' | 'planning' | 'interested'>('all');
+  const [harvestCrop, setHarvestCrop] = useState<GrowerCropItem | null>(null);
 
   const { data: myCrops, isLoading: isLoadingCrops } = useQuery({
     queryKey: ['myCrops'],
@@ -267,6 +269,13 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => setHarvestCrop(crop)}
+                  >
+                    Harvests
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => navigate(`/crops/new?edit=${crop.id}`)}
                     disabled
                     title="Editing comes next — for now, remove and re-add"
@@ -288,6 +297,15 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
           })}
         </div>
       </Card>
+
+      {harvestCrop ? (
+        <HarvestLogModal
+          cropId={harvestCrop.id}
+          cropName={harvestCrop.nickname || harvestCrop.cropName}
+          defaultUnit={harvestCrop.defaultUnit}
+          onClose={() => setHarvestCrop(null)}
+        />
+      ) : null}
     </div>
   );
 }

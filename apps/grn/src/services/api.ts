@@ -828,6 +828,75 @@ export async function deleteMyCrop(cropId: string): Promise<void> {
   });
 }
 
+// --- Harvest tracking -------------------------------------------------------
+// Private per-crop bookkeeping: how much has been brought in. Amounts are
+// serialized as strings to preserve precision. Responses are camelCase.
+
+export interface HarvestItem {
+  id: string;
+  growerCropId: string;
+  amount: string;
+  unit: string | null;
+  harvestedOn: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface HarvestLogResponse {
+  growerCropId: string;
+  totalHarvested: string;
+  harvestCount: number;
+  harvests: HarvestItem[];
+}
+
+export interface RecordHarvestResponse {
+  harvest: HarvestItem;
+  totalHarvested: string;
+  harvestCount: number;
+}
+
+export interface RecordHarvestInput {
+  amount: number;
+  unit?: string;
+  harvestedOn?: string;
+  notes?: string;
+}
+
+export async function listHarvests(cropId: string): Promise<HarvestLogResponse> {
+  return apiFetch<HarvestLogResponse>(`/crops/${encodeURIComponent(cropId)}/harvests`);
+}
+
+export async function recordHarvest(
+  cropId: string,
+  input: RecordHarvestInput
+): Promise<RecordHarvestResponse> {
+  return apiFetch<RecordHarvestResponse>(`/crops/${encodeURIComponent(cropId)}/harvests`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateHarvest(
+  cropId: string,
+  harvestId: string,
+  input: RecordHarvestInput
+): Promise<RecordHarvestResponse> {
+  return apiFetch<RecordHarvestResponse>(
+    `/crops/${encodeURIComponent(cropId)}/harvests/${encodeURIComponent(harvestId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }
+  );
+}
+
+export async function deleteHarvest(cropId: string, harvestId: string): Promise<void> {
+  await apiFetch(
+    `/crops/${encodeURIComponent(cropId)}/harvests/${encodeURIComponent(harvestId)}`,
+    { method: 'DELETE' }
+  );
+}
+
 export interface UpsertGardenBedRequest {
   name: string;
   description?: string | null;

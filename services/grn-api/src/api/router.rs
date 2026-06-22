@@ -177,6 +177,19 @@ async fn route_dynamic_routes(
     }
 
     if let Some(rest) = request_path.strip_prefix("/crops/") {
+        if let Some((crop_library_id, harvest_id)) = rest.split_once("/harvests/") {
+            let result = match event.method().as_str() {
+                "PUT" => {
+                    crop::update_harvest(event, correlation_id, crop_library_id, harvest_id).await
+                }
+                "DELETE" => {
+                    crop::delete_harvest(event, correlation_id, crop_library_id, harvest_id).await
+                }
+                _ => method_not_allowed(),
+            };
+            return handle(result);
+        }
+
         if let Some(crop_library_id) = rest.strip_suffix("/harvests") {
             let result = match event.method().as_str() {
                 "GET" => crop::list_harvests(event, correlation_id, crop_library_id).await,
