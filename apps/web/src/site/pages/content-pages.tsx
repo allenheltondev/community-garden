@@ -523,27 +523,13 @@ export function ImpactPage({ onNavigate }: { onNavigate: (path: string) => void;
         </p>
       </Section>
 
-      <Section title="A story from the garden.">
-        <div className="impact-story">
-          <div>
-            {/* PLACEHOLDER story — replace with a real, approved story and photo. */}
-            <p className="page-text">
-              A family came for free okra seeds and left with their first raised bed plan. By late
-              summer they sent back a photo of their kids eating okra straight off the plant — the
-              exact thing Olivia loved most. Small starts like this are the whole point.
-            </p>
-            <p className="impact-story__attribution">— A McKinney family, first-season grower</p>
-          </div>
-          <figure className="photo-card impact-story__photo">
-            <ResponsiveImage
-              src="/images/home/produce-basket.jpg"
-              alt="A basket of produce harvested from the garden."
-              sizes="(max-width: 760px) 100vw, 40vw"
-            />
-            <figcaption>Harvests like these start with a single packet of seeds.</figcaption>
-          </figure>
-        </div>
-      </Section>
+      {/*
+        "A story from the garden" section intentionally omitted: it previously
+        rendered an unapproved placeholder family story, which could read as a
+        real impact claim to donors and visitors. Reinstate this section only
+        with a real, approved grower story and photo (ideally sourced from
+        admin-managed content rather than hard-coded copy).
+      */}
 
       <Section
         title="Where we're going."
