@@ -54,4 +54,8 @@ scripts:
           pm.expect(body).to.have.property("totalHarvested");
           pm.expect(body).to.have.property("harvestCount");
           pm.expect(body.harvestCount).to.be.at.least(1);
+
+          if (body.harvest && body.harvest.id) {
+              pm.collectionVariables.set("harvestId", body.harvest.id);
+          }
       });

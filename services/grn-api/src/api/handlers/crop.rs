@@ -251,6 +251,151 @@ pub async fn list_harvests(
     )
 }
 
+pub async fn update_harvest(
+    request: &Request,
+    correlation_id: &str,
+    crop_library_id: &str,
+    harvest_id: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context_with_fallback(request).await?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
+    let crop_id = parse_uuid(crop_library_id, "crop library id")?;
+    let harvest_id = parse_uuid(harvest_id, "harvest id")?;
+    let payload: RecordHarvestRequest = parse_json_body(request)?;
+
+    validate_harvest_amount(payload.amount)?;
+    let harvested_on = parse_optional_date(payload.harvested_on.as_deref(), "harvestedOn")?;
+
+    let client = db::connect().await?;
+
+    // Ownership of the parent crop; also gives the default unit fallback.
+    let Some(default_unit) = crop_default_unit(&client, crop_id, user_id).await? else {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "Grower crop record not found".to_string(),
+            },
+        );
+    };
+
+    let unit = payload
+        .unit
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or(default_unit);
+    let notes = payload
+        .notes
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    // An omitted harvestedOn keeps the existing date rather than resetting it.
+    let maybe_row = client
+        .query_opt(
+            "update crop_harvests
+                set amount = $1, unit = $2,
+                    harvested_on = coalesce($3, harvested_on), notes = $4
+             where id = $5 and grower_crop_id = $6 and user_id = $7
+             returning id, grower_crop_id, amount::text as amount, unit,
+                       harvested_on, notes, created_at",
+            &[
+                &payload.amount,
+                &unit,
+                &harvested_on,
+                &notes,
+                &harvest_id,
+                &crop_id,
+                &user_id,
+            ],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+
+    let Some(row) = maybe_row else {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "Harvest record not found".to_string(),
+            },
+        );
+    };
+
+    let harvest = row_to_harvest(&row);
+    let (total, count) = harvest_totals(&client, crop_id).await?;
+
+    info!(
+        correlation_id = correlation_id,
+        user_id = %user_id,
+        crop_library_id = %crop_id,
+        harvest_id = %harvest.id,
+        "Updated crop harvest"
+    );
+
+    json_response(
+        200,
+        &RecordHarvestResponse {
+            harvest,
+            total_harvested: total,
+            harvest_count: count,
+        },
+    )
+}
+
+pub async fn delete_harvest(
+    request: &Request,
+    correlation_id: &str,
+    crop_library_id: &str,
+    harvest_id: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    // Require grower user type - gatherers will receive 403 Forbidden
+    let auth_context = extract_auth_context_with_fallback(request).await?;
+    require_grower(&auth_context)?;
+
+    let user_id = Uuid::parse_str(&auth_context.user_id)
+        .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
+    let crop_id = parse_uuid(crop_library_id, "crop library id")?;
+    let harvest_id = parse_uuid(harvest_id, "harvest id")?;
+    let client = db::connect().await?;
+
+    let deleted = client
+        .execute(
+            "delete from crop_harvests
+             where id = $1 and grower_crop_id = $2 and user_id = $3",
+            &[&harvest_id, &crop_id, &user_id],
+        )
+        .await
+        .map_err(|error| db_error(&error))?;
+
+    if deleted == 0 {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "Harvest record not found".to_string(),
+            },
+        );
+    }
+
+    info!(
+        correlation_id = correlation_id,
+        user_id = %user_id,
+        crop_library_id = %crop_id,
+        harvest_id = %harvest_id,
+        "Deleted crop harvest"
+    );
+
+    Response::builder()
+        .status(204)
+        .body(Body::Empty)
+        .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
 fn row_to_harvest(row: &Row) -> HarvestItem {
     HarvestItem {
         id: row.get::<_, Uuid>("id").to_string(),

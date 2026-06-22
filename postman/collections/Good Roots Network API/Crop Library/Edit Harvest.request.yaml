@@ -1,0 +1,57 @@
+$kind: http-request
+name: Edit Harvest
+description: Update a previously logged harvest and verify the running total is recomputed.
+method: PUT
+url: '{{baseUrl}}/crops/:cropLibraryId/harvests/:harvestId'
+order: 4250
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: cropLibraryId
+    value: '{{cropLibraryId}}'
+    description: UUID of the grower crop
+  - key: harvestId
+    value: '{{harvestId}}'
+    description: UUID of the harvest entry
+body:
+  type: json
+  content: |-
+    {
+      "amount": 6,
+      "unit": "lb",
+      "notes": "Corrected amount"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const cropLibraryId = pm.collectionVariables.get("cropLibraryId");
+      const harvestId = pm.collectionVariables.get("harvestId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("cropLibraryId and harvestId are valid UUIDs", function () {
+          pm.expect(cropLibraryId).to.match(uuidRe);
+          pm.expect(harvestId).to.match(uuidRe);
+      });
+      if (!uuidRe.test(cropLibraryId) || !uuidRe.test(harvestId)) {
+          postman.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Harvest is updated and total recomputed", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("harvest");
+          pm.expect(body.harvest).to.have.property("id", pm.collectionVariables.get("harvestId"));
+          pm.expect(body.harvest).to.have.property("amount", "6");
+          pm.expect(body.harvest).to.have.property("notes", "Corrected amount");
+          // Date was omitted from the request, so it should be preserved.
+          pm.expect(body.harvest).to.have.property("harvestedOn", "2026-06-22");
+          pm.expect(body).to.have.property("totalHarvested");
+      });
