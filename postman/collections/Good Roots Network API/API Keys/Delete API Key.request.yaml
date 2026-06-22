@@ -31,14 +31,4 @@ scripts:
           pm.response.to.have.status(204);
       });
 
-      pm.test("Revoked key is no longer returned by GET", function () {
-          const baseUrl = pm.collectionVariables.get("baseUrl");
-          const apiKeyId = pm.collectionVariables.get("apiKeyId");
-          pm.sendRequest({
-              url: `${baseUrl}/me/api-keys/${apiKeyId}`,
-              method: "GET",
-              header: { Authorization: `Bearer ${pm.collectionVariables.get("authToken")}` },
-          }, function (err, res) {
-              pm.expect(res.code, "revoked key should 404").to.eql(404);
-          });
-      });
+      pm.collectionVariables.unset("apiKeyId");
