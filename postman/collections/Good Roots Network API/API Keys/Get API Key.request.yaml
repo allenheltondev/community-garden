@@ -1,0 +1,39 @@
+$kind: http-request
+name: Get API Key
+description: Retrieve a single API key's metadata by id.
+method: GET
+url: '{{baseUrl}}/me/api-keys/:apiKeyId'
+order: 3000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: apiKeyId
+    value: '{{apiKeyId}}'
+    description: UUID of the API key
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const apiKeyId = pm.collectionVariables.get("apiKeyId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("apiKeyId is set and valid UUID", function () {
+          pm.expect(apiKeyId, "apiKeyId is required").to.be.a("string").and.not.empty;
+          pm.expect(apiKeyId).to.match(uuidRe);
+      });
+      if (!apiKeyId || !uuidRe.test(apiKeyId)) {
+          postman.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Returns the requested key without a secret", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("id", pm.collectionVariables.get("apiKeyId"));
+          pm.expect(body).to.have.property("keyPrefix");
+          pm.expect(body).to.not.have.property("key");
+      });

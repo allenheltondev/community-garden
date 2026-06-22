@@ -1,0 +1,44 @@
+$kind: http-request
+name: Delete API Key
+description: Revoke (soft-delete) the API key created earlier in this run.
+method: DELETE
+url: '{{baseUrl}}/me/api-keys/:apiKeyId'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: apiKeyId
+    value: '{{apiKeyId}}'
+    description: UUID of the API key
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const apiKeyId = pm.collectionVariables.get("apiKeyId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("apiKeyId is set and valid UUID", function () {
+          pm.expect(apiKeyId, "apiKeyId is required").to.be.a("string").and.not.empty;
+          pm.expect(apiKeyId).to.match(uuidRe);
+      });
+      if (!apiKeyId || !uuidRe.test(apiKeyId)) {
+          postman.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204", function () {
+          pm.response.to.have.status(204);
+      });
+
+      pm.test("Revoked key is no longer returned by GET", function () {
+          const baseUrl = pm.collectionVariables.get("baseUrl");
+          const apiKeyId = pm.collectionVariables.get("apiKeyId");
+          pm.sendRequest({
+              url: `${baseUrl}/me/api-keys/${apiKeyId}`,
+              method: "GET",
+              header: { Authorization: `Bearer ${pm.collectionVariables.get("authToken")}` },
+          }, function (err, res) {
+              pm.expect(res.code, "revoked key should 404").to.eql(404);
+          });
+      });

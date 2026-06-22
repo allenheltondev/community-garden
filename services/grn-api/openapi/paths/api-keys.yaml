@@ -1,0 +1,109 @@
+/me/api-keys:
+  get:
+    tags: [API Keys, Idempotent]
+    summary: List the current user's API keys
+    description: Returns non-secret metadata for the user's active API keys. Secrets are never returned here.
+    operationId: listApiKeys
+    responses:
+      '200':
+        description: API key metadata
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-keys.yaml#/ApiKeyListResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [API Keys]
+    summary: Create an API key
+    description: |
+      Creates a new API key for the current user and returns the full secret
+      exactly once. The key authenticates as the owning user when sent as
+      `Authorization: Bearer <key>`.
+    operationId: createApiKey
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/api-keys.yaml#/UpsertApiKeyRequest'
+    responses:
+      '201':
+        description: Created API key, including the one-time secret
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-keys.yaml#/CreatedApiKeyResponse'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/me/api-keys/{apiKeyId}:
+  parameters:
+    - in: path
+      name: apiKeyId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  get:
+    tags: [API Keys, Idempotent]
+    summary: Get one API key's metadata
+    operationId: getApiKey
+    responses:
+      '200':
+        description: API key metadata
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-keys.yaml#/ApiKeyItem'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  put:
+    tags: [API Keys]
+    summary: Rename an API key
+    operationId: updateApiKey
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/api-keys.yaml#/UpsertApiKeyRequest'
+    responses:
+      '200':
+        description: Updated API key metadata
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-keys.yaml#/ApiKeyItem'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  delete:
+    tags: [API Keys]
+    summary: Revoke an API key
+    description: Revokes (soft-deletes) the key so it can no longer authenticate.
+    operationId: deleteApiKey
+    responses:
+      '204':
+        description: Revoked
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
