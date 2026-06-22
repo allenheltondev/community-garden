@@ -246,6 +246,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy]
     if: needs.deploy.result == 'success'
+    # Without an explicit cap a hung step (historically the Playwright browser
+    # install stalling on its download / apt deps) runs to GitHub's 6-hour
+    # default before being cancelled. Fail fast instead.
+    timeout-minutes: 30
     outputs:
       run-url: ${{ steps.stage-ui-run.outputs.url }}
 
@@ -276,7 +280,21 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        # The install (browser download + apt `--with-deps`) intermittently
+        # stalls on the runner. Bound each attempt and retry so a stalled
+        # download fails over instead of hanging the whole job.
+        timeout-minutes: 12
+        run: |
+          for attempt in 1 2 3; do
+            echo "Playwright install attempt ${attempt}/3"
+            if timeout --kill-after=30s 8m npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::Playwright browser install attempt ${attempt} failed or stalled; retrying" >&2
+            sleep 10
+          done
+          echo "::error::Playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Run Playwright Stage UI suite
         working-directory: apps/web
