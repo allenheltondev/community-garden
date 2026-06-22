@@ -3,7 +3,7 @@ name: Delete Harvest
 description: Delete a logged harvest and confirm it no longer appears in the harvest log.
 method: DELETE
 url: '{{baseUrl}}/crops/:cropLibraryId/harvests/:harvestId'
-order: 4280
+order: 4350
 headers:
   - key: Authorization
     value: 'Bearer {{authToken}}'
