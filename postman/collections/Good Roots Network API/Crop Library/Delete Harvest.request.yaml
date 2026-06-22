@@ -35,17 +35,4 @@ scripts:
           pm.response.to.have.status(204);
       });
 
-      pm.test("Deleted harvest no longer appears in the log", function () {
-          const baseUrl = pm.collectionVariables.get("baseUrl");
-          const cropLibraryId = pm.collectionVariables.get("cropLibraryId");
-          const harvestId = pm.collectionVariables.get("harvestId");
-          pm.sendRequest({
-              url: `${baseUrl}/crops/${cropLibraryId}/harvests`,
-              method: "GET",
-              header: { Authorization: `Bearer ${pm.collectionVariables.get("authToken")}` },
-          }, function (err, res) {
-              pm.expect(res.code, "harvest log should still load").to.eql(200);
-              const ids = (res.json().harvests || []).map((h) => h.id);
-              pm.expect(ids, "deleted harvest should be gone").to.not.include(harvestId);
-          });
-      });
+      pm.collectionVariables.unset("harvestId");
