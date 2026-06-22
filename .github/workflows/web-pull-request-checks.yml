@@ -278,16 +278,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright browsers
         working-directory: apps/web
-        # The install (browser download + apt `--with-deps`) intermittently
-        # stalls on the runner. Bound each attempt and retry so a stalled
-        # download fails over instead of hanging the whole job.
+        # Root cause of the recurring hangs: Playwright's browser download stalls
+        # intermittently (one artifact hangs after others reach 100%), not apt or
+        # a version mismatch. Caching by Playwright version means most runs skip
+        # the download entirely; the retry + per-attempt `timeout` is the backstop
+        # for cache-miss days. `--no-install` forces the repo-pinned Playwright so
+        # the cached browser build always matches @playwright/test.
         timeout-minutes: 12
         run: |
           for attempt in 1 2 3; do
             echo "Playwright install attempt ${attempt}/3"
-            if timeout --kill-after=30s 8m npx playwright install --with-deps chromium; then
+            if timeout --kill-after=30s 6m npx --no-install playwright install --with-deps chromium; then
               exit 0
             fi
             echo "::warning::Playwright browser install attempt ${attempt} failed or stalled; retrying" >&2
