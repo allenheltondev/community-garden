@@ -246,10 +246,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy]
     if: needs.deploy.result == 'success'
-    # Without an explicit cap a hung step (historically the Playwright browser
-    # install stalling on its download / apt deps) runs to GitHub's 6-hour
-    # default before being cancelled. Fail fast instead.
-    timeout-minutes: 30
+    # Run inside the official Playwright image so browsers + OS deps are
+    # pre-baked. The on-demand `playwright install` download from the Playwright
+    # CDN regressed to freezing mid-download (hanging the job for hours); baking
+    # the browsers into the image removes that network step entirely.
+    # NOTE: keep this tag in lockstep with @playwright/test in apps/web/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    timeout-minutes: 20
     outputs:
       run-url: ${{ steps.stage-ui-run.outputs.url }}
 
@@ -278,39 +282,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Restore Playwright browser cache
-        id: playwright-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
-
-      - name: Install Playwright browsers
-        working-directory: apps/web
-        # The browser set (~340 MiB across two Chromium artifacts) plus apt is a
-        # slow, single-pass download on a cold runner. The previous retry-with-
-        # short-timeout actively made it worse: each retry restarted apt and the
-        # download from scratch, so it never finished before the step cap and the
-        # browser was left half-installed ("Executable doesn't exist"). Give the
-        # install ONE uninterrupted pass with a generous cap (still fails fast vs
-        # the old 6-hour default), and `--no-install` pins the repo's Playwright.
-        timeout-minutes: 20
-        run: npx --no-install playwright install --with-deps chromium
-
-      - name: Save Playwright browser cache
-        # Persist only a verified-good install, and only when we actually
-        # downloaded (cache miss). This keeps the cache key from being poisoned
-        # with a partial download, so future runs restore complete browsers and
-        # skip the flaky download entirely.
-        if: success() && steps.playwright-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+      # No "playwright install" step by design: the container image ships the
+      # matching browsers and OS dependencies, so there is no CDN download.
 
       - name: Run Playwright Stage UI suite
         working-directory: apps/web
@@ -341,6 +314,13 @@ jobs:
           COMMENT_FILE="$SCREENSHOT_DIR/pr-comment.md"
 
           mkdir -p "$SCREENSHOT_DIR"
+
+          # Screenshot publishing is best-effort. The Playwright test container
+          # does not ship the AWS CLI, so skip cleanly instead of failing the job.
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "_Stage screenshots were not published (aws CLI unavailable in the test container)._" > "$COMMENT_FILE"
+            exit 0
+          fi
 
           if [ ! -d "$SCREENSHOT_DIR" ]; then
             echo "_Stage screenshots were not generated in this run._" > "$COMMENT_FILE"
