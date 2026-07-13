@@ -8,6 +8,7 @@ import {
   type DesignerCanvasHandle,
 } from '../components/GardenDesigner/Canvas';
 import { GardenPropertiesBar } from '../components/GardenDesigner/GardenPropertiesBar';
+import { DesignerWorkflowGuide } from '../components/GardenDesigner/DesignerWorkflowGuide';
 import { Toolbar } from '../components/GardenDesigner/Toolbar';
 import { GardenMasterplan } from '../components/GardenMasterplan/GardenMasterplan';
 import { useGardenDesigner } from '../hooks/useGardenDesigner';
@@ -114,8 +115,8 @@ export function GardenDesignerPage() {
           <h1 className="grn-designer-page__title">Garden</h1>
           <p className="grn-designer-page__subtitle">
             {view === 'masterplan'
-              ? 'Design right on the illustrated plan — drag elements to arrange, add beds and landmarks, and click anything to edit.'
-              : 'Precision tools: resize, rotate, draw custom shapes, measure, and trace a site photo.'}
+              ? 'See the whole garden, place beds and landmarks, then select anything to tend it.'
+              : 'Shape the details when you need precision — resize, draw custom beds, measure, and trace a site photo.'}
           </p>
         </div>
         <div className="grn-view-toggle" role="group" aria-label="Garden view">
@@ -127,7 +128,7 @@ export function GardenDesignerPage() {
             aria-pressed={view === 'masterplan'}
             onClick={() => switchView('masterplan')}
           >
-            Masterplan
+            Garden map
           </button>
           <button
             type="button"
@@ -135,7 +136,7 @@ export function GardenDesignerPage() {
             aria-pressed={view === 'layout'}
             onClick={() => switchView('layout')}
           >
-            Precision editor
+            Fine tune
           </button>
         </div>
       </header>
@@ -247,7 +248,8 @@ export function GardenDesignerPage() {
               }
             />
 
-            <DesignerCanvas
+            <div className="grn-designer-page__canvas-stage">
+              <DesignerCanvas
               ref={canvasRef}
               canvas={designer.canvas}
               beds={designer.beds}
@@ -273,8 +275,24 @@ export function GardenDesignerPage() {
               onMarqueeSelect={designer.marqueeSelect}
               onMoveGroup={designer.moveSelectedGroup}
               onCalibrationCaptured={setCalibrationDrawnLength}
-              onCancelCalibration={cancelCalibration}
-            />
+                onCancelCalibration={cancelCalibration}
+              />
+              <DesignerWorkflowGuide
+                mode={designer.mode}
+                selectedBed={designer.selectedBed}
+                selectedAnnotation={designer.selectedAnnotation}
+                onAddBed={() => {
+                  void designer.addBed('rect');
+                }}
+                onCancelMode={() => {
+                  if (isCalibrating) {
+                    cancelCalibration();
+                  } else {
+                    designer.setMode('idle');
+                  }
+                }}
+              />
+            </div>
 
             {isCalibrating && calibrationDrawnLength !== null && (
               <CalibrateScaleModal

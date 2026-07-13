@@ -89,7 +89,9 @@ export function Toolbar({
     <button
       key={shape.value}
       type="button"
-      className="grn-designer-toolbar__btn"
+      className={`grn-designer-toolbar__btn ${
+        shape.value === 'rect' ? 'grn-designer-toolbar__btn--primary' : ''
+      }`}
       onClick={() => {
         onAddBed(shape.value);
         setMoreOpen(false);
@@ -208,6 +210,27 @@ export function Toolbar({
     </label>
   );
 
+  const landmarkField = (
+    <label className="grn-designer-toolbar__field grn-designer-toolbar__field--landmark">
+      <span>Add landmark</span>
+      <select
+        value=""
+        onChange={(event) => {
+          if (event.target.value) onAddAnnotation(event.target.value);
+        }}
+        disabled={drawing || calibrating}
+        aria-label="Add a landmark"
+      >
+        <option value="">Chooseâ€¦</option>
+        {ANNOTATION_PRESETS.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {preset.icon} {preset.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   if (isMobile) {
     return (
       <div
@@ -295,9 +318,9 @@ export function Toolbar({
       <div
         className="grn-designer-toolbar__group"
         role="group"
-        aria-label="Add an annotation"
+        aria-label="Add a landmark"
       >
-        {annotationButtons}
+        {landmarkField}
       </div>
 
       <div className="grn-designer-toolbar__divider" aria-hidden="true" />

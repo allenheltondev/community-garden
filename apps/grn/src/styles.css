@@ -1678,6 +1678,15 @@ body {
   min-width: 14rem;
 }
 
+.grn-planner__map-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.84rem;
+}
+
 .grn-plan-score {
   display: flex;
   flex-direction: column;
@@ -2088,6 +2097,16 @@ body {
   flex: 1;
 }
 
+.grn-designer-page__canvas-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 520px;
+}
+
+.grn-designer-page__canvas-stage > .grn-designer-canvas {
+  height: 100%;
+}
+
 .grn-designer-page.has-inspector .grn-designer-page__layout {
   grid-template-columns: auto minmax(0, 1fr) clamp(300px, 26vw, 380px);
 }
@@ -2100,6 +2119,10 @@ body {
   }
   .grn-designer-page.has-inspector .grn-designer-page__layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grn-designer-page__canvas-stage {
+    min-height: 65vh;
   }
 }
 
@@ -2295,6 +2318,19 @@ body {
 .grn-designer-toolbar__btn.is-active {
   background: var(--og-color-moss);
   border-color: var(--og-color-moss);
+  color: var(--og-color-paper);
+}
+
+.grn-designer-toolbar__btn--primary {
+  background: var(--og-color-moss);
+  border-color: var(--og-color-moss);
+  color: var(--og-color-paper);
+}
+
+.grn-designer-toolbar__btn--primary:hover:not(:disabled),
+.grn-designer-toolbar__btn--primary:focus-visible {
+  background: #426a35;
+  border-color: #426a35;
   color: var(--og-color-paper);
 }
 
@@ -3653,6 +3689,85 @@ body {
   outline: none;
 }
 
+.grn-designer-workflow {
+  position: absolute;
+  z-index: 4;
+  top: 0.8rem;
+  left: 0.8rem;
+  width: min(19rem, calc(100% - 6rem));
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(91, 58, 28, 0.16);
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 252, 244, 0.96);
+  box-shadow: 0 8px 22px rgba(66, 45, 23, 0.14);
+}
+
+.grn-designer-workflow.is-mode {
+  border-color: rgba(91, 140, 74, 0.42);
+}
+
+.grn-designer-workflow__eyebrow {
+  margin: 0;
+  color: var(--og-color-moss);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grn-designer-workflow__title,
+.grn-designer-workflow__copy {
+  margin: 0;
+}
+
+.grn-designer-workflow__title {
+  color: var(--og-color-ink);
+  font-family: var(--og-font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.grn-designer-workflow__copy {
+  color: var(--og-color-soil);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.grn-designer-workflow__action {
+  justify-self: start;
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--og-color-moss);
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-moss);
+  color: var(--og-color-paper);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.grn-designer-workflow__action:hover,
+.grn-designer-workflow__action:focus-visible {
+  background: #426a35;
+  border-color: #426a35;
+  outline: none;
+}
+
+.mp-design__btn--primary {
+  color: #fffdf8;
+  background: var(--og-color-moss);
+  box-shadow: 0 2px 5px rgba(55, 82, 43, 0.2);
+}
+
+.mp-design__btn--primary:hover:not(:disabled),
+.mp-design__btn--primary:focus-visible {
+  color: #fffdf8;
+  background: #456d3b;
+}
+
 .mp-design__btn:disabled {
   opacity: 0.4;
   cursor: default;
@@ -3678,6 +3793,10 @@ body {
   cursor: pointer;
 }
 
+.mp-design__field--shape select {
+  max-width: 8rem;
+}
+
 .mp-design__saving {
   font-size: 0.76rem;
   font-weight: 600;
@@ -3689,6 +3808,10 @@ body {
   .mp-design__btn-label,
   .mp-design__field-label {
     display: none;
+  }
+
+  .mp-design__field--shape select {
+    max-width: 6.8rem;
   }
 }
 
@@ -3868,9 +3991,80 @@ body {
   white-space: nowrap;
 }
 
+/* A quiet orientation card that only appears when the editable map has no
+   active selection. It turns a beautiful-but-open-ended canvas into a clear
+   next step without competing with the selected element's detail panel. */
+.mp-explorer__coach {
+  position: absolute;
+  top: 3.75rem;
+  left: 0.75rem;
+  z-index: 5;
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+  width: min(18rem, calc(100% - 7rem));
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(91, 58, 28, 0.14);
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: 0 6px 16px rgba(91, 58, 28, 0.1);
+}
+
+.mp-explorer__coach-kicker,
+.mp-explorer__coach-summary,
+.mp-explorer__coach-copy {
+  margin: 0;
+}
+
+.mp-explorer__coach-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--og-color-sage);
+}
+
+.mp-explorer__coach-summary {
+  font-family: var(--og-font-display);
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+}
+
+.mp-explorer__coach-copy {
+  color: rgba(79, 56, 37, 0.76);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.mp-explorer__coach-action {
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--og-color-moss);
+  border-radius: var(--og-radius-pill);
+  color: #fffdf8;
+  background: var(--og-color-moss);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mp-explorer__coach-action:hover,
+.mp-explorer__coach-action:focus-visible {
+  background: #456d3b;
+  outline: none;
+}
+
 @media (max-width: 768px) {
   .mp-explorer__hint {
     display: none;
+  }
+
+  .mp-explorer__coach {
+    top: 3.85rem;
+    left: 0.5rem;
+    width: min(17rem, calc(100% - 5.25rem));
   }
 }
 

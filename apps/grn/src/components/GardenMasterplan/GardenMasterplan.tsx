@@ -163,6 +163,10 @@ export function GardenMasterplan({
     shouldIgnoreClick,
   } = useMapViewport(metrics.width, metrics.height);
   const isEmpty = beds.length === 0 && annotations.length === 0;
+  const plantedBedCount = useMemo(
+    () => beds.filter((bed) => (cropsByBedId.get(bed.id)?.length ?? 0) > 0).length,
+    [beds, cropsByBedId]
+  );
 
   // Plain DOM ref to find the scene <svg> for export; pan/zoom state
   // never touches it.
@@ -229,6 +233,27 @@ export function GardenMasterplan({
             onRedo={editing.onRedo}
             isSaving={editing.isSaving}
           />
+        )}
+
+        {editing && !isEmpty && !selected && (
+          <aside className="mp-explorer__coach" aria-label="Garden design next step">
+            <p className="mp-explorer__coach-kicker">Your garden at a glance</p>
+            <p className="mp-explorer__coach-summary">
+              {beds.length} {beds.length === 1 ? 'bed' : 'beds'} · {annotations.length}{' '}
+              {annotations.length === 1 ? 'landmark' : 'landmarks'} · {plantedBedCount}{' '}
+              {plantedBedCount === 1 ? 'bed planted' : 'beds planted'}
+            </p>
+            <p className="mp-explorer__coach-copy">
+              Select anything on the map to tend it, or keep shaping your garden one bed at a time.
+            </p>
+            <button
+              type="button"
+              className="mp-explorer__coach-action"
+              onClick={() => editing.onAddBed('rect')}
+            >
+              Add a raised bed
+            </button>
+          </aside>
         )}
 
         <div className="mp-explorer__zoom" role="group" aria-label="Map zoom controls">

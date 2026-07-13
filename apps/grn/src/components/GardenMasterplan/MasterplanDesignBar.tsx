@@ -60,19 +60,32 @@ export function MasterplanDesignBar({
       <span className="mp-design__divider" aria-hidden="true" />
 
       <div className="mp-design__group" role="group" aria-label="Add a bed">
-        {BED_SHAPES.map((shape) => (
-          <button
-            key={shape.value}
-            type="button"
-            className="mp-design__btn"
-            onClick={() => onAddBed(shape.value)}
-            title={shape.hint}
-            aria-label={shape.hint}
+        <button
+          type="button"
+          className="mp-design__btn mp-design__btn--primary"
+          onClick={() => onAddBed('rect')}
+          title="Add a rectangular raised bed"
+        >
+          <span aria-hidden="true">＋</span>
+          <span>Add bed</span>
+        </button>
+        <label className="mp-design__field mp-design__field--shape">
+          <span className="mp-design__field-label">Bed shape</span>
+          <select
+            aria-label="Add a different bed shape"
+            value=""
+            onChange={(event) => {
+              if (event.target.value) onAddBed(event.target.value as BedShape);
+            }}
           >
-            <span aria-hidden="true">{shape.emoji}</span>
-            <span className="mp-design__btn-label">{shape.label}</span>
-          </button>
-        ))}
+            <option value="">More shapes</option>
+            {BED_SHAPES.filter((shape) => shape.value !== 'rect').map((shape) => (
+              <option key={shape.value} value={shape.value}>
+                {shape.emoji} {shape.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <span className="mp-design__divider" aria-hidden="true" />
