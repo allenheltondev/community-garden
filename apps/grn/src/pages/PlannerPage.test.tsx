@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { PlannerPage } from './PlannerPage';
 import { getMe, listMyCrops } from '../services/api';
 import type { GrowerCropItem } from '../types/listing';
@@ -54,9 +54,15 @@ function renderPage() {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <PlannerPage />
+        <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>
   );
+}
+
+function LocationDisplay() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
 }
 
 describe('PlannerPage', () => {
@@ -125,6 +131,14 @@ describe('PlannerPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('img', { name: /plan score \d+ out of 100/i })).toBeInTheDocument()
     );
+  });
+
+  it('connects planning directly to the garden map', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Open garden map' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/garden');
   });
 
   it('shows the selected layer detail and switches when another band is clicked', async () => {

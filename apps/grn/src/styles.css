@@ -1629,6 +1629,15 @@ body {
   min-width: 14rem;
 }
 
+.grn-planner__map-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.84rem;
+}
+
 .grn-plan-score {
   display: flex;
   flex-direction: column;

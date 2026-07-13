@@ -110,6 +110,12 @@ export function PlannerPage() {
               ))}
             </div>
             <p className="grn-planner__guidance">{planGuidance(evaluation)}</p>
+            <div className="grn-planner__map-link">
+              <span>Ready to give your plan a place?</span>
+              <Button variant="outline" size="sm" onClick={() => navigate('/garden')}>
+                Open garden map
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
