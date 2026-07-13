@@ -1622,6 +1622,55 @@ body {
   flex-wrap: wrap;
 }
 
+.grn-planner__workspace {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.grn-planner__health {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(79, 56, 37, 0.12);
+}
+
+.grn-planner__health > .og-button {
+  margin-left: auto;
+}
+
+.grn-planner__workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+.grn-planner__pyramid-panel,
+.grn-planner__detail-panel {
+  min-width: 0;
+}
+
+.grn-planner__panel-heading {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.grn-planner__panel-heading p {
+  margin: 0;
+  max-width: 34rem;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.9rem;
+}
+
+.grn-planner__detail-panel {
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid rgba(79, 56, 37, 0.12);
+  border-radius: var(--og-radius-lg);
+  background:
+    linear-gradient(145deg, rgba(255, 253, 248, 0.9), rgba(237, 243, 222, 0.52)),
+    var(--og-color-paper);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.75);
+}
+
 .grn-planner__health-body {
   display: grid;
   gap: 0.6rem;
@@ -1675,11 +1724,10 @@ body {
 }
 
 .grn-planner__pyramid-title {
-  margin: 0 0 1rem;
+  margin: 0;
   font-family: var(--og-font-display);
   font-size: 1.2rem;
   color: var(--og-color-soil);
-  text-align: center;
 }
 
 .grn-planner__progress-stat {
@@ -1864,6 +1912,28 @@ body {
   font-style: italic;
 }
 
+.grn-planner__empty-state,
+.grn-planner__detail-state {
+  display: grid;
+  justify-items: start;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px dashed rgba(79, 56, 37, 0.2);
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.grn-planner__detail-state p {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.78);
+}
+
+.grn-planner__detail-state--error {
+  border-color: rgba(176, 106, 60, 0.42);
+  background: rgba(176, 106, 60, 0.08);
+}
+
 .grn-planner__crop-list,
 .grn-planner__suggestions {
   list-style: none;
@@ -1899,6 +1969,33 @@ body {
 
 .grn-planner__detail-actions {
   margin-top: 0.25rem;
+}
+
+@media (max-width: 800px) {
+  .grn-planner__workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grn-planner__health > .og-button {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .grn-planner__health {
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .grn-planner__health-body {
+    min-width: 0;
+    flex-basis: 12rem;
+  }
+
+  .grn-plan-score__dial {
+    width: 6.75rem;
+    height: 6.75rem;
+  }
 }
 
 /* ==========================================================================

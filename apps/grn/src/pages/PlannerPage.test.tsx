@@ -141,6 +141,17 @@ describe('PlannerPage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/garden');
   });
 
+  it('guides the grower to their next unfilled layer', async () => {
+    mockListMyCrops.mockResolvedValue([crop('c1', 'Potato'), crop('c2', 'Tomato')]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const nextStep = await screen.findByRole('button', { name: /start with fresh/i });
+    await user.click(nextStep);
+
+    expect(await screen.findByRole('heading', { name: 'Fresh' })).toBeInTheDocument();
+  });
+
   it('shows the selected layer detail and switches when another band is clicked', async () => {
     mockListMyCrops.mockResolvedValue([crop('c1', 'Basil')]);
     const user = userEvent.setup();
@@ -157,6 +168,36 @@ describe('PlannerPage', () => {
     // (Scoped to span chips — the pyramid silhouette also carries an svg
     // <title>Basil</title> tooltip.)
     expect(screen.getByText('Basil', { selector: 'span' })).toBeInTheDocument();
+  });
+
+  it('keeps the selected layer in a loading state until the garden is available', async () => {
+    let resolveCrops!: (crops: GrowerCropItem[]) => void;
+    mockListMyCrops.mockImplementation(
+      () => new Promise<GrowerCropItem[]>((resolve) => {
+        resolveCrops = resolve;
+      })
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/checking this layer/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add a crop to foundation/i })).not.toBeInTheDocument();
+
+    resolveCrops([]);
+
+    expect(await screen.findByRole('button', { name: /add a crop to foundation/i })).toBeInTheDocument();
+  });
+
+  it('offers a retry when the garden cannot be loaded', async () => {
+    mockListMyCrops.mockRejectedValue(new Error('Network unavailable'));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't load your garden/i);
+
+    await user.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(mockListMyCrops).toHaveBeenCalledTimes(2));
   });
 
   it('surfaces crops it cannot place in a "Not yet placed" section', async () => {

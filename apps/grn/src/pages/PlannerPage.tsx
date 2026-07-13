@@ -30,7 +30,12 @@ export function PlannerPage() {
     retry: 2,
   });
 
-  const { data: myCrops } = useQuery({
+  const {
+    data: myCrops,
+    isLoading: isLoadingCrops,
+    isError: isCropsError,
+    refetch: refetchCrops,
+  } = useQuery({
     queryKey: ['myCrops'],
     queryFn: listMyCrops,
     enabled: profile?.userType === 'grower',
@@ -66,6 +71,7 @@ export function PlannerPage() {
   );
 
   const evaluation = useMemo(() => evaluatePlan(counts), [counts]);
+  const nextTier = ALL_TIERS.find((level) => counts[level] === 0) ?? 1;
 
   if (isLoadingProfile) {
     return (
@@ -88,11 +94,11 @@ export function PlannerPage() {
   return (
     <section className="grn-section grn-planner">
       <SectionHeading
-        title="Garden pyramid"
-        body="Your grower planner, organized in five layers — biggest to smallest. Build from the Foundation up: staples first, then everyday workhorses, fresh greens, flavor, and finally the joy crops."
+        title="Garden planner"
+        body="Choose a layer, see what is growing there, and keep your plan moving one simple step at a time."
       />
 
-      <Card padding="6">
+      <Card padding="6" className="grn-planner__workspace">
         <div className="grn-planner__health">
           <PlanScore evaluation={evaluation} />
           <div className="grn-planner__health-body">
@@ -117,24 +123,43 @@ export function PlannerPage() {
               </Button>
             </div>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setActiveTier(nextTier)}
+          >
+            {counts[nextTier] > 0
+              ? `Review ${tierMeta(nextTier).name}`
+              : `Start with ${tierMeta(nextTier).name}`}
+          </Button>
         </div>
-      </Card>
 
-      <Card padding="6">
-        <h3 className="grn-planner__pyramid-title">Your garden pyramid</h3>
-        <GardenPyramid
-          cropsByTier={cropsByTier}
-          activeTier={activeTier}
-          onSelectTier={setActiveTier}
-        />
-      </Card>
+        <div className="grn-planner__workspace-grid">
+          <section className="grn-planner__pyramid-panel" aria-labelledby="planner-layers-title">
+            <div className="grn-planner__panel-heading">
+              <h2 id="planner-layers-title" className="grn-planner__pyramid-title">
+                Choose a layer
+              </h2>
+              <p>Start at the base or jump to the part of your garden you want to tend.</p>
+            </div>
+            <GardenPyramid
+              cropsByTier={cropsByTier}
+              activeTier={activeTier}
+              onSelectTier={setActiveTier}
+            />
+          </section>
 
-      <Card padding="6">
-        <TierDetail
-          tier={activeTier}
-          crops={activeCrops}
-          onAddCrop={() => navigate('/crops/new')}
-        />
+          <section className="grn-planner__detail-panel" aria-label={`${tierMeta(activeTier).name} layer`}>
+            <TierDetail
+              tier={activeTier}
+              crops={activeCrops}
+              isLoading={isLoadingCrops}
+              hasError={isCropsError}
+              onRetry={() => void refetchCrops()}
+              onAddCrop={() => navigate('/crops/new')}
+            />
+          </section>
+        </div>
       </Card>
 
       {unsorted.length > 0 ? (
@@ -170,10 +195,13 @@ function toCropVisual(crop: GrowerCropItem): PyramidCropVisual {
 interface TierDetailProps {
   tier: PyramidTier;
   crops: GrowerCropItem[];
+  isLoading: boolean;
+  hasError: boolean;
+  onRetry: () => void;
   onAddCrop: () => void;
 }
 
-function TierDetail({ tier, crops, onAddCrop }: TierDetailProps) {
+function TierDetail({ tier, crops, isLoading, hasError, onRetry, onAddCrop }: TierDetailProps) {
   const meta = tierMeta(tier);
   const plantedNames = useMemo(
     () => new Set(crops.map((c) => c.cropName.trim().toLowerCase())),
@@ -204,20 +232,36 @@ function TierDetail({ tier, crops, onAddCrop }: TierDetailProps) {
         <h4 className="grn-planner__detail-subhead">
           In your garden ({crops.length})
         </h4>
-        {crops.length > 0 ? (
+        {isLoading ? (
+          <p className="grn-planner__detail-state" role="status">
+            Checking this layer…
+          </p>
+        ) : hasError ? (
+          <div className="grn-planner__detail-state grn-planner__detail-state--error" role="alert">
+            <p>We couldn&apos;t load your garden just now.</p>
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
+        ) : crops.length > 0 ? (
           <ul className="grn-planner__crop-list">
             {crops.map((crop) => (
               <CropChip key={crop.id} crop={crop} />
             ))}
           </ul>
         ) : (
-          <p className="grn-planner__detail-empty">
-            Nothing in this layer yet.
-          </p>
+          <div className="grn-planner__empty-state">
+            <p className="grn-planner__detail-empty">
+              This layer is ready for its first crop.
+            </p>
+            <Button variant="primary" size="sm" onClick={onAddCrop}>
+              Add a crop to {meta.name}
+            </Button>
+          </div>
         )}
       </div>
 
-      {openSuggestions.length > 0 ? (
+      {!isLoading && !hasError && openSuggestions.length > 0 ? (
         <div className="grn-planner__detail-section">
           <h4 className="grn-planner__detail-subhead">Ideas to fill this layer</h4>
           <ul className="grn-planner__suggestions">
@@ -233,11 +277,13 @@ function TierDetail({ tier, crops, onAddCrop }: TierDetailProps) {
         </div>
       ) : null}
 
-      <div className="grn-planner__detail-actions">
-        <Button variant="primary" size="sm" onClick={onAddCrop}>
-          + Add a crop
-        </Button>
-      </div>
+      {!isLoading && !hasError && crops.length > 0 ? (
+        <div className="grn-planner__detail-actions">
+          <Button variant="secondary" size="sm" onClick={onAddCrop}>
+            Add another crop
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
