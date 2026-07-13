@@ -278,6 +278,29 @@ describe('GardenMasterplan', () => {
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
+  it('gives an unselected editable garden a clear next step', async () => {
+    const onAddBed = vi.fn();
+    renderMasterplan({ editing: { onAddBed } });
+
+    expect(screen.getByText(/your garden at a glance/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 bed.*1 landmark.*1 bed planted/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /add a raised bed/i }));
+
+    expect(onAddBed).toHaveBeenCalledWith('rect');
+  });
+
+  it('keeps alternate bed shapes available without crowding the design dock', () => {
+    const onAddBed = vi.fn();
+    renderMasterplan({ editing: { onAddBed } });
+
+    fireEvent.change(screen.getByLabelText(/add a different bed shape/i), {
+      target: { value: 'circle' },
+    });
+
+    expect(onAddBed).toHaveBeenCalledWith('circle');
+  });
+
   it('shows an inviting empty state when the garden has no elements', () => {
     const onOpenLayoutEditor = vi.fn();
     renderMasterplan({ beds: [], annotations: [], crops: [], onOpenLayoutEditor });
