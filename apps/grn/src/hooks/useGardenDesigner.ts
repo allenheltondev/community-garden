@@ -58,7 +58,9 @@ import {
 import { createSerialMutationQueue } from './serialMutationQueue';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
-const BEDS_QUERY_KEY = ['my-garden-beds'];
+// Shared with crop forms and the Plants view so bed assignment changes are
+// visible on the map without a second request or manual refresh.
+const BEDS_QUERY_KEY = ['myBeds'];
 const ANNOTATIONS_QUERY_KEY = ['my-garden-annotations'];
 // Shared with the planner, profile, and listing surfaces so a crop added
 // from any of them — including the inline quick-add here — shows up

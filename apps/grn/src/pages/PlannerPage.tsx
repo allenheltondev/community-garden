@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Panel, SectionHeading } from '@olivias/ui';
 import { getMe, listMyCrops } from '../services/api';
@@ -20,9 +20,27 @@ import type { GrowerCropItem } from '../types/listing';
 
 const ALL_TIERS: PyramidTier[] = [1, 2, 3, 4, 5];
 
+function parseTier(value: string | null): PyramidTier {
+  const tier = Number(value);
+  return ALL_TIERS.includes(tier as PyramidTier) ? (tier as PyramidTier) : 1;
+}
+
 export function PlannerPage() {
   const navigate = useNavigate();
-  const [activeTier, setActiveTier] = useState<PyramidTier>(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTier = parseTier(searchParams.get('tier'));
+  const [activeTier, setActiveTier] = useState<PyramidTier>(requestedTier);
+
+  useEffect(() => {
+    setActiveTier(requestedTier);
+  }, [requestedTier]);
+
+  const selectTier = (tier: PyramidTier) => {
+    setActiveTier(tier);
+    const next = new URLSearchParams(searchParams);
+    next.set('tier', String(tier));
+    setSearchParams(next, { replace: true });
+  };
 
   const { data: profile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['userProfile'],
@@ -77,7 +95,7 @@ export function PlannerPage() {
   if (isLoadingProfile) {
     return (
       <section className="grn-section">
-        <SectionHeading title="Garden pyramid" />
+        <SectionHeading title="Plan" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading your plan…</p>
@@ -95,8 +113,8 @@ export function PlannerPage() {
   return (
     <section className="grn-section grn-planner">
       <SectionHeading
-        title="Garden planner"
-        body="Choose a layer, see what is growing there, and keep your plan moving one simple step at a time."
+        title="Plan"
+        body="Use the garden pyramid to see what is covered and choose a practical next layer."
       />
 
       <Card padding="6" className="grn-planner__workspace">
@@ -119,15 +137,19 @@ export function PlannerPage() {
             <p className="grn-planner__guidance">{planGuidance(evaluation)}</p>
             <div className="grn-planner__map-link">
               <span>Ready to give your plan a place?</span>
-              <Button variant="outline" size="sm" onClick={() => navigate('/garden')}>
-                Open garden map
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ pathname: '/garden', search: searchParams.toString() })}
+              >
+                Open Map
               </Button>
             </div>
           </div>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setActiveTier(nextTier)}
+            onClick={() => selectTier(nextTier)}
           >
             {counts[nextTier] > 0
               ? `Review ${tierMeta(nextTier).name}`
@@ -147,7 +169,7 @@ export function PlannerPage() {
               cropsByTier={cropsByTier}
               activeTier={activeTier}
               nextTier={evaluation.nextFocusTier}
-              onSelectTier={setActiveTier}
+              onSelectTier={selectTier}
             />
           </section>
 
@@ -162,6 +184,28 @@ export function PlannerPage() {
             />
           </section>
         </div>
+      </Card>
+
+      <Card padding="6" className="grn-planner__local-context">
+        <div>
+          <h3>Local planting context</h3>
+          <p>
+            If it helps, compare this plan with aggregated activity near you. These are
+            optional community signals, not instructions or a commitment to grow more.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            navigate({
+              pathname: '/garden/plan/recommendations',
+              search: searchParams.toString(),
+            })
+          }
+        >
+          View local context
+        </Button>
       </Card>
 
       {unsorted.length > 0 ? (

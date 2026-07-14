@@ -16,7 +16,7 @@ export function RecommendationsPage() {
   if (isLoading) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Grower tools" title="Recommendations" />
+        <SectionHeading title="Local planting context" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading…</p>
@@ -32,9 +32,8 @@ export function RecommendationsPage() {
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Grower tools"
-        title="Recommendations"
-        body="See what's scarce, what's already covered, and what to plant next based on neighbors near you."
+        title="Local planting context"
+        body="Optional ideas based on aggregated activity near you. Use what fits your garden and ignore the rest."
       />
       <RecommendationsPanel
         viewerUserId={profile.id}

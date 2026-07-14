@@ -46,13 +46,13 @@ function crop(id: string, cropName: string, pyramidTier?: number | null): Grower
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <PlannerPage />
         <LocationDisplay />
       </MemoryRouter>
@@ -62,7 +62,7 @@ function renderPage() {
 
 function LocationDisplay() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 }
 
 describe('PlannerPage', () => {
@@ -137,8 +137,24 @@ describe('PlannerPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Open garden map' }));
+    await user.click(await screen.findByRole('button', { name: 'Open Map' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/garden');
+  });
+
+  it('opens a directly linked layer and preserves it in the URL while switching', async () => {
+    renderPage('/garden/plan?tier=4&season=fall');
+
+    expect(await screen.findByRole('heading', { name: 'Flavor' })).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('pyramid-band-joy'));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/garden/plan?tier=5&season=fall');
+  });
+
+  it('explains that local recommendations are optional context', async () => {
+    renderPage('/garden/plan');
+
+    expect(await screen.findByRole('heading', { name: 'Local planting context' })).toBeInTheDocument();
+    expect(screen.getByText(/optional community signals, not instructions/i)).toBeInTheDocument();
   });
 
   it('guides the grower to their next unfilled layer', async () => {
