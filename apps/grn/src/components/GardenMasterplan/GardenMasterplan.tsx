@@ -8,7 +8,6 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
-import type { QuickAddCropInput } from '../GardenDesigner/QuickAddCrop';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
 import type { DesignerMode, GridSnap } from '../GardenDesigner/designerTypes';
 import type { ElementGeometry } from './isoTransform';
@@ -18,7 +17,10 @@ import { sceneMetrics } from './footprints';
 import { GardenReviewPanel } from './GardenReviewPanel';
 import { IsoScene } from './IsoScene';
 import { MasterplanDesignBar } from './MasterplanDesignBar';
-import { MasterplanDetailPanel } from './MasterplanDetailPanel';
+import {
+  MasterplanDetailPanel,
+  type MasterplanPanelTending,
+} from './MasterplanDetailPanel';
 import {
   MONTH_LABELS_FULL,
   MONTH_LABELS_SHORT,
@@ -58,8 +60,6 @@ export interface MasterplanEditing {
   onAddAnnotation: (presetId: string) => void;
   onDeleteBed: (bedId: string) => void;
   onDeleteAnnotation: (annotationId: string) => void;
-  /** Attach a crop to the currently-selected bed from the detail panel. */
-  onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   onDuplicate: () => void;
   /** Edit garden-level scale from the masterplan design bar. */
   onPatchCanvas: (patch: {
@@ -73,6 +73,9 @@ export interface MasterplanEditing {
   isSaving: boolean;
   saveError: string | null;
 }
+
+/** Everyday crop work stays available while structural editing is disabled. */
+export type MasterplanTending = MasterplanPanelTending;
 
 interface GardenMasterplanProps {
   canvas: GardenCanvas;
@@ -92,8 +95,11 @@ interface GardenMasterplanProps {
     patch: Partial<GardenAnnotation>
   ) => void | Promise<boolean>;
   onApplyTemplate: (templateId: string) => Promise<void>;
+  /** Present for the grower's everyday bed and crop actions. */
+  tending?: MasterplanTending;
   /** Present when the plan is an editable design surface. */
   editing?: MasterplanEditing;
+  onLayoutDraftChange?: (hasDraft: boolean) => void;
 }
 
 const SNAP_INCHES: Record<GridSnap, number> = { off: 0, '6': 6, '12': 12 };
@@ -117,7 +123,9 @@ export function GardenMasterplan({
   onPatchBed,
   onPatchAnnotation,
   onApplyTemplate,
+  tending,
   editing,
+  onLayoutDraftChange,
 }: GardenMasterplanProps) {
   const metrics = useMemo(() => sceneMetrics(canvas), [canvas]);
 
@@ -424,44 +432,50 @@ export function GardenMasterplan({
         {isEmpty && (
           <div className="mp-explorer__empty">
             <h2>Your property, beautifully mapped</h2>
-            <p>
-              Add beds, trees, paths, and structures and they’ll appear here
-              as an illustrated masterplan.
-            </p>
-            <h3 className="mp-templates__heading">Start from a template</h3>
-            <div className="mp-templates" role="list" aria-label="Starter garden templates">
-              {GARDEN_TEMPLATES.map((template) => (
-                <div key={template.id} className="mp-template-card" role="listitem">
-                  <h4 className="mp-template-card__name">{template.name}</h4>
-                  <p className="mp-template-card__desc">{template.description}</p>
-                  <p className="mp-template-card__stats">
-                    {template.stats.bedCount}{' '}
-                    {template.stats.bedCount === 1 ? 'bed' : 'beds'} ·{' '}
-                    {template.stats.annotationCount}{' '}
-                    {template.stats.annotationCount === 1 ? 'landmark' : 'landmarks'}
-                  </p>
-                  <button
-                    type="button"
-                    className="mp-template-card__use"
-                    disabled={applyingTemplateId !== null}
-                    onClick={() => {
-                      void handleApplyTemplate(template.id);
-                    }}
-                  >
-                    {applyingTemplateId === template.id
-                      ? 'Planting…'
-                      : 'Use this layout'}
-                  </button>
-                </div>
-              ))}
-            </div>
-            {applyingTemplateId !== null && (
-              <p className="mp-templates__progress" role="status">
-                Planting your starter garden…
-              </p>
-            )}
-            {editing && (
+            {editing ? (
               <>
+                <p>
+                  Add beds, trees, paths, and structures and they’ll appear here
+                  as an illustrated masterplan.
+                </p>
+                <h3 className="mp-templates__heading">Start from a template</h3>
+                <div
+                  className="mp-templates"
+                  role="list"
+                  aria-label="Starter garden templates"
+                >
+                  {GARDEN_TEMPLATES.map((template) => (
+                    <div key={template.id} className="mp-template-card" role="listitem">
+                      <h4 className="mp-template-card__name">{template.name}</h4>
+                      <p className="mp-template-card__desc">{template.description}</p>
+                      <p className="mp-template-card__stats">
+                        {template.stats.bedCount}{' '}
+                        {template.stats.bedCount === 1 ? 'bed' : 'beds'} ·{' '}
+                        {template.stats.annotationCount}{' '}
+                        {template.stats.annotationCount === 1
+                          ? 'landmark'
+                          : 'landmarks'}
+                      </p>
+                      <button
+                        type="button"
+                        className="mp-template-card__use"
+                        disabled={applyingTemplateId !== null}
+                        onClick={() => {
+                          void handleApplyTemplate(template.id);
+                        }}
+                      >
+                        {applyingTemplateId === template.id
+                          ? 'Planting…'
+                          : 'Use this layout'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {applyingTemplateId !== null && (
+                  <p className="mp-templates__progress" role="status">
+                    Planting your starter garden…
+                  </p>
+                )}
                 <p className="mp-templates__or">or start from scratch</p>
                 <button
                   type="button"
@@ -472,6 +486,11 @@ export function GardenMasterplan({
                   Add a raised bed
                 </button>
               </>
+            ) : (
+              <p>
+                There is no layout yet. Choose Edit layout to start with a template
+                or add your first bed.
+              </p>
             )}
           </div>
         )}
@@ -507,6 +526,8 @@ export function GardenMasterplan({
             }
           }}
           onClose={() => onSelect(null)}
+          tending={selectedBed ? tending : undefined}
+          onDraftChange={editing ? onLayoutDraftChange : undefined}
           editing={
             editing
               ? {
@@ -531,7 +552,6 @@ export function GardenMasterplan({
                     else if (selectedAnnotation)
                       editing.onDeleteAnnotation(selectedAnnotation.id);
                   },
-                  onAddCrop: editing.onAddCrop,
                 }
               : undefined
           }

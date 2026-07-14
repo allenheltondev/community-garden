@@ -12,6 +12,30 @@ vi.mock('../../services/api', () => ({
 }));
 
 describe('ReminderPanel deep links', () => {
+  it('prefills and focuses a new reminder from garden context', async () => {
+    vi.mocked(listReminders).mockResolvedValue({ items: [] });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            '/today/reminders?new=true&type=harvest&title=Harvest+Kitchen+bed',
+          ]}
+        >
+          <ReminderPanel />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    const title = screen.getByLabelText(/reminder title/i);
+    await waitFor(() => expect(title).toHaveValue('Harvest Kitchen bed'));
+    expect(screen.getByLabelText(/^type$/i)).toHaveValue('harvest');
+    expect(title).toHaveFocus();
+  });
+
   it('focuses the linked reminder record', async () => {
     vi.mocked(listReminders).mockResolvedValue({
       items: [

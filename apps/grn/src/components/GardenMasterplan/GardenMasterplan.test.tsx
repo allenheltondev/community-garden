@@ -9,7 +9,11 @@ import type {
   GrowerCropItem,
 } from '../../types/listing';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
-import { GardenMasterplan, type MasterplanEditing } from './GardenMasterplan';
+import {
+  GardenMasterplan,
+  type MasterplanEditing,
+  type MasterplanTending,
+} from './GardenMasterplan';
 import { screenDeltaToWorld } from './iso';
 
 beforeAll(() => {
@@ -135,6 +139,7 @@ function renderMasterplan(args?: {
     patch: Partial<GardenAnnotation>
   ) => void | Promise<boolean>;
   onApplyTemplate?: (templateId: string) => Promise<void>;
+  tending?: Partial<MasterplanTending> | false;
   editing?: Partial<MasterplanEditing>;
 }) {
   const beds = args?.beds ?? [makeBed({})];
@@ -161,7 +166,6 @@ function renderMasterplan(args?: {
         onAddAnnotation: () => {},
         onDeleteBed: () => {},
         onDeleteAnnotation: () => {},
-        onAddCrop: async () => {},
         onDuplicate: () => {},
         onPatchCanvas: () => {},
         canUndo: false,
@@ -173,6 +177,17 @@ function renderMasterplan(args?: {
         ...args.editing,
       }
     : undefined;
+  const tending: MasterplanTending | undefined =
+    args?.tending === false
+      ? undefined
+      : {
+          onAddCrop: async () => {},
+          onOpenCrop: () => {},
+          onLogHarvest: () => {},
+          onAddReminder: () => {},
+          onShareCrop: () => {},
+          ...args?.tending,
+        };
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -196,6 +211,7 @@ function renderMasterplan(args?: {
         onPatchBed={args?.onPatchBed ?? (() => {})}
         onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
         onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
+        tending={tending}
         editing={editing}
       />
     </QueryClientProvider>
@@ -239,6 +255,45 @@ describe('GardenMasterplan', () => {
     expect(panel).toHaveTextContent('Compost-amended');
     expect(panel).toHaveTextContent('Tomato');
     expect(panel).toHaveTextContent('×4');
+  });
+
+  it('offers everyday crop actions without structural layout controls in Tend', async () => {
+    const onOpenCrop = vi.fn();
+    const onLogHarvest = vi.fn();
+    const onAddReminder = vi.fn();
+    const onShareCrop = vi.fn();
+    renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      tending: { onOpenCrop, onLogHarvest, onAddReminder, onShareCrop },
+    });
+
+    expect(screen.getByRole('heading', { name: /tend this bed/i })).toBeInTheDocument();
+    expect(screen.getByText('Tomato')).toBeInTheDocument();
+    expect(screen.queryByText(/fine-tune/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /duplicate/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /stacking order/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Update' }));
+    await userEvent.click(screen.getByRole('button', { name: /log harvest/i }));
+    await userEvent.click(screen.getByRole('button', { name: /share food/i }));
+    await userEvent.click(screen.getByRole('button', { name: /add reminder/i }));
+
+    expect(onOpenCrop).toHaveBeenCalledWith('crop-1');
+    expect(onLogHarvest).toHaveBeenCalledWith('crop-1');
+    expect(onShareCrop).toHaveBeenCalledWith('crop-1');
+    expect(onAddReminder).toHaveBeenCalledWith(expect.objectContaining({ id: 'bed-1' }));
+  });
+
+  it('keeps a read-only plan free of tending and layout mutations', () => {
+    renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      tending: false,
+    });
+
+    expect(screen.queryByRole('heading', { name: /tend this bed/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/fine-tune/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add reminder/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /duplicate/i })).not.toBeInTheDocument();
   });
 
   it('shows a capacity line in the detail panel when crops have spacing data', () => {
@@ -411,8 +466,12 @@ describe('GardenMasterplan', () => {
     expect(screen.getByText(/your property, beautifully mapped/i)).toBeInTheDocument();
   });
 
-  it('offers starter template cards in the empty state', () => {
+  it('keeps structural empty-state actions behind Edit layout', () => {
     renderMasterplan({ beds: [], annotations: [], crops: [] });
+    expect(screen.queryByText(/start from a template/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/choose edit layout/i)).toBeInTheDocument();
+
+    renderMasterplan({ beds: [], annotations: [], crops: [], editing: {} });
     expect(screen.getByText(/start from a template/i)).toBeInTheDocument();
     for (const template of GARDEN_TEMPLATES) {
       expect(screen.getByText(template.name)).toBeInTheDocument();
@@ -437,7 +496,13 @@ describe('GardenMasterplan', () => {
 
   it('applies the clicked template by id', async () => {
     const onApplyTemplate = vi.fn(async () => {});
-    renderMasterplan({ beds: [], annotations: [], crops: [], onApplyTemplate });
+    renderMasterplan({
+      beds: [],
+      annotations: [],
+      crops: [],
+      onApplyTemplate,
+      editing: {},
+    });
     const buttons = screen.getAllByRole('button', { name: /use this layout/i });
     await userEvent.click(buttons[1]);
     expect(onApplyTemplate).toHaveBeenCalledTimes(1);
@@ -452,7 +517,13 @@ describe('GardenMasterplan', () => {
           resolveApply = resolve;
         })
     );
-    renderMasterplan({ beds: [], annotations: [], crops: [], onApplyTemplate });
+    renderMasterplan({
+      beds: [],
+      annotations: [],
+      crops: [],
+      onApplyTemplate,
+      editing: {},
+    });
     const buttons = screen.getAllByRole('button', { name: /use this layout/i });
     await userEvent.click(buttons[0]);
 
@@ -530,7 +601,11 @@ describe('GardenMasterplan', () => {
 
   it('changes stacking order from the detail panel', async () => {
     const onPatchBed = vi.fn();
-    renderMasterplan({ selected: { kind: 'bed', id: 'bed-1' }, onPatchBed });
+    renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      onPatchBed,
+      editing: {},
+    });
     await userEvent.click(screen.getByRole('button', { name: /bring forward/i }));
     expect(onPatchBed).toHaveBeenCalledWith('bed-1', { sortOrder: 1 });
     await userEvent.click(screen.getByRole('button', { name: /send backward/i }));
@@ -542,6 +617,7 @@ describe('GardenMasterplan', () => {
     renderMasterplan({
       selected: { kind: 'annotation', id: 'ann-1' },
       onPatchAnnotation,
+      editing: {},
     });
     await userEvent.click(screen.getByRole('button', { name: /send backward/i }));
     expect(onPatchAnnotation).toHaveBeenCalledWith('ann-1', { sortOrder: -1 });

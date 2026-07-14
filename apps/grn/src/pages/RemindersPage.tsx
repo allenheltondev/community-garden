@@ -5,9 +5,8 @@ export function RemindersPage() {
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Planning"
         title="Reminders"
-        body="Stay on top of upcoming actions for your listings and requests."
+        body="Stay on top of watering, harvests, feeding, and garden check-ins."
       />
       <ReminderPanel />
     </section>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   BedType,
   GardenAnnotation,
@@ -62,7 +62,15 @@ export interface MasterplanPanelEditing {
   onPatchAnnotation: (patch: Partial<GardenAnnotation>) => void | Promise<boolean>;
   onDuplicate: () => void;
   onDelete: () => void;
+}
+
+/** Everyday garden actions stay available without enabling layout editing. */
+export interface MasterplanPanelTending {
   onAddCrop: (input: QuickAddCropInput) => Promise<void>;
+  onOpenCrop: (cropId: string) => void;
+  onLogHarvest: (cropId: string) => void;
+  onAddReminder: (bed: GardenBed) => void;
+  onShareCrop: (cropId: string) => void;
 }
 
 interface DimensionDraft {
@@ -83,7 +91,9 @@ interface MasterplanDetailPanelProps {
   noonShadeConflict?: boolean;
   onArrange: (direction: 'forward' | 'backward') => void;
   onClose: () => void;
+  tending?: MasterplanPanelTending;
   editing?: MasterplanPanelEditing;
+  onDraftChange?: (hasDraft: boolean) => void;
 }
 
 /**
@@ -103,7 +113,9 @@ export function MasterplanDetailPanel({
   noonShadeConflict = false,
   onArrange,
   onClose,
+  tending,
   editing,
+  onDraftChange,
 }: MasterplanDetailPanelProps) {
   // The parent re-keys this panel on the selected element's id, so initial
   // state is the right snapshot without a syncing effect. Length, width, and
@@ -116,6 +128,25 @@ export function MasterplanDetailPanel({
   const [dimensionError, setDimensionError] = useState<string | null>(null);
   const [isApplyingDimensions, setIsApplyingDimensions] = useState(false);
   const [soils, setSoils] = useState<string[]>(parseSoilField(bed?.soilType));
+
+  const hasDraft = Boolean(
+    editing &&
+      (dimensionDraft !== null ||
+        name !== (bed?.name ?? annotation?.label ?? '') ||
+        icon !== (annotation?.icon ?? '') ||
+        notes !== (bed?.locationNotes ?? ''))
+  );
+
+  useEffect(() => {
+    onDraftChange?.(hasDraft);
+  }, [hasDraft, onDraftChange]);
+
+  useEffect(
+    () => () => {
+      onDraftChange?.(false);
+    },
+    [onDraftChange]
+  );
 
   if (!bed && !annotation) return null;
 
@@ -292,6 +323,90 @@ export function MasterplanDetailPanel({
             Labeled full sun, but sits mostly in shade at midday.
           </p>
         )}
+
+        {bed && tending ? (
+          <section className="mp-panel__tend" aria-label="Tend this bed">
+            <header className="mp-panel__tend-header">
+              <div>
+                <h3 className="mp-panel__section-title">Tend this bed</h3>
+                <p>Keep the crop work here; layout tools stay out of the way.</p>
+              </div>
+              <button
+                type="button"
+                className="mp-panel__tend-reminder"
+                onClick={() => tending.onAddReminder(bed)}
+              >
+                Add reminder
+              </button>
+            </header>
+
+            {capacity?.utilization != null ? (
+              <p
+                className={`mp-panel__capacity ${
+                  capacity.utilization > 1 ? 'is-over' : ''
+                }`}
+              >
+                Using ~{Math.round(capacity.utilization * 100)}% of this bed ·{' '}
+                {capacityLabel(capacity)}
+              </p>
+            ) : null}
+
+            {seasonMonth != null && harvestCount > 0 ? (
+              <p className="mp-panel__harvest">
+                {harvestCount} crop{harvestCount === 1 ? '' : 's'} ready to harvest in{' '}
+                {MONTH_LABELS_FULL[seasonMonth]}
+              </p>
+            ) : null}
+
+            {crops.length > 0 ? (
+              <ul className="mp-panel__crop-list">
+                {crops.map((crop) => {
+                  const visual = visualForCrop(crop.cropName);
+                  return (
+                    <li key={crop.id} className="mp-panel__crop mp-panel__crop--tend">
+                      <div className="mp-panel__crop-summary">
+                        <svg
+                          className="mp-panel__crop-icon"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d={CROP_ICON_PATHS[visual.iconKey]}
+                            fill={mute(visual.accent, 0.15)}
+                          />
+                        </svg>
+                        <span className="mp-panel__crop-name">
+                          {crop.nickname || crop.cropName}
+                        </span>
+                        {crop.plantCount != null && crop.plantCount > 0 ? (
+                          <span className="mp-panel__crop-count">×{crop.plantCount}</span>
+                        ) : null}
+                      </div>
+                      <div
+                        className="mp-panel__crop-actions"
+                        aria-label={`${crop.nickname || crop.cropName} actions`}
+                      >
+                        <button type="button" onClick={() => tending.onOpenCrop(crop.id)}>
+                          Update
+                        </button>
+                        <button type="button" onClick={() => tending.onLogHarvest(crop.id)}>
+                          Log harvest
+                        </button>
+                        <button type="button" onClick={() => tending.onShareCrop(crop.id)}>
+                          Share food
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mp-panel__tend-empty">Nothing planted here yet.</p>
+            )}
+
+            <QuickAddCrop onAdd={tending.onAddCrop} />
+          </section>
+        ) : null}
 
         {editing ? (
           <fieldset className="grn-designer-inspector__fieldset mp-panel__edit">
@@ -602,85 +717,31 @@ export function MasterplanDetailPanel({
           </dl>
         )}
 
-        {bed && (
-          <section className="mp-panel__crops" aria-label="Crops in this bed">
-            <h3 className="mp-panel__section-title">
-              {crops.length > 0
-                ? `Growing here (${crops.length})`
-                : 'Nothing planted yet'}
-            </h3>
-            {capacity?.utilization != null && (
-              <p
-                className={`mp-panel__capacity ${
-                  capacity.utilization > 1 ? 'is-over' : ''
-                }`}
-              >
-                Using ~{Math.round(capacity.utilization * 100)}% of this bed ·{' '}
-                {capacityLabel(capacity)}
-              </p>
-            )}
-            {seasonMonth != null && harvestCount > 0 && (
-              <p className="mp-panel__harvest">
-                {harvestCount} crop{harvestCount === 1 ? '' : 's'} ready to harvest in{' '}
-                {MONTH_LABELS_FULL[seasonMonth]}
-              </p>
-            )}
-            {crops.length > 0 && (
-              <ul className="mp-panel__crop-list">
-                {crops.map((crop) => {
-                  const visual = visualForCrop(crop.cropName);
-                  return (
-                    <li key={crop.id} className="mp-panel__crop">
-                      <svg
-                        className="mp-panel__crop-icon"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d={CROP_ICON_PATHS[visual.iconKey]}
-                          fill={mute(visual.accent, 0.15)}
-                        />
-                      </svg>
-                      <span className="mp-panel__crop-name">
-                        {crop.nickname || crop.cropName}
-                      </span>
-                      {crop.plantCount != null && crop.plantCount > 0 && (
-                        <span className="mp-panel__crop-count">×{crop.plantCount}</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {editing && <QuickAddCrop onAdd={editing.onAddCrop} />}
-          </section>
-        )}
-
         {bed?.locationNotes && !editing && (
           <p className="mp-panel__notes">{bed.locationNotes}</p>
         )}
       </div>
 
-      <footer className="mp-panel__footer">
-        <div className="mp-panel__arrange" role="group" aria-label="Stacking order">
-          <button
-            type="button"
-            className="mp-panel__arrange-btn"
-            onClick={() => onArrange('backward')}
-            title="Draw this element behind overlapping neighbors"
-          >
-            ↓ Send backward
-          </button>
-          <button
-            type="button"
-            className="mp-panel__arrange-btn"
-            onClick={() => onArrange('forward')}
-            title="Draw this element in front of overlapping neighbors"
-          >
-            ↑ Bring forward
-          </button>
-        </div>
-        {editing && (
+      {editing && (
+        <footer className="mp-panel__footer">
+          <div className="mp-panel__arrange" role="group" aria-label="Stacking order">
+            <button
+              type="button"
+              className="mp-panel__arrange-btn"
+              onClick={() => onArrange('backward')}
+              title="Draw this element behind overlapping neighbors"
+            >
+              ↓ Send backward
+            </button>
+            <button
+              type="button"
+              className="mp-panel__arrange-btn"
+              onClick={() => onArrange('forward')}
+              title="Draw this element in front of overlapping neighbors"
+            >
+              ↑ Bring forward
+            </button>
+          </div>
           <>
             <div className="mp-panel__quick" role="group" aria-label="Quick actions">
               <button
@@ -713,8 +774,8 @@ export function MasterplanDetailPanel({
                   : 'Saved'}
             </span>
           </>
-        )}
-      </footer>
+        </footer>
+      )}
     </aside>
   );
 }
