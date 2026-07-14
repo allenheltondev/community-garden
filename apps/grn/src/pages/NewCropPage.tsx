@@ -54,9 +54,8 @@ export function NewCropPage() {
   return (
     <section className="grn-section grn-new-crop">
       <SectionHeading
-        eyebrow="Plan your garden"
         title="Add a crop"
-        body="Tell us what's going in the ground — we'll tuck it into your garden plan."
+        body="Tell us what's going in the ground and where it belongs."
       />
 
       <CropForm

@@ -25,6 +25,9 @@ const PlannerPage = lazy(() =>
 const GardenDesignerPage = lazy(() =>
   import('../pages/GardenDesignerPage').then((m) => ({ default: m.GardenDesignerPage }))
 );
+const GardenWorkspacePage = lazy(() =>
+  import('../pages/GardenWorkspacePage').then((m) => ({ default: m.GardenWorkspacePage }))
+);
 const ListingsPage = lazy(() =>
   import('../pages/ListingsPage').then((m) => ({ default: m.ListingsPage }))
 );
@@ -70,11 +73,13 @@ export function AuthenticatedRoot() {
             <Routes>
               <Route path="/" element={<DashboardPage user={user} />} />
               <Route path="/today/reminders" element={<RemindersPage />} />
-              <Route path="/garden" element={<GardenDesignerPage />} />
-              <Route path="/garden/plants" element={<CropsPage />} />
-              <Route path="/garden/plants/new" element={<NewCropPage />} />
-              <Route path="/garden/plan" element={<PlannerPage />} />
-              <Route path="/garden/plan/recommendations" element={<RecommendationsPage />} />
+              <Route path="/garden" element={<GardenWorkspacePage />}>
+                <Route index element={<GardenDesignerPage />} />
+                <Route path="plants" element={<CropsPage />} />
+                <Route path="plants/new" element={<NewCropPage />} />
+                <Route path="plan" element={<PlannerPage />} />
+                <Route path="plan/recommendations" element={<RecommendationsPage />} />
+              </Route>
               <Route path="/share" element={<ConnectPage />} />
               <Route path="/share/listings" element={<ListingsPage />} />
               <Route path="/share/find" element={<RequestsPage />} />

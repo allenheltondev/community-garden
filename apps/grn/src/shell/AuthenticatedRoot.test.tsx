@@ -38,6 +38,10 @@ vi.mock('../pages/RecommendationsPage', () => ({
 vi.mock('../pages/GardenDesignerPage', () => ({
   GardenDesignerPage: () => <h1>Garden map page</h1>,
 }));
+vi.mock('../pages/GardenWorkspacePage', async () => {
+  const { Outlet } = await import('react-router-dom');
+  return { GardenWorkspacePage: () => <><span>Garden workspace</span><Outlet /></> };
+});
 vi.mock('../pages/ConnectPage', () => ({ ConnectPage: () => <h1>Share page</h1> }));
 vi.mock('../pages/ListingsPage', () => ({ ListingsPage: () => <h1>Listings page</h1> }));
 vi.mock('../pages/RequestsPage', () => ({ RequestsPage: () => <h1>Find food page</h1> }));
@@ -88,6 +92,13 @@ describe('AuthenticatedRoot routes', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(
       '/garden/plan?season=fall#workhorses'
     );
+  });
+
+  it('keeps every garden view inside the shared workspace shell', async () => {
+    renderRoot(['/garden/plan']);
+
+    expect(await screen.findByText('Garden workspace')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan page' })).toBeInTheDocument();
   });
 
   it('replaces a legacy history entry so Back returns to the previous page', async () => {

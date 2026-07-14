@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listMyCrops, deleteMyCrop, listMyBeds } from '../../services/api';
+import {
+  listMyCrops,
+  deleteMyCrop,
+  listMyBeds,
+  updateMyCrop,
+  type UpsertGrowerCropRequest,
+} from '../../services/api';
 import type { GrowerCropItem } from '../../types/listing';
 import { Button, Card } from '@olivias/ui';
 import { createLogger } from '../../utils/logging';
@@ -31,6 +37,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   const [filter, setFilter] = useState<'all' | 'growing' | 'planning' | 'interested'>('all');
   const [harvestCrop, setHarvestCrop] = useState<GrowerCropItem | null>(null);
   const [dismissedLinkedHarvestId, setDismissedLinkedHarvestId] = useState<string | null>(null);
+  const [bedUpdateError, setBedUpdateError] = useState<string | null>(null);
 
   const { data: myCrops, isLoading: isLoadingCrops } = useQuery({
     queryKey: ['myCrops'],
@@ -61,6 +68,37 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
     },
     onError: (error) => {
       logger.error('Failed to remove crop', error instanceof Error ? error : undefined);
+    },
+  });
+
+  const bedMutation = useMutation({
+    mutationFn: ({ crop, bedId }: { crop: GrowerCropItem; bedId: string | null }) =>
+      updateMyCrop(crop.id, cropUpdatePayload(crop, bedId)),
+    onMutate: async ({ crop, bedId }) => {
+      setBedUpdateError(null);
+      await queryClient.cancelQueries({ queryKey: ['myCrops'] });
+      const previous = queryClient.getQueryData<GrowerCropItem[]>(['myCrops']);
+      const bedName = beds.find((bed) => bed.id === bedId)?.name ?? null;
+      queryClient.setQueryData<GrowerCropItem[]>(['myCrops'], (current) =>
+        current?.map((item) =>
+          item.id === crop.id ? { ...item, bedId, bedName } : item
+        )
+      );
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['myCrops'], context.previous);
+      }
+      setBedUpdateError(
+        error instanceof Error ? error.message : 'Could not update that bed assignment.'
+      );
+    },
+    onSuccess: () => {
+      logger.info('Updated crop bed assignment');
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['myCrops'] });
     },
   });
 
@@ -246,6 +284,25 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                       />
                     </div>
                   ) : null}
+
+                  <label className="grn-crop-card__bed-field">
+                    <span>Bed assignment</span>
+                    <select
+                      value={crop.bedId ?? ''}
+                      aria-label={`Bed assignment for ${crop.nickname || crop.cropName}`}
+                      disabled={bedMutation.isPending}
+                      onChange={(event) =>
+                        bedMutation.mutate({ crop, bedId: event.target.value || null })
+                      }
+                    >
+                      <option value="">Not assigned</option>
+                      {beds.map((bed) => (
+                        <option key={bed.id} value={bed.id}>
+                          {bed.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
                 <footer className="grn-crop-card__footer">
@@ -256,15 +313,15 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                   >
                     Harvests
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/garden/plants/new?edit=${crop.id}`)}
-                    disabled
-                    title="Editing comes next — for now, remove and re-add"
-                  >
-                    Edit
-                  </Button>
+                  {crop.bedId ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/garden?bed=${crop.bedId}&crop=${crop.id}`)}
+                    >
+                      View on Map
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     size="sm"
@@ -281,6 +338,12 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
         </div>
       </Card>
 
+      {bedUpdateError ? (
+        <p className="grn-page-status__error" role="alert">
+          {bedUpdateError}
+        </p>
+      ) : null}
+
       {activeHarvestCrop ? (
         <HarvestLogModal
           cropId={activeHarvestCrop.id}
@@ -296,4 +359,26 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
       ) : null}
     </div>
   );
+}
+
+function cropUpdatePayload(
+  crop: GrowerCropItem,
+  bedId: string | null
+): UpsertGrowerCropRequest {
+  return {
+    canonicalId: crop.canonicalId ?? undefined,
+    cropName: crop.cropName,
+    varietyId: crop.varietyId ?? undefined,
+    status: crop.status,
+    visibility: crop.visibility,
+    surplusEnabled: crop.surplusEnabled,
+    nickname: crop.nickname ?? undefined,
+    defaultUnit: crop.defaultUnit ?? undefined,
+    notes: crop.notes ?? undefined,
+    bedId,
+    plantingDate: crop.plantingDate,
+    expectedHarvestDate: crop.expectedHarvestDate,
+    plantCount: crop.plantCount,
+    spacingInches: crop.spacingInches,
+  };
 }

@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { CropLibraryPanel } from './CropLibraryPanel';
-import { listMyBeds, listMyCrops } from '../../services/api';
+import { listMyBeds, listMyCrops, updateMyCrop } from '../../services/api';
 
 vi.mock('../../services/api', () => ({
   deleteMyCrop: vi.fn(),
   listMyBeds: vi.fn(),
   listMyCrops: vi.fn(),
+  updateMyCrop: vi.fn(),
 }));
 
 vi.mock('../Harvests/HarvestLogModal', () => ({
@@ -55,5 +57,86 @@ describe('CropLibraryPanel deep links', () => {
     );
 
     expect(await screen.findByRole('dialog', { name: 'Harvest Cherry tomatoes' })).toBeInTheDocument();
+  });
+
+  it('changes a crop bed optimistically through the shared crop query', async () => {
+    const tomato = {
+      id: 'crop-1',
+      userId: 'grower-1',
+      canonicalId: null,
+      cropName: 'Tomato',
+      varietyId: null,
+      status: 'growing',
+      visibility: 'private',
+      surplusEnabled: false,
+      nickname: null,
+      defaultUnit: 'lb',
+      notes: null,
+      bedId: null,
+      bedName: null,
+      plantingDate: null,
+      expectedHarvestDate: null,
+      plantCount: null,
+      spacingInches: null,
+      pyramidTier: 2,
+      createdAt: '2026-07-01T00:00:00Z',
+      updatedAt: '2026-07-01T00:00:00Z',
+    };
+    vi.mocked(listMyBeds).mockResolvedValue([
+      {
+        id: 'bed-1',
+        userId: 'grower-1',
+        name: 'Kitchen bed',
+        description: null,
+        sunExposure: null,
+        soilType: null,
+        lengthInches: 96,
+        widthInches: 48,
+        locationNotes: null,
+        sortOrder: 0,
+        bedType: 'raised',
+        shape: 'rect',
+        positionX: 0,
+        positionY: 0,
+        rotationDeg: 0,
+        points: null,
+        color: null,
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z',
+      },
+    ]);
+    const updatedTomato = {
+      ...tomato,
+      bedId: 'bed-1',
+      bedName: 'Kitchen bed',
+    };
+    vi.mocked(listMyCrops)
+      .mockResolvedValueOnce([tomato])
+      .mockResolvedValue([updatedTomato]);
+    vi.mocked(updateMyCrop).mockResolvedValue(updatedTomato);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/garden/plants']}>
+          <CropLibraryPanel viewerUserId="grower-1" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await userEvent.selectOptions(
+      await screen.findByRole('combobox', { name: 'Bed assignment for Tomato' }),
+      'bed-1'
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Bed assignment for Tomato' })).toHaveValue(
+      'bed-1'
+    );
+    await waitFor(() =>
+      expect(updateMyCrop).toHaveBeenCalledWith(
+        'crop-1',
+        expect.objectContaining({ cropName: 'Tomato', bedId: 'bed-1' })
+      )
+    );
   });
 });

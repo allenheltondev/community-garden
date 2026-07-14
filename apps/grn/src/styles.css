@@ -336,6 +336,119 @@ body {
   gap: 1.25rem;
 }
 
+/* One garden, three related views. The shell stays deliberately compact so
+   the illustrated map remains the visual home instead of competing with a
+   second page hero. */
+.grn-garden-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.grn-garden-workspace__header h1 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: normal;
+}
+
+.grn-garden-workspace__header p {
+  max-width: 46rem;
+  margin: 0.35rem 0 0;
+  color: rgba(79, 56, 37, 0.75);
+}
+
+.grn-garden-views {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border: 1px solid rgba(79, 56, 37, 0.12);
+  border-radius: var(--og-radius-lg);
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.grn-garden-views__link {
+  display: grid;
+  gap: 0.15rem;
+  min-height: 3.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: calc(var(--og-radius-lg) - 0.25rem);
+  color: rgba(79, 56, 37, 0.72);
+  text-decoration: none;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.grn-garden-views__link:hover {
+  background: rgba(66, 107, 63, 0.08);
+  color: var(--og-color-soil);
+}
+
+.grn-garden-views__link:focus-visible {
+  outline: 3px solid rgba(66, 107, 63, 0.35);
+  outline-offset: 2px;
+}
+
+.grn-garden-views__link.is-active {
+  color: var(--og-color-moss);
+  background: var(--og-color-paper);
+  box-shadow: 0 1px 4px rgba(79, 56, 37, 0.14);
+}
+
+.grn-garden-views__label {
+  font-family: var(--og-font-display);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.grn-garden-views__description {
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.grn-garden-workspace__offline {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(176, 106, 60, 0.35);
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 244, 224, 0.82);
+  color: var(--og-color-soil);
+  font-size: 0.9rem;
+}
+
+.grn-garden-workspace__view {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .grn-garden-workspace {
+    gap: 0.75rem;
+  }
+
+  .grn-garden-workspace__header p {
+    font-size: 0.9rem;
+  }
+
+  .grn-garden-views {
+    gap: 0.25rem;
+    padding: 0.3rem;
+  }
+
+  .grn-garden-views__link {
+    place-items: center;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.35rem;
+    text-align: center;
+  }
+
+  .grn-garden-views__description {
+    display: none;
+  }
+}
+
 .grn-section__header {
   display: flex;
   justify-content: space-between;
@@ -1514,9 +1627,35 @@ body {
   border-radius: 999px;
 }
 
+.grn-crop-card__bed-field {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.grn-crop-card__bed-field select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(79, 56, 37, 0.22);
+  border-radius: var(--og-radius-sm);
+  background: var(--og-color-paper);
+  color: var(--og-color-soil);
+  font: inherit;
+}
+
+.grn-crop-card__bed-field select:focus-visible {
+  outline: 3px solid rgba(66, 107, 63, 0.3);
+  outline-offset: 1px;
+}
+
 .grn-crop-card__footer {
   margin-top: auto;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0 1rem 0.85rem;
 }
@@ -1579,6 +1718,28 @@ body {
 .grn-planner__workspace {
   display: grid;
   gap: 1.5rem;
+}
+
+.grn-planner__local-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-left: 4px solid rgba(66, 107, 63, 0.55);
+}
+
+.grn-planner__local-context h3 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  font-size: 1.05rem;
+}
+
+.grn-planner__local-context p {
+  max-width: 48rem;
+  margin: 0.25rem 0 0;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.9rem;
 }
 
 .grn-planner__health {
@@ -2014,6 +2175,11 @@ body {
 }
 
 @media (max-width: 480px) {
+  .grn-planner__local-context {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .grn-planner__health {
     align-items: flex-start;
     gap: 1rem;
