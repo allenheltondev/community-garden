@@ -24,7 +24,6 @@ import {
   listMyAnnotations,
   listMyBeds,
   listMyCrops,
-  requestBackgroundUploadUrl,
   updateMyAnnotation,
   updateMyBed,
   updateMyGardenCanvas,
@@ -49,14 +48,8 @@ import {
   ANNOTATION_PRESETS,
   presetById,
 } from '../components/GardenDesigner/annotationPresets';
-import {
-  calibrationFactor,
-  rescaledAnnotationPayload,
-  rescaledBedPayload,
-  rescaledCanvas,
-} from '../components/GardenDesigner/calibration';
 import { templateById } from '../components/GardenDesigner/gardenTemplates';
-import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
+import type { DesignerMode, GridSnap } from '../components/GardenDesigner/designerTypes';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
@@ -108,7 +101,6 @@ export interface UseGardenDesignerResult {
   addCrop: (input: QuickAddCropPayload) => Promise<void>;
   duplicateSelected: () => Promise<void>;
   applyTemplate: (templateId: string) => Promise<void>;
-  commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
     bedId: string,
@@ -140,13 +132,6 @@ export interface UseGardenDesignerResult {
   patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   deleteAnnotation: (annotationId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
-  applyCalibration: (
-    drawnLengthInches: number,
-    realLengthInches: number,
-    rescaleElements: boolean
-  ) => void;
-  uploadBackgroundImage: (file: File) => Promise<void>;
-  clearBackgroundImage: () => Promise<void>;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -728,39 +713,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
-  const commitPolygon = useCallback(
-    async (points: BedPolygonPoint[]) => {
-      if (!isEditable || points.length < 3) return;
-      const xs = points.map((p) => p.x);
-      const ys = points.map((p) => p.y);
-      const minX = Math.min(...xs);
-      const minY = Math.min(...ys);
-      const maxX = Math.max(...xs);
-      const maxY = Math.max(...ys);
-      const normalized = points.map((p) => ({ x: p.x - minX, y: p.y - minY }));
-      const created = await createBedMutation.mutateAsync({
-        name: `In-ground bed ${beds.length + 1}`,
-        bedType: 'in_ground',
-        shape: 'polygon',
-        lengthInches: maxX - minX,
-        widthInches: maxY - minY,
-        positionX: minX,
-        positionY: minY,
-        rotationDeg: 0,
-        points: normalized,
-      });
-      record({
-        kind: 'bed-create',
-        id: created.id,
-        payload: bedToUpsertPayload(created),
-        at: Date.now(),
-      });
-      selectItem({ kind: 'bed', id: created.id });
-      setMode('idle');
-    },
-    [beds.length, createBedMutation, isEditable, record, selectItem]
-  );
-
   const moveBed = useCallback(
     (bedId: string, positionX: number, positionY: number) => {
       const bed = beds.find((b) => b.id === bedId);
@@ -1277,60 +1229,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
-  // Background-image scale calibration: the user drew a reference line of
-  // drawnLengthInches over the photo and told us it's really
-  // realLengthInches long. Rescale the canvas by that ratio (clamped to
-  // sane bounds) and, when asked, move/resize every bed and annotation by
-  // the same factor so they keep their position relative to the photo.
-  const applyCalibration = useCallback(
-    (
-      drawnLengthInches: number,
-      realLengthInches: number,
-      rescaleElements: boolean
-    ) => {
-      if (!isEditable) return;
-      const canvas = canvasQuery.data;
-      if (!canvas) return;
-      const factor = calibrationFactor(drawnLengthInches, realLengthInches);
-      if (factor === null) return;
-      const next = rescaledCanvas(canvas, factor);
-      if (
-        next.widthInches !== canvas.widthInches ||
-        next.heightInches !== canvas.heightInches
-      ) {
-        updateCanvasMutation.mutate({
-          widthInches: next.widthInches,
-          heightInches: next.heightInches,
-        });
-      }
-      if (!rescaleElements || next.effectiveFactor === 1) return;
-      for (const bed of beds) {
-        updateBedMutation.mutate({
-          bedId: bed.id,
-          payload: rescaledBedPayload(bed, next.effectiveFactor),
-        });
-      }
-      for (const annotation of annotations) {
-        updateAnnotationMutation.mutate({
-          annotationId: annotation.id,
-          payload: rescaledAnnotationPayload(annotation, next.effectiveFactor),
-        });
-      }
-    },
-    [
-      annotations,
-      beds,
-      canvasQuery.data,
-      isEditable,
-      updateAnnotationMutation,
-      updateBedMutation,
-      updateCanvasMutation,
-    ]
-  );
-
   // Keyboard shortcuts:
-  //   Esc           - deselect (when not in drawing-polygon mode; the
-  //                   Canvas owns Esc-to-cancel for that mode)
+  //   Esc           - step out of vertex editing, else deselect
   //   Cmd/Ctrl+Z    - undo; with Shift (or Ctrl+Y) - redo
   //   Arrow keys    - nudge the selected element 1 inch (Shift = 12)
   //   Delete /
@@ -1346,9 +1246,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      // The Canvas owns Esc-to-cancel for drawing and calibration, and
-      // Delete shouldn't fire while either gesture is mid-flight.
-      if (mode === 'drawing-polygon' || mode === 'calibrating-scale') return;
       if (isEditingText(event.target)) return;
 
       const meta = event.metaKey || event.ctrlKey;
@@ -1392,9 +1289,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       }
 
       if (event.key === 'Escape') {
-        // Step out of vertex editing / measuring first; a second Esc
-        // deselects.
-        if (mode === 'editing-vertices' || mode === 'measuring') {
+        // Step out of vertex editing first; a second Esc deselects.
+        if (mode === 'editing-vertices') {
           event.preventDefault();
           setMode('idle');
           return;
@@ -1456,38 +1352,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     duplicateSelected,
   ]);
 
-  const uploadBackgroundImage = useCallback(
-    async (file: File) => {
-      if (!isEditable) return;
-      const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
-      if (!allowed.has(file.type)) {
-        throw new Error('Only JPEG, PNG, or WebP images are accepted.');
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        throw new Error('Images must be 8 MB or smaller.');
-      }
-      const intent = await requestBackgroundUploadUrl({
-        contentType: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
-        contentLength: file.size,
-      });
-      const upload = await fetch(intent.uploadUrl, {
-        method: intent.method,
-        headers: intent.headers,
-        body: file,
-      });
-      if (!upload.ok) {
-        throw new Error(`Background upload failed: ${upload.status}`);
-      }
-      updateCanvasMutation.mutate({ backgroundImageKey: intent.s3Key });
-    },
-    [isEditable, updateCanvasMutation]
-  );
-
-  const clearBackgroundImage = useCallback(async () => {
-    if (!isEditable) return;
-    updateCanvasMutation.mutate({ backgroundImageKey: null });
-  }, [isEditable, updateCanvasMutation]);
-
   const isSaving = pendingMutations > 0;
 
   return {
@@ -1522,7 +1386,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     addCrop,
     duplicateSelected,
     applyTemplate,
-    commitPolygon,
     moveBed,
     resizeBed,
     patchBed,
@@ -1534,9 +1397,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     patchAnnotation,
     deleteAnnotation,
     patchCanvas,
-    applyCalibration,
-    uploadBackgroundImage,
-    clearBackgroundImage,
     undo,
     redo,
     canUndo: historyCanUndo(history),

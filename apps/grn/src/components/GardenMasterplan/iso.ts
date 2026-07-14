@@ -22,9 +22,9 @@ export interface ScreenPoint {
 export const ISO_COS = Math.cos(Math.PI / 6); // ≈ 0.866
 export const ISO_SIN = Math.sin(Math.PI / 6); // 0.5
 
-// Ground scale. The layout editor uses 4 px/inch on a flat canvas; the
-// masterplan renders the whole property at once, so a smaller scale keeps
-// SVG coordinates (and text sizes) manageable before viewport zoom.
+// Ground scale. The masterplan renders the whole property at once, so a
+// small scale keeps SVG coordinates (and text sizes) manageable before
+// viewport zoom.
 export const PX_PER_INCH = 1.6;
 
 // Vertical scale. Slightly flatter than the ground scale so extruded

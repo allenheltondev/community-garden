@@ -1,5 +1,5 @@
-// Distance math + display formatting for the layout editor's dimension
-// labels and tape-measure tool. World units are inches.
+// Distance math + display formatting for dimension labels (e.g. the
+// masterplan vertex editor's edge lengths). World units are inches.
 
 export interface MeasurePoint {
   x: number;
