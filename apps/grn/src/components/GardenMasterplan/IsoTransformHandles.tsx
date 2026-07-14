@@ -1,4 +1,5 @@
-import { useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { formatInchesAsFeetInches } from '../GardenDesigner/measure';
 import {
   projectPoint,
   screenDeltaToWorld,
@@ -75,6 +76,9 @@ export function IsoTransformHandles({
   onCommit,
 }: IsoTransformHandlesProps) {
   const dragRef = useRef<DragState | null>(null);
+  // Which gesture is live, so we can show the matching readout (size vs
+  // angle) next to the box while dragging.
+  const [gesture, setGesture] = useState<'resize' | 'rotate' | null>(null);
 
   const corners = boxCornersWorld(geometry);
   const cornersScreen = corners.map((c) => projectPoint(c));
@@ -82,7 +86,20 @@ export function IsoTransformHandles({
     x: (cornersScreen[0].x + cornersScreen[1].x) / 2,
     y: (cornersScreen[0].y + cornersScreen[1].y) / 2,
   };
+  const bottomMid: ScreenPoint = {
+    x: (cornersScreen[2].x + cornersScreen[3].x) / 2,
+    y: (cornersScreen[2].y + cornersScreen[3].y) / 2,
+  };
   const rotateKnob: ScreenPoint = { x: topMid.x, y: topMid.y - ROTATE_OFFSET };
+
+  const readout =
+    gesture === 'resize'
+      ? `${formatInchesAsFeetInches(geometry.lengthInches)} × ${formatInchesAsFeetInches(
+          geometry.widthInches
+        )}`
+      : gesture === 'rotate'
+        ? `${((Math.round(geometry.rotationDeg) % 360) + 360) % 360}°`
+        : null;
 
   function grab(
     event: ReactPointerEvent<SVGGElement>,
@@ -123,6 +140,7 @@ export function IsoTransformHandles({
     } catch {
       // Pointer capture is best-effort.
     }
+    setGesture(kind);
   }
 
   function move(event: ReactPointerEvent<SVGGElement>) {
@@ -170,6 +188,7 @@ export function IsoTransformHandles({
       // Capture may already be gone (pointercancel); ignore.
     }
     dragRef.current = null;
+    setGesture(null);
     onCommit(state.latest);
   }
 
@@ -218,6 +237,16 @@ export function IsoTransformHandles({
           />
         </g>
       ))}
+      {readout && (
+        <text
+          className="mp-transform__readout"
+          x={bottomMid.x}
+          y={bottomMid.y + 20}
+          data-testid="transform-readout"
+        >
+          {readout}
+        </text>
+      )}
     </g>
   );
 }

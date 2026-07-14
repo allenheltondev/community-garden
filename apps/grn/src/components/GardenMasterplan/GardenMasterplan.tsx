@@ -230,6 +230,14 @@ export function GardenMasterplan({
             onResizeBed={editing?.onResizeBed}
             onResizeAnnotation={editing?.onResizeAnnotation}
             onUpdateBedPoints={editing?.onUpdateBedPoints}
+            onRequestVertexEdit={
+              editing
+                ? (bedId) => {
+                    onSelect({ kind: 'bed', id: bedId });
+                    editing.onSetMode('editing-vertices');
+                  }
+                : undefined
+            }
           />
         </div>
 

@@ -3847,6 +3847,16 @@ body {
   cursor: grabbing;
 }
 
+/* --- Masterplan alignment guides ----------------------------------------- */
+
+.mp-align__guide {
+  stroke: #d6564f;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
 /* --- Masterplan on-scene transform handles ------------------------------- */
 
 .mp-transform__box {
@@ -3881,6 +3891,18 @@ body {
 .mp-transform__resize:hover rect,
 .mp-transform__rotate:hover circle {
   fill: var(--og-color-leaf, #3a7e5a);
+}
+
+.mp-transform__readout {
+  fill: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 /* --- Masterplan vertex editor -------------------------------------------- */

@@ -1,5 +1,7 @@
 import {
   memo,
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -15,7 +17,7 @@ import type {
   GardenCanvas,
   GrowerCropItem,
 } from '../../types/listing';
-import type { SelectedItem } from '../../hooks/useGardenDesigner';
+import type { SelectedItem, SelectedRef } from '../../hooks/useGardenDesigner';
 import {
   FLAT_KINDS,
   annotationFootprint,
@@ -36,6 +38,12 @@ import {
   type ScreenPoint,
   type WorldPoint,
 } from './iso';
+import {
+  ALIGN_THRESHOLD_INCHES,
+  boundsOfWorld,
+  resolveAlignment,
+  type AlignGuide,
+} from './alignment';
 import { chooseCritters } from './critters';
 import { IsoAnnotation } from './IsoAnnotation';
 import { IsoBed } from './IsoBed';
@@ -101,6 +109,14 @@ interface IsoElementProps {
   basePosition?: WorldPoint;
   snapInches?: number;
   onMove?: (x: number, y: number) => void;
+  // Snap-to-neighbor alignment. When present, each drag position is run
+  // through onAlignedMove (which also publishes guide lines as a side
+  // effect); onAlignEnd clears the guides on release.
+  alignRef?: SelectedRef;
+  onAlignedMove?: (ref: SelectedRef, x: number, y: number) => WorldPoint;
+  onAlignEnd?: () => void;
+  // Double-click / double-tap shortcut (e.g. reshape a custom bed).
+  onDoubleActivate?: () => void;
 }
 
 function clientToScene(
@@ -131,6 +147,10 @@ function IsoElement({
   basePosition,
   snapInches = 0,
   onMove,
+  alignRef,
+  onAlignedMove,
+  onAlignEnd,
+  onDoubleActivate,
 }: IsoElementProps) {
   const [dragTranslate, setDragTranslate] = useState<ScreenPoint | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -206,6 +226,12 @@ function IsoElement({
       nextX = Math.round(nextX / snapInches) * snapInches;
       nextY = Math.round(nextY / snapInches) * snapInches;
     }
+    // Magnetic alignment to neighboring elements (also draws the guides).
+    if (onAlignedMove && alignRef) {
+      const aligned = onAlignedMove(alignRef, nextX, nextY);
+      nextX = aligned.x;
+      nextY = aligned.y;
+    }
     state.worldX = nextX;
     state.worldY = nextY;
     // Live feedback: project the committed ground delta back to screen so
@@ -226,6 +252,7 @@ function IsoElement({
     if (state.moved && onMove) {
       onMove(Math.round(state.worldX), Math.round(state.worldY));
     }
+    onAlignEnd?.();
     setDragTranslate(null);
   }
 
@@ -249,6 +276,14 @@ function IsoElement({
       aria-pressed={isSelected}
       transform={dragTranslate ? `translate(${dragTranslate.x} ${dragTranslate.y})` : undefined}
       onClick={handleClick}
+      onDoubleClick={
+        onDoubleActivate
+          ? (event) => {
+              event.stopPropagation();
+              onDoubleActivate();
+            }
+          : undefined
+      }
       onKeyDown={handleKeyDown}
       {...dragProps}
     >
@@ -280,6 +315,8 @@ interface IsoSceneProps {
   onResizeBed?: (bedId: string, next: ElementGeometry) => void;
   onResizeAnnotation?: (annotationId: string, next: ElementGeometry) => void;
   onUpdateBedPoints?: (bedId: string, points: BedPolygonPoint[]) => void;
+  /** Double-click a custom-shape bed to jump straight into vertex editing. */
+  onRequestVertexEdit?: (bedId: string) => void;
 }
 
 // The selected element's geometry while a resize/rotate gesture is live, so
@@ -341,6 +378,7 @@ export const IsoScene = memo(function IsoScene({
   onResizeBed,
   onResizeAnnotation,
   onUpdateBedPoints,
+  onRequestVertexEdit,
 }: IsoSceneProps) {
   const metrics = sceneMetrics(canvas);
   const w = canvas.widthInches;
@@ -351,6 +389,55 @@ export const IsoScene = memo(function IsoScene({
   // matching illustration renders from this so it tracks the handles, and
   // the committed value only lands on release.
   const [transformDraft, setTransformDraft] = useState<TransformDraft | null>(null);
+
+  // Live alignment guides while an element is dragged. The resolver below
+  // reads the latest beds/annotations through a ref so its identity stays
+  // stable (and doesn't invalidate the memoized element list every render).
+  const [alignGuides, setAlignGuides] = useState<AlignGuide[] | null>(null);
+  // Latest elements for the alignment resolver, kept in a ref (synced via an
+  // effect, never written during render) so the resolver stays identity-stable.
+  const alignDataRef = useRef({ beds, annotations });
+  useEffect(() => {
+    alignDataRef.current = { beds, annotations };
+  }, [beds, annotations]);
+
+  const resolveAlignedMove = useCallback(
+    (ref: SelectedRef, x: number, y: number): WorldPoint => {
+      const { beds: allBeds, annotations: allAnnotations } = alignDataRef.current;
+      const self =
+        ref.kind === 'bed'
+          ? allBeds.find((b) => b.id === ref.id)
+          : allAnnotations.find((a) => a.id === ref.id);
+      if (!self) return { x, y };
+      const base = boundsOfWorld(
+        ref.kind === 'bed'
+          ? bedFootprint(self as GardenBed)
+          : annotationFootprint(self as GardenAnnotation)
+      );
+      const dxPos = x - (self.positionX ?? 12);
+      const dyPos = y - (self.positionY ?? 12);
+      const moving = {
+        minX: base.minX + dxPos,
+        maxX: base.maxX + dxPos,
+        minY: base.minY + dyPos,
+        maxY: base.maxY + dyPos,
+      };
+      const targets = [
+        ...allBeds
+          .filter((b) => !(ref.kind === 'bed' && b.id === ref.id))
+          .map((b) => boundsOfWorld(bedFootprint(b))),
+        ...allAnnotations
+          .filter((a) => !(ref.kind === 'annotation' && a.id === ref.id))
+          .map((a) => boundsOfWorld(annotationFootprint(a))),
+      ];
+      const { dx, dy, guides } = resolveAlignment(moving, targets, ALIGN_THRESHOLD_INCHES);
+      setAlignGuides(guides.length > 0 ? guides : null);
+      return { x: x + dx, y: y + dy };
+    },
+    []
+  );
+
+  const clearAlignGuides = useCallback(() => setAlignGuides(null), []);
 
   // All cast sun shadows joined into one path: with a single fill,
   // overlapping shadows merge into a flat wash instead of stacking darker
@@ -403,6 +490,9 @@ export const IsoScene = memo(function IsoScene({
                 ? (x, y) => onMoveAnnotation(annotation.id, x, y)
                 : undefined
             }
+            alignRef={editable ? { kind: 'annotation', id: annotation.id } : undefined}
+            onAlignedMove={editable ? resolveAlignedMove : undefined}
+            onAlignEnd={editable ? clearAlignGuides : undefined}
           >
             <IsoAnnotation
               annotation={shown}
@@ -431,6 +521,14 @@ export const IsoScene = memo(function IsoScene({
             basePosition={{ x: shown.positionX ?? 12, y: shown.positionY ?? 12 }}
             snapInches={snapInches}
             onMove={onMoveBed ? (x, y) => onMoveBed(bed.id, x, y) : undefined}
+            alignRef={editable ? { kind: 'bed', id: bed.id } : undefined}
+            onAlignedMove={editable ? resolveAlignedMove : undefined}
+            onAlignEnd={editable ? clearAlignGuides : undefined}
+            onDoubleActivate={
+              editable && bed.shape === 'polygon' && onRequestVertexEdit
+                ? () => onRequestVertexEdit(bed.id)
+                : undefined
+            }
           >
             <IsoBed
               bed={shown}
@@ -465,6 +563,9 @@ export const IsoScene = memo(function IsoScene({
     onMoveBed,
     onMoveAnnotation,
     transformDraft,
+    resolveAlignedMove,
+    clearAlignGuides,
+    onRequestVertexEdit,
   ]);
 
   // Ambient critters: deterministic per garden (seeded by the canvas id),
@@ -612,6 +713,24 @@ export const IsoScene = memo(function IsoScene({
       )}
       <g className="mp-elements">{items.map((item) => item.node)}</g>
       <IsoCritters critters={critters} />
+      {alignGuides && alignGuides.length > 0 && (
+        <g className="mp-align" aria-hidden="true">
+          {alignGuides.map((guide, index) => {
+            const a = project(guide.x1, guide.y1, 0);
+            const b = project(guide.x2, guide.y2, 0);
+            return (
+              <line
+                key={index}
+                className="mp-align__guide"
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+              />
+            );
+          })}
+        </g>
+      )}
       {editOverlay}
       <g
         className="mp-compass"

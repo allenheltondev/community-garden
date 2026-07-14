@@ -728,5 +728,40 @@ describe('GardenMasterplan', () => {
       expect(onMoveBed).not.toHaveBeenCalled();
       expect(onSelect).toHaveBeenCalledWith({ kind: 'bed', id: 'bed-1' });
     });
+
+    it('shows a live size readout while resizing the selected element', () => {
+      const { container } = renderMasterplan({
+        selected: { kind: 'bed', id: 'bed-1' },
+        editing: {},
+      });
+      const handle = container.querySelector('.mp-transform__resize')!;
+      expect(container.querySelector('[data-testid="transform-readout"]')).toBeNull();
+      fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientX: 200, clientY: 200 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 260, clientY: 230 });
+      expect(
+        container.querySelector('[data-testid="transform-readout"]')
+      ).toBeInTheDocument();
+    });
+
+    it('double-clicking a custom-shape bed enters vertex editing', () => {
+      const onSetMode = vi.fn();
+      const onSelect = vi.fn();
+      renderMasterplan({
+        beds: [makeBed({ id: 'poly', name: 'Custom bed', shape: 'polygon',
+          points: [
+            { x: 0, y: 0 },
+            { x: 96, y: 0 },
+            { x: 96, y: 48 },
+            { x: 0, y: 48 },
+          ] })],
+        annotations: [],
+        crops: [],
+        onSelect,
+        editing: { onSetMode },
+      });
+      fireEvent.doubleClick(screen.getByRole('button', { name: /custom bed/i }));
+      expect(onSelect).toHaveBeenCalledWith({ kind: 'bed', id: 'poly' });
+      expect(onSetMode).toHaveBeenCalledWith('editing-vertices');
+    });
   });
 });
