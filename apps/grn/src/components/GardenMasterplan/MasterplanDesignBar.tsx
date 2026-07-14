@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import type { BedShape } from '../../types/listing';
 import { ANNOTATION_PRESETS } from '../GardenDesigner/annotationPresets';
 import { BED_SHAPES } from '../GardenDesigner/bedDefaults';
-import type { GridSnap } from '../GardenDesigner/Toolbar';
+import type { GridSnap } from '../GardenDesigner/designerTypes';
 
 interface MasterplanDesignBarProps {
   snap: GridSnap;
@@ -13,13 +14,36 @@ interface MasterplanDesignBarProps {
   onUndo: () => void;
   onRedo: () => void;
   isSaving: boolean;
+  widthInches: number;
+  heightInches: number;
+  onPatchCanvas: (patch: { widthInches?: number; heightInches?: number }) => void;
+}
+
+// Accept "12", "12ft", "12 ft", "12'", or explicit inches like "144in".
+// Bare numbers are read as feet — the gardener's default unit.
+function parseFeetInches(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const ftMatch = /^(-?\d+(?:\.\d+)?)\s*(?:ft|')$/i.exec(trimmed);
+  if (ftMatch) return Math.round(Number(ftMatch[1]) * 12);
+  const inMatch = /^(-?\d+(?:\.\d+)?)\s*(?:in|")$/i.exec(trimmed);
+  if (inMatch) return Math.round(Number(inMatch[1]));
+  const num = Number(trimmed);
+  if (Number.isFinite(num)) return Math.round(num * 12);
+  return null;
+}
+
+function formatFeetFromInches(inches: number): string {
+  const feet = inches / 12;
+  return Number.isInteger(feet) ? `${feet} ft` : `${feet.toFixed(1)} ft`;
 }
 
 /**
- * Floating editing dock for the masterplan. Keeps the "design while looking
- * at the illustrated plan" tools — add a bed or landmark, undo/redo, grid
- * snap — on the same view as the artwork, so dragging elements around isn't
- * the only thing you can do without leaving for the precision editor.
+ * Floating editing dock for the masterplan — the garden's single design
+ * surface. Add a bed or landmark, undo/redo, set grid snap, and adjust the
+ * overall garden size, all while looking at the illustrated plan. Per-element
+ * precision (resize, rotate, reshape, details) lives on the selected element
+ * itself via handles and the inspector.
  */
 export function MasterplanDesignBar({
   snap,
@@ -31,7 +55,33 @@ export function MasterplanDesignBar({
   onUndo,
   onRedo,
   isSaving,
+  widthInches,
+  heightInches,
+  onPatchCanvas,
 }: MasterplanDesignBarProps) {
+  const [widthInput, setWidthInput] = useState(formatFeetFromInches(widthInches));
+  const [heightInput, setHeightInput] = useState(formatFeetFromInches(heightInches));
+
+  // Draft-on-focus: while a field is focused the local draft wins; on blur
+  // it commits (clamped) and re-formats, or reverts to the current value.
+  const widthValue = widthInput;
+  const heightValue = heightInput;
+
+  function commitScale(
+    field: 'widthInches' | 'heightInches',
+    raw: string,
+    current: number,
+    setInput: (value: string) => void
+  ) {
+    const next = parseFeetInches(raw);
+    if (next === null || next < 12 || next > 12_000) {
+      setInput(formatFeetFromInches(current));
+      return;
+    }
+    setInput(formatFeetFromInches(next));
+    if (next !== current) onPatchCanvas({ [field]: next });
+  }
+
   return (
     <div className="mp-design" role="toolbar" aria-label="Design tools">
       <div className="mp-design__group" role="group" aria-label="Edit history">
@@ -124,6 +174,45 @@ export function MasterplanDesignBar({
           <option value="12">1 ft</option>
         </select>
       </label>
+
+      <span className="mp-design__divider" aria-hidden="true" />
+
+      <div className="mp-design__field mp-design__field--scale">
+        <span className="mp-design__field-label">Garden size</span>
+        <div className="mp-design__scale">
+          <input
+            type="text"
+            className="mp-design__scale-input"
+            value={widthValue}
+            aria-label="Garden width"
+            inputMode="decimal"
+            onChange={(event) => setWidthInput(event.target.value)}
+            onBlur={(event) =>
+              commitScale('widthInches', event.target.value, widthInches, setWidthInput)
+            }
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+            }}
+          />
+          <span className="mp-design__scale-x" aria-hidden="true">
+            ×
+          </span>
+          <input
+            type="text"
+            className="mp-design__scale-input"
+            value={heightValue}
+            aria-label="Garden height"
+            inputMode="decimal"
+            onChange={(event) => setHeightInput(event.target.value)}
+            onBlur={(event) =>
+              commitScale('heightInches', event.target.value, heightInches, setHeightInput)
+            }
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+            }}
+          />
+        </div>
+      </div>
 
       {isSaving && (
         <span className="mp-design__saving" role="status">

@@ -3797,6 +3797,29 @@ body {
   max-width: 8rem;
 }
 
+.mp-design__scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.mp-design__scale-input {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--og-color-soil);
+  background: #fff;
+  border: 1px solid rgba(91, 58, 28, 0.2);
+  border-radius: var(--og-radius-pill);
+  padding: 0.25rem 0.4rem;
+  width: 3.4rem;
+  text-align: center;
+}
+
+.mp-design__scale-x {
+  color: rgba(79, 56, 37, 0.55);
+}
+
 .mp-design__saving {
   font-size: 0.76rem;
   font-weight: 600;
@@ -3824,7 +3847,136 @@ body {
   cursor: grabbing;
 }
 
+/* --- Masterplan alignment guides ----------------------------------------- */
+
+.mp-align__guide {
+  stroke: #d6564f;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* --- Masterplan on-scene transform handles ------------------------------- */
+
+.mp-transform__box {
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.mp-transform__arm {
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.mp-transform__resize rect,
+.mp-transform__rotate circle {
+  fill: #fff;
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 2;
+}
+
+.mp-transform__resize {
+  cursor: nwse-resize;
+}
+
+.mp-transform__rotate {
+  cursor: grab;
+}
+
+.mp-transform__resize:hover rect,
+.mp-transform__rotate:hover circle {
+  fill: var(--og-color-leaf, #3a7e5a);
+}
+
+/* Invisible, finger-sized grab zones. `transparent` (not `none`) so they
+   still capture pointer events. touch-action:none keeps a handle drag from
+   being stolen by page scroll / pinch-zoom on touch devices. */
+.mp-transform__hit,
+.mp-vertex__hit {
+  fill: transparent;
+}
+
+.mp-transform__resize,
+.mp-transform__rotate,
+.mp-vertex__handle,
+.mp-vertex__midpoint,
+.mp-el--draggable {
+  touch-action: none;
+}
+
+.mp-transform__readout {
+  fill: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* --- Masterplan vertex editor -------------------------------------------- */
+
+.mp-vertex__outline {
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+  pointer-events: none;
+}
+
+.mp-vertex__handle circle {
+  fill: var(--og-color-leaf, #3a7e5a);
+  stroke: #fff;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.mp-vertex__handle:hover circle {
+  fill: var(--og-color-soil, #5b3a1c);
+}
+
+.mp-vertex__midpoint {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: var(--og-color-leaf, #3a7e5a);
+  stroke-width: 1.5;
+  cursor: copy;
+}
+
+.mp-vertex__edge-label {
+  fill: var(--og-color-leaf, #3a7e5a);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 /* --- Masterplan detail panel quick actions ------------------------------- */
+
+.mp-panel__edit {
+  margin: 0 0 0.75rem;
+}
+
+.mp-panel__save-status {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--og-color-soil, #5b3a1c);
+  opacity: 0.7;
+}
+
+.mp-panel__save-status[data-saving='true'] {
+  opacity: 1;
+}
 
 .mp-panel__quick {
   display: flex;

@@ -1,5 +1,7 @@
 import {
   memo,
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -9,12 +11,13 @@ import {
   type ReactNode,
 } from 'react';
 import type {
+  BedPolygonPoint,
   GardenAnnotation,
   GardenBed,
   GardenCanvas,
   GrowerCropItem,
 } from '../../types/listing';
-import type { SelectedItem } from '../../hooks/useGardenDesigner';
+import type { SelectedItem, SelectedRef } from '../../hooks/useGardenDesigner';
 import {
   FLAT_KINDS,
   annotationFootprint,
@@ -35,13 +38,24 @@ import {
   type ScreenPoint,
   type WorldPoint,
 } from './iso';
+import {
+  ALIGN_THRESHOLD_INCHES,
+  boundsOfWorld,
+  resolveAlignment,
+  type AlignGuide,
+  type WorldBounds,
+} from './alignment';
 import { chooseCritters } from './critters';
 import { IsoAnnotation } from './IsoAnnotation';
 import { IsoBed } from './IsoBed';
 import { IsoCritters } from './IsoCritters';
+import { IsoTransformHandles } from './IsoTransformHandles';
+import { IsoVertexEditor } from './IsoVertexEditor';
+import type { ElementGeometry } from './isoTransform';
 import { KIND_LABELS, SCENE, annotationKind } from './palette';
 import type { SeasonMonth } from './season';
 import { collectShadowCasters, shadowPolygonsFor, type SunTime } from './shadows';
+import type { DesignerMode } from '../GardenDesigner/designerTypes';
 
 // Organic ring of world points around the canvas rectangle — the lawn
 // plate is a soft blob, not a hard parallelogram, so the plan reads as an
@@ -96,6 +110,14 @@ interface IsoElementProps {
   basePosition?: WorldPoint;
   snapInches?: number;
   onMove?: (x: number, y: number) => void;
+  // Snap-to-neighbor alignment. When present, each drag position is run
+  // through onAlignedMove (which also publishes guide lines as a side
+  // effect); onAlignEnd clears the guides on release.
+  alignRef?: SelectedRef;
+  onAlignedMove?: (ref: SelectedRef, x: number, y: number) => WorldPoint;
+  onAlignEnd?: () => void;
+  // Double-click / double-tap shortcut (e.g. reshape a custom bed).
+  onDoubleActivate?: () => void;
 }
 
 function clientToScene(
@@ -126,6 +148,10 @@ function IsoElement({
   basePosition,
   snapInches = 0,
   onMove,
+  alignRef,
+  onAlignedMove,
+  onAlignEnd,
+  onDoubleActivate,
 }: IsoElementProps) {
   const [dragTranslate, setDragTranslate] = useState<ScreenPoint | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -201,6 +227,12 @@ function IsoElement({
       nextX = Math.round(nextX / snapInches) * snapInches;
       nextY = Math.round(nextY / snapInches) * snapInches;
     }
+    // Magnetic alignment to neighboring elements (also draws the guides).
+    if (onAlignedMove && alignRef) {
+      const aligned = onAlignedMove(alignRef, nextX, nextY);
+      nextX = aligned.x;
+      nextY = aligned.y;
+    }
     state.worldX = nextX;
     state.worldY = nextY;
     // Live feedback: project the committed ground delta back to screen so
@@ -221,6 +253,7 @@ function IsoElement({
     if (state.moved && onMove) {
       onMove(Math.round(state.worldX), Math.round(state.worldY));
     }
+    onAlignEnd?.();
     setDragTranslate(null);
   }
 
@@ -244,6 +277,14 @@ function IsoElement({
       aria-pressed={isSelected}
       transform={dragTranslate ? `translate(${dragTranslate.x} ${dragTranslate.y})` : undefined}
       onClick={handleClick}
+      onDoubleClick={
+        onDoubleActivate
+          ? (event) => {
+              event.stopPropagation();
+              onDoubleActivate();
+            }
+          : undefined
+      }
       onKeyDown={handleKeyDown}
       {...dragProps}
     >
@@ -270,6 +311,39 @@ interface IsoSceneProps {
   snapInches?: number;
   onMoveBed?: (bedId: string, positionX: number, positionY: number) => void;
   onMoveAnnotation?: (annotationId: string, positionX: number, positionY: number) => void;
+  /** Idle vs per-vertex reshaping of the selected custom-shape bed. */
+  mode?: DesignerMode;
+  onResizeBed?: (bedId: string, next: ElementGeometry) => void;
+  onResizeAnnotation?: (annotationId: string, next: ElementGeometry) => void;
+  onUpdateBedPoints?: (bedId: string, points: BedPolygonPoint[]) => void;
+  /** Double-click a custom-shape bed to jump straight into vertex editing. */
+  onRequestVertexEdit?: (bedId: string) => void;
+}
+
+// The selected element's geometry while a resize/rotate gesture is live, so
+// the illustration follows the handles before the change is committed.
+interface TransformDraft {
+  kind: 'bed' | 'annotation';
+  id: string;
+  geometry: ElementGeometry;
+}
+
+// Apply an in-flight transform to its element so the drawn shape follows the
+// handles. Pure (module scope) so it isn't a hook dependency; the caller
+// re-runs whenever `draft` changes. Depth/sort still uses the original
+// footprint, so paint order stays stable mid-gesture.
+function bedWithDraft(bed: GardenBed, draft: TransformDraft | null): GardenBed {
+  return draft?.kind === 'bed' && draft.id === bed.id
+    ? { ...bed, ...draft.geometry }
+    : bed;
+}
+function annotationWithDraft(
+  annotation: GardenAnnotation,
+  draft: TransformDraft | null
+): GardenAnnotation {
+  return draft?.kind === 'annotation' && draft.id === annotation.id
+    ? { ...annotation, ...draft.geometry }
+    : annotation;
 }
 
 interface RenderItem {
@@ -301,11 +375,70 @@ export const IsoScene = memo(function IsoScene({
   snapInches = 0,
   onMoveBed,
   onMoveAnnotation,
+  mode = 'idle',
+  onResizeBed,
+  onResizeAnnotation,
+  onUpdateBedPoints,
+  onRequestVertexEdit,
 }: IsoSceneProps) {
   const metrics = sceneMetrics(canvas);
   const w = canvas.widthInches;
   const h = canvas.heightInches;
   const northOffsetDeg = canvas.northOffsetDeg;
+
+  // Live geometry of the element being resized/rotated; null when idle. The
+  // matching illustration renders from this so it tracks the handles, and
+  // the committed value only lands on release.
+  const [transformDraft, setTransformDraft] = useState<TransformDraft | null>(null);
+
+  // Live alignment guides while an element is dragged. The resolver below
+  // reads the latest beds/annotations through a ref so its identity stays
+  // stable (and doesn't invalidate the memoized element list every render).
+  const [alignGuides, setAlignGuides] = useState<AlignGuide[] | null>(null);
+  // Latest elements for the alignment resolver, kept in a ref (synced via an
+  // effect, never written during render) so the resolver stays identity-stable.
+  const alignDataRef = useRef({ beds, annotations });
+  useEffect(() => {
+    alignDataRef.current = { beds, annotations };
+  }, [beds, annotations]);
+
+  const resolveAlignedMove = useCallback(
+    (ref: SelectedRef, x: number, y: number): WorldPoint => {
+      const { beds: allBeds, annotations: allAnnotations } = alignDataRef.current;
+      const self =
+        ref.kind === 'bed'
+          ? allBeds.find((b) => b.id === ref.id)
+          : allAnnotations.find((a) => a.id === ref.id);
+      if (!self) return { x, y };
+      const base = boundsOfWorld(
+        ref.kind === 'bed'
+          ? bedFootprint(self as GardenBed)
+          : annotationFootprint(self as GardenAnnotation)
+      );
+      const dxPos = x - (self.positionX ?? 12);
+      const dyPos = y - (self.positionY ?? 12);
+      const moving = {
+        minX: base.minX + dxPos,
+        maxX: base.maxX + dxPos,
+        minY: base.minY + dyPos,
+        maxY: base.maxY + dyPos,
+      };
+      const targets = [
+        ...allBeds
+          .filter((b) => !(ref.kind === 'bed' && b.id === ref.id))
+          .map((b) => boundsOfWorld(bedFootprint(b))),
+        ...allAnnotations
+          .filter((a) => !(ref.kind === 'annotation' && a.id === ref.id))
+          .map((a) => boundsOfWorld(annotationFootprint(a))),
+      ];
+      const { dx, dy, guides } = resolveAlignment(moving, targets, ALIGN_THRESHOLD_INCHES);
+      setAlignGuides(guides.length > 0 ? guides : null);
+      return { x: x + dx, y: y + dy };
+    },
+    []
+  );
+
+  const clearAlignGuides = useCallback(() => setAlignGuides(null), []);
 
   // All cast sun shadows joined into one path: with a single fill,
   // overlapping shadows merge into a flat wash instead of stacking darker
@@ -337,6 +470,7 @@ export const IsoScene = memo(function IsoScene({
     const list: RenderItem[] = [];
     for (const annotation of annotations) {
       const kind = annotationKind(annotation);
+      const shown = annotationWithDraft(annotation, transformDraft);
       list.push({
         key: `annotation-${annotation.id}`,
         layer: annotation.sortOrder,
@@ -350,16 +484,19 @@ export const IsoScene = memo(function IsoScene({
             onSelect={() => onSelect({ kind: 'annotation', id: annotation.id })}
             shouldIgnoreClick={shouldIgnoreClick}
             draggable={editable}
-            basePosition={{ x: annotation.positionX ?? 12, y: annotation.positionY ?? 12 }}
+            basePosition={{ x: shown.positionX ?? 12, y: shown.positionY ?? 12 }}
             snapInches={snapInches}
             onMove={
               onMoveAnnotation
                 ? (x, y) => onMoveAnnotation(annotation.id, x, y)
                 : undefined
             }
+            alignRef={editable ? { kind: 'annotation', id: annotation.id } : undefined}
+            onAlignedMove={editable ? resolveAlignedMove : undefined}
+            onAlignEnd={editable ? clearAlignGuides : undefined}
           >
             <IsoAnnotation
-              annotation={annotation}
+              annotation={shown}
               isSelected={selected?.kind === 'annotation' && selected.id === annotation.id}
             />
           </IsoElement>
@@ -368,6 +505,7 @@ export const IsoScene = memo(function IsoScene({
     }
     for (const bed of beds) {
       const crops = cropsByBedId.get(bed.id) ?? [];
+      const shown = bedWithDraft(bed, transformDraft);
       list.push({
         key: `bed-${bed.id}`,
         layer: bed.sortOrder,
@@ -381,12 +519,20 @@ export const IsoScene = memo(function IsoScene({
             onSelect={() => onSelect({ kind: 'bed', id: bed.id })}
             shouldIgnoreClick={shouldIgnoreClick}
             draggable={editable}
-            basePosition={{ x: bed.positionX ?? 12, y: bed.positionY ?? 12 }}
+            basePosition={{ x: shown.positionX ?? 12, y: shown.positionY ?? 12 }}
             snapInches={snapInches}
             onMove={onMoveBed ? (x, y) => onMoveBed(bed.id, x, y) : undefined}
+            alignRef={editable ? { kind: 'bed', id: bed.id } : undefined}
+            onAlignedMove={editable ? resolveAlignedMove : undefined}
+            onAlignEnd={editable ? clearAlignGuides : undefined}
+            onDoubleActivate={
+              editable && bed.shape === 'polygon' && onRequestVertexEdit
+                ? () => onRequestVertexEdit(bed.id)
+                : undefined
+            }
           >
             <IsoBed
-              bed={bed}
+              bed={shown}
               crops={crops}
               isSelected={selected?.kind === 'bed' && selected.id === bed.id}
               seasonMonth={seasonMonth}
@@ -417,6 +563,10 @@ export const IsoScene = memo(function IsoScene({
     snapInches,
     onMoveBed,
     onMoveAnnotation,
+    transformDraft,
+    resolveAlignedMove,
+    clearAlignGuides,
+    onRequestVertexEdit,
   ]);
 
   // Ambient critters: deterministic per garden (seeded by the canvas id),
@@ -454,6 +604,95 @@ export const IsoScene = memo(function IsoScene({
   function handleBackgroundClick() {
     if (shouldIgnoreClick()) return;
     onSelect(null);
+  }
+
+  // Editing overlay for the current selection: per-vertex reshaping for a
+  // custom-shape bed in vertex mode, otherwise resize + rotate handles.
+  const selectedBed =
+    editable && selected?.kind === 'bed'
+      ? beds.find((b) => b.id === selected.id)
+      : undefined;
+  const selectedAnnotation =
+    editable && selected?.kind === 'annotation'
+      ? annotations.find((a) => a.id === selected.id)
+      : undefined;
+
+  const bedGeometry = (bed: GardenBed): ElementGeometry => ({
+    positionX: bed.positionX ?? 12,
+    positionY: bed.positionY ?? 12,
+    lengthInches: bed.lengthInches ?? 96,
+    widthInches: bed.widthInches ?? 48,
+    rotationDeg: bed.rotationDeg,
+    points: bed.points,
+  });
+  const annotationGeometryOf = (a: GardenAnnotation): ElementGeometry => ({
+    positionX: a.positionX ?? 12,
+    positionY: a.positionY ?? 12,
+    lengthInches: a.lengthInches ?? 48,
+    widthInches: a.widthInches ?? 48,
+    rotationDeg: a.rotationDeg,
+    points: a.points,
+  });
+
+  const vertexEditing =
+    selectedBed && mode === 'editing-vertices' && selectedBed.shape === 'polygon';
+
+  // World bounds of every element except the selected one — the snap targets
+  // for resizing it against its neighbors.
+  const alignTargets: WorldBounds[] =
+    editable && selected
+      ? [
+          ...beds
+            .filter((b) => !(selected.kind === 'bed' && b.id === selected.id))
+            .map((b) => boundsOfWorld(bedFootprint(b))),
+          ...annotations
+            .filter((a) => !(selected.kind === 'annotation' && a.id === selected.id))
+            .map((a) => boundsOfWorld(annotationFootprint(a))),
+        ]
+      : [];
+  const handleAlign = { targets: alignTargets, onGuides: setAlignGuides };
+
+  let editOverlay: ReactNode = null;
+  if (vertexEditing && selectedBed && onUpdateBedPoints) {
+    editOverlay = (
+      <IsoVertexEditor
+        bed={bedWithDraft(selectedBed, transformDraft)}
+        snapInches={snapInches}
+        onCommit={(points) => onUpdateBedPoints(selectedBed.id, points)}
+      />
+    );
+  } else if (selectedBed && onResizeBed) {
+    editOverlay = (
+      <IsoTransformHandles
+        geometry={bedGeometry(bedWithDraft(selectedBed, transformDraft))}
+        snapInches={snapInches}
+        align={handleAlign}
+        onPreview={(geometry) =>
+          setTransformDraft({ kind: 'bed', id: selectedBed.id, geometry })
+        }
+        onCommit={(geometry) => {
+          setTransformDraft(null);
+          setAlignGuides(null);
+          onResizeBed(selectedBed.id, geometry);
+        }}
+      />
+    );
+  } else if (selectedAnnotation && onResizeAnnotation) {
+    editOverlay = (
+      <IsoTransformHandles
+        geometry={annotationGeometryOf(annotationWithDraft(selectedAnnotation, transformDraft))}
+        snapInches={snapInches}
+        align={handleAlign}
+        onPreview={(geometry) =>
+          setTransformDraft({ kind: 'annotation', id: selectedAnnotation.id, geometry })
+        }
+        onCommit={(geometry) => {
+          setTransformDraft(null);
+          setAlignGuides(null);
+          onResizeAnnotation(selectedAnnotation.id, geometry);
+        }}
+      />
+    );
   }
 
   return (
@@ -494,6 +733,25 @@ export const IsoScene = memo(function IsoScene({
       )}
       <g className="mp-elements">{items.map((item) => item.node)}</g>
       <IsoCritters critters={critters} />
+      {alignGuides && alignGuides.length > 0 && (
+        <g className="mp-align" aria-hidden="true">
+          {alignGuides.map((guide, index) => {
+            const a = project(guide.x1, guide.y1, 0);
+            const b = project(guide.x2, guide.y2, 0);
+            return (
+              <line
+                key={index}
+                className="mp-align__guide"
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+              />
+            );
+          })}
+        </g>
+      )}
+      {editOverlay}
       <g
         className="mp-compass"
         aria-hidden="true"

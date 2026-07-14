@@ -24,7 +24,6 @@ import {
   listMyAnnotations,
   listMyBeds,
   listMyCrops,
-  requestBackgroundUploadUrl,
   updateMyAnnotation,
   updateMyBed,
   updateMyGardenCanvas,
@@ -49,14 +48,13 @@ import {
   ANNOTATION_PRESETS,
   presetById,
 } from '../components/GardenDesigner/annotationPresets';
-import {
-  calibrationFactor,
-  rescaledAnnotationPayload,
-  rescaledBedPayload,
-  rescaledCanvas,
-} from '../components/GardenDesigner/calibration';
 import { templateById } from '../components/GardenDesigner/gardenTemplates';
-import type { DesignerMode, GridSnap } from '../components/GardenDesigner/Toolbar';
+import type { DesignerMode, GridSnap } from '../components/GardenDesigner/designerTypes';
+import {
+  MIN_SIDE_INCHES,
+  rotateGeometry,
+  type ElementGeometry,
+} from '../components/GardenMasterplan/isoTransform';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
@@ -108,7 +106,6 @@ export interface UseGardenDesignerResult {
   addCrop: (input: QuickAddCropPayload) => Promise<void>;
   duplicateSelected: () => Promise<void>;
   applyTemplate: (templateId: string) => Promise<void>;
-  commitPolygon: (points: BedPolygonPoint[]) => Promise<void>;
   moveBed: (bedId: string, positionX: number, positionY: number) => void;
   resizeBed: (
     bedId: string,
@@ -140,13 +137,6 @@ export interface UseGardenDesignerResult {
   patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
   deleteAnnotation: (annotationId: string) => Promise<void>;
   patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
-  applyCalibration: (
-    drawnLengthInches: number,
-    realLengthInches: number,
-    rescaleElements: boolean
-  ) => void;
-  uploadBackgroundImage: (file: File) => Promise<void>;
-  clearBackgroundImage: () => Promise<void>;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -728,39 +718,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
-  const commitPolygon = useCallback(
-    async (points: BedPolygonPoint[]) => {
-      if (!isEditable || points.length < 3) return;
-      const xs = points.map((p) => p.x);
-      const ys = points.map((p) => p.y);
-      const minX = Math.min(...xs);
-      const minY = Math.min(...ys);
-      const maxX = Math.max(...xs);
-      const maxY = Math.max(...ys);
-      const normalized = points.map((p) => ({ x: p.x - minX, y: p.y - minY }));
-      const created = await createBedMutation.mutateAsync({
-        name: `In-ground bed ${beds.length + 1}`,
-        bedType: 'in_ground',
-        shape: 'polygon',
-        lengthInches: maxX - minX,
-        widthInches: maxY - minY,
-        positionX: minX,
-        positionY: minY,
-        rotationDeg: 0,
-        points: normalized,
-      });
-      record({
-        kind: 'bed-create',
-        id: created.id,
-        payload: bedToUpsertPayload(created),
-        at: Date.now(),
-      });
-      selectItem({ kind: 'bed', id: created.id });
-      setMode('idle');
-    },
-    [beds.length, createBedMutation, isEditable, record, selectItem]
-  );
-
   const moveBed = useCallback(
     (bedId: string, positionX: number, positionY: number) => {
       const bed = beds.find((b) => b.id === bedId);
@@ -1277,62 +1234,101 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
-  // Background-image scale calibration: the user drew a reference line of
-  // drawnLengthInches over the photo and told us it's really
-  // realLengthInches long. Rescale the canvas by that ratio (clamped to
-  // sane bounds) and, when asked, move/resize every bed and annotation by
-  // the same factor so they keep their position relative to the photo.
-  const applyCalibration = useCallback(
-    (
-      drawnLengthInches: number,
-      realLengthInches: number,
-      rescaleElements: boolean
-    ) => {
+  // Keyboard resize/rotate for the selected element, so on-canvas editing
+  // isn't mouse-only. Rapid presses coalesce into one undo step.
+  const resizeSelectedBy = useCallback(
+    (dLength: number, dWidth: number) => {
       if (!isEditable) return;
-      const canvas = canvasQuery.data;
-      if (!canvas) return;
-      const factor = calibrationFactor(drawnLengthInches, realLengthInches);
-      if (factor === null) return;
-      const next = rescaledCanvas(canvas, factor);
-      if (
-        next.widthInches !== canvas.widthInches ||
-        next.heightInches !== canvas.heightInches
-      ) {
-        updateCanvasMutation.mutate({
-          widthInches: next.widthInches,
-          heightInches: next.heightInches,
+      if (selected?.kind === 'bed' && selectedBed) {
+        const length = Math.max(MIN_SIDE_INCHES, (selectedBed.lengthInches ?? 96) + dLength);
+        const width = Math.max(MIN_SIDE_INCHES, (selectedBed.widthInches ?? 48) + dWidth);
+        let points = selectedBed.points;
+        if (selectedBed.shape === 'polygon' && points && points.length >= 3) {
+          const sx = length / (selectedBed.lengthInches ?? length);
+          const sy = width / (selectedBed.widthInches ?? width);
+          points = points.map((p) => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy) }));
+        }
+        const payload = bedToUpsertPayload({
+          ...selectedBed,
+          lengthInches: length,
+          widthInches: width,
+          points,
         });
-      }
-      if (!rescaleElements || next.effectiveFactor === 1) return;
-      for (const bed of beds) {
-        updateBedMutation.mutate({
-          bedId: bed.id,
-          payload: rescaledBedPayload(bed, next.effectiveFactor),
+        commitBedUpdate(selectedBed, payload, 'resize');
+      } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+        const isCircle = selectedAnnotation.shape === 'circle';
+        if (isCircle) {
+          const delta = dLength !== 0 ? dLength : dWidth;
+          const size = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.lengthInches ?? 48) + delta);
+          const payload = annotationToUpsertPayload({
+            ...selectedAnnotation,
+            lengthInches: size,
+            widthInches: size,
+          });
+          commitAnnotationUpdate(selectedAnnotation, payload, 'resize');
+          return;
+        }
+        const length = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.lengthInches ?? 48) + dLength);
+        const width = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.widthInches ?? 48) + dWidth);
+        const payload = annotationToUpsertPayload({
+          ...selectedAnnotation,
+          lengthInches: length,
+          widthInches: width,
         });
-      }
-      for (const annotation of annotations) {
-        updateAnnotationMutation.mutate({
-          annotationId: annotation.id,
-          payload: rescaledAnnotationPayload(annotation, next.effectiveFactor),
-        });
+        commitAnnotationUpdate(selectedAnnotation, payload, 'resize');
       }
     },
-    [
-      annotations,
-      beds,
-      canvasQuery.data,
-      isEditable,
-      updateAnnotationMutation,
-      updateBedMutation,
-      updateCanvasMutation,
-    ]
+    [commitAnnotationUpdate, commitBedUpdate, isEditable, selected, selectedAnnotation, selectedBed]
+  );
+
+  const rotateSelectedBy = useCallback(
+    (dDeg: number) => {
+      if (!isEditable) return;
+      if (selected?.kind === 'bed' && selectedBed) {
+        const geometry: ElementGeometry = {
+          positionX: selectedBed.positionX ?? 12,
+          positionY: selectedBed.positionY ?? 12,
+          lengthInches: selectedBed.lengthInches ?? 96,
+          widthInches: selectedBed.widthInches ?? 48,
+          rotationDeg: selectedBed.rotationDeg,
+          points: selectedBed.points,
+        };
+        const next = rotateGeometry(geometry, dDeg);
+        const payload = bedToUpsertPayload({
+          ...selectedBed,
+          positionX: next.positionX,
+          positionY: next.positionY,
+          rotationDeg: next.rotationDeg,
+        });
+        commitBedUpdate(selectedBed, payload, 'rotate');
+      } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+        const geometry: ElementGeometry = {
+          positionX: selectedAnnotation.positionX ?? 12,
+          positionY: selectedAnnotation.positionY ?? 12,
+          lengthInches: selectedAnnotation.lengthInches ?? 48,
+          widthInches: selectedAnnotation.widthInches ?? 48,
+          rotationDeg: selectedAnnotation.rotationDeg,
+          points: selectedAnnotation.points,
+        };
+        const next = rotateGeometry(geometry, dDeg);
+        const payload = annotationToUpsertPayload({
+          ...selectedAnnotation,
+          positionX: next.positionX,
+          positionY: next.positionY,
+          rotationDeg: next.rotationDeg,
+        });
+        commitAnnotationUpdate(selectedAnnotation, payload, 'rotate');
+      }
+    },
+    [commitAnnotationUpdate, commitBedUpdate, isEditable, selected, selectedAnnotation, selectedBed]
   );
 
   // Keyboard shortcuts:
-  //   Esc           - deselect (when not in drawing-polygon mode; the
-  //                   Canvas owns Esc-to-cancel for that mode)
+  //   Esc           - step out of vertex editing, else deselect
   //   Cmd/Ctrl+Z    - undo; with Shift (or Ctrl+Y) - redo
   //   Arrow keys    - nudge the selected element 1 inch (Shift = 12)
+  //   Alt+Arrows    - resize the selected element 1 inch (Shift = 12)
+  //   [ / ]         - rotate the selected element 15° (Shift = 1°)
   //   Delete /
   //   Backspace     - prompt for confirmation, then delete the selected
   //                   bed or annotation. Skipped when focus is in a text
@@ -1346,9 +1342,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      // The Canvas owns Esc-to-cancel for drawing and calibration, and
-      // Delete shouldn't fire while either gesture is mid-flight.
-      if (mode === 'drawing-polygon' || mode === 'calibrating-scale') return;
       if (isEditingText(event.target)) return;
 
       const meta = event.metaKey || event.ctrlKey;
@@ -1374,13 +1367,25 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         return;
       }
 
-      if (
-        selected &&
-        (event.key === 'ArrowUp' ||
-          event.key === 'ArrowDown' ||
-          event.key === 'ArrowLeft' ||
-          event.key === 'ArrowRight')
-      ) {
+      const isArrow =
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowRight';
+
+      // Alt+Arrow resizes: left/right change length, up/down change width.
+      if (selected && isArrow && event.altKey) {
+        event.preventDefault();
+        const step = event.shiftKey ? 12 : 1;
+        const dLength =
+          event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const dWidth =
+          event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+        resizeSelectedBy(dLength, dWidth);
+        return;
+      }
+
+      if (selected && isArrow) {
         event.preventDefault();
         const step = event.shiftKey ? 12 : 1;
         const dx =
@@ -1391,10 +1396,17 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         return;
       }
 
+      // [ / ] rotate the selected element (Shift = fine 1° steps).
+      if (selected && (event.key === '[' || event.key === ']')) {
+        event.preventDefault();
+        const step = event.shiftKey ? 1 : 15;
+        rotateSelectedBy(event.key === ']' ? step : -step);
+        return;
+      }
+
       if (event.key === 'Escape') {
-        // Step out of vertex editing / measuring first; a second Esc
-        // deselects.
-        if (mode === 'editing-vertices' || mode === 'measuring') {
+        // Step out of vertex editing first; a second Esc deselects.
+        if (mode === 'editing-vertices') {
           event.preventDefault();
           setMode('idle');
           return;
@@ -1453,40 +1465,10 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     undo,
     redo,
     nudgeSelected,
+    resizeSelectedBy,
+    rotateSelectedBy,
     duplicateSelected,
   ]);
-
-  const uploadBackgroundImage = useCallback(
-    async (file: File) => {
-      if (!isEditable) return;
-      const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
-      if (!allowed.has(file.type)) {
-        throw new Error('Only JPEG, PNG, or WebP images are accepted.');
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        throw new Error('Images must be 8 MB or smaller.');
-      }
-      const intent = await requestBackgroundUploadUrl({
-        contentType: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
-        contentLength: file.size,
-      });
-      const upload = await fetch(intent.uploadUrl, {
-        method: intent.method,
-        headers: intent.headers,
-        body: file,
-      });
-      if (!upload.ok) {
-        throw new Error(`Background upload failed: ${upload.status}`);
-      }
-      updateCanvasMutation.mutate({ backgroundImageKey: intent.s3Key });
-    },
-    [isEditable, updateCanvasMutation]
-  );
-
-  const clearBackgroundImage = useCallback(async () => {
-    if (!isEditable) return;
-    updateCanvasMutation.mutate({ backgroundImageKey: null });
-  }, [isEditable, updateCanvasMutation]);
 
   const isSaving = pendingMutations > 0;
 
@@ -1522,7 +1504,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     addCrop,
     duplicateSelected,
     applyTemplate,
-    commitPolygon,
     moveBed,
     resizeBed,
     patchBed,
@@ -1534,9 +1515,6 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     patchAnnotation,
     deleteAnnotation,
     patchCanvas,
-    applyCalibration,
-    uploadBackgroundImage,
-    clearBackgroundImage,
     undo,
     redo,
     canUndo: historyCanUndo(history),

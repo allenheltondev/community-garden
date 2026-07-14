@@ -128,7 +128,6 @@ function renderMasterplan(args?: {
   onSelect?: (next: unknown) => void;
   onPatchBed?: (bedId: string, patch: Partial<GardenBed>) => void;
   onPatchAnnotation?: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
-  onOpenLayoutEditor?: () => void;
   onApplyTemplate?: (templateId: string) => Promise<void>;
   editing?: Partial<MasterplanEditing>;
 }) {
@@ -145,14 +144,20 @@ function renderMasterplan(args?: {
     ? {
         snap: 'off',
         onSnapChange: () => {},
+        mode: 'idle',
+        onSetMode: () => {},
         onMoveBed: () => {},
         onMoveAnnotation: () => {},
+        onResizeBed: () => {},
+        onResizeAnnotation: () => {},
+        onUpdateBedPoints: () => {},
         onAddBed: () => {},
         onAddAnnotation: () => {},
         onDeleteBed: () => {},
         onDeleteAnnotation: () => {},
         onAddCrop: async () => {},
         onDuplicate: () => {},
+        onPatchCanvas: () => {},
         canUndo: false,
         canRedo: false,
         onUndo: () => {},
@@ -183,7 +188,6 @@ function renderMasterplan(args?: {
         onSelect={(args?.onSelect ?? (() => {})) as never}
         onPatchBed={args?.onPatchBed ?? (() => {})}
         onPatchAnnotation={args?.onPatchAnnotation ?? (() => {})}
-        onOpenLayoutEditor={args?.onOpenLayoutEditor ?? (() => {})}
         onApplyTemplate={args?.onApplyTemplate ?? (async () => {})}
         editing={editing}
       />
@@ -259,16 +263,32 @@ describe('GardenMasterplan', () => {
     expect(panel).not.toHaveTextContent(/of this bed/);
   });
 
-  it('jumps to the layout editor from the detail panel', async () => {
-    const onOpenLayoutEditor = vi.fn();
+  it('edits a bed dimension inline from the detail panel', async () => {
+    const onPatchBed = vi.fn();
     renderMasterplan({
       selected: { kind: 'bed', id: 'bed-1' },
-      onOpenLayoutEditor,
+      onPatchBed,
+      editing: {},
     });
-    await userEvent.click(
-      screen.getByRole('button', { name: /edit in layout editor/i })
-    );
-    expect(onOpenLayoutEditor).toHaveBeenCalled();
+    const lengthField = screen.getByLabelText(/length \(in\)/i);
+    await userEvent.clear(lengthField);
+    await userEvent.type(lengthField, '120');
+    fireEvent.blur(lengthField);
+    expect(onPatchBed).toHaveBeenCalledWith('bed-1', { lengthInches: 120 });
+  });
+
+  it('offers precise resize/rotate handles only for an editable selection', () => {
+    const { container, rerender } = renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+    });
+    // Read-only: no on-scene transform handles.
+    expect(container.querySelector('.mp-transform')).not.toBeInTheDocument();
+    rerender(<></>);
+    const editable = renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      editing: {},
+    });
+    expect(editable.container.querySelector('.mp-transform')).toBeInTheDocument();
   });
 
   it('closes the detail panel via its close button', async () => {
@@ -302,8 +322,7 @@ describe('GardenMasterplan', () => {
   });
 
   it('shows an inviting empty state when the garden has no elements', () => {
-    const onOpenLayoutEditor = vi.fn();
-    renderMasterplan({ beds: [], annotations: [], crops: [], onOpenLayoutEditor });
+    renderMasterplan({ beds: [], annotations: [], crops: [] });
     expect(screen.getByText(/your property, beautifully mapped/i)).toBeInTheDocument();
   });
 
@@ -317,10 +336,13 @@ describe('GardenMasterplan', () => {
     expect(screen.getAllByRole('button', { name: /use this layout/i })).toHaveLength(
       GARDEN_TEMPLATES.length
     );
-    // The start-from-scratch escape hatch survives.
-    expect(
-      screen.getByRole('button', { name: /open the layout editor/i })
-    ).toBeInTheDocument();
+  });
+
+  it('offers a start-from-scratch action in the empty state when editable', async () => {
+    const onAddBed = vi.fn();
+    renderMasterplan({ beds: [], annotations: [], crops: [], editing: { onAddBed } });
+    await userEvent.click(screen.getByRole('button', { name: /add a raised bed/i }));
+    expect(onAddBed).toHaveBeenCalledWith('rect');
   });
 
   it('does not offer templates once the garden has elements', () => {
@@ -463,6 +485,33 @@ describe('GardenMasterplan', () => {
     expect(
       screen.getByRole('button', { name: /l-shaped bed \(raised bed\)/i })
     ).toBeInTheDocument();
+  });
+
+  it('reshapes a custom bed via the vertex editor and commits the new points', async () => {
+    const onUpdateBedPoints = vi.fn();
+    const points = [
+      { x: 0, y: 0 },
+      { x: 96, y: 0 },
+      { x: 96, y: 48 },
+      { x: 0, y: 48 },
+    ];
+    const { container } = renderMasterplan({
+      beds: [makeBed({ id: 'poly', name: 'Custom bed', shape: 'polygon', points })],
+      annotations: [],
+      crops: [],
+      selected: { kind: 'bed', id: 'poly' },
+      editing: { mode: 'editing-vertices', onUpdateBedPoints },
+    });
+    // The reshaping overlay appears with a handle per vertex.
+    const overlay = container.querySelector('.mp-vertex');
+    expect(overlay).toBeInTheDocument();
+    expect(overlay!.querySelectorAll('.mp-vertex__handle')).toHaveLength(points.length);
+    // Splitting an edge via its midpoint commits one extra vertex.
+    const midpoint = container.querySelector('.mp-vertex__midpoint')!;
+    fireEvent.pointerDown(midpoint, { pointerId: 1, button: 0 });
+    expect(onUpdateBedPoints).toHaveBeenCalledTimes(1);
+    expect(onUpdateBedPoints.mock.calls[0][0]).toBe('poly');
+    expect(onUpdateBedPoints.mock.calls[0][1]).toHaveLength(points.length + 1);
   });
 
   describe('season scrubber', () => {
@@ -678,6 +727,41 @@ describe('GardenMasterplan', () => {
       fireEvent.pointerUp(bed, { pointerId: 1, clientX: 101, clientY: 100 });
       expect(onMoveBed).not.toHaveBeenCalled();
       expect(onSelect).toHaveBeenCalledWith({ kind: 'bed', id: 'bed-1' });
+    });
+
+    it('shows a live size readout while resizing the selected element', () => {
+      const { container } = renderMasterplan({
+        selected: { kind: 'bed', id: 'bed-1' },
+        editing: {},
+      });
+      const handle = container.querySelector('.mp-transform__resize')!;
+      expect(container.querySelector('[data-testid="transform-readout"]')).toBeNull();
+      fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientX: 200, clientY: 200 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 260, clientY: 230 });
+      expect(
+        container.querySelector('[data-testid="transform-readout"]')
+      ).toBeInTheDocument();
+    });
+
+    it('double-clicking a custom-shape bed enters vertex editing', () => {
+      const onSetMode = vi.fn();
+      const onSelect = vi.fn();
+      renderMasterplan({
+        beds: [makeBed({ id: 'poly', name: 'Custom bed', shape: 'polygon',
+          points: [
+            { x: 0, y: 0 },
+            { x: 96, y: 0 },
+            { x: 96, y: 48 },
+            { x: 0, y: 48 },
+          ] })],
+        annotations: [],
+        crops: [],
+        onSelect,
+        editing: { onSetMode },
+      });
+      fireEvent.doubleClick(screen.getByRole('button', { name: /custom bed/i }));
+      expect(onSelect).toHaveBeenCalledWith({ kind: 'bed', id: 'poly' });
+      expect(onSetMode).toHaveBeenCalledWith('editing-vertices');
     });
   });
 });

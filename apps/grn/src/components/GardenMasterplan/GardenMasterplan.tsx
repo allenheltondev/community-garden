@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type {
+  BedPolygonPoint,
   BedShape,
   GardenAnnotation,
   GardenBed,
@@ -9,7 +10,8 @@ import type {
 import type { SelectedItem } from '../../hooks/useGardenDesigner';
 import type { QuickAddCropInput } from '../GardenDesigner/QuickAddCrop';
 import { GARDEN_TEMPLATES } from '../GardenDesigner/gardenTemplates';
-import type { GridSnap } from '../GardenDesigner/Toolbar';
+import type { DesignerMode, GridSnap } from '../GardenDesigner/designerTypes';
+import type { ElementGeometry } from './isoTransform';
 import { downloadScenePng, downloadSceneSvg } from './exportScene';
 import { SharePopover } from './SharePopover';
 import { sceneMetrics } from './footprints';
@@ -44,8 +46,14 @@ const SUN_OPTIONS: Array<{ value: SunTime | null; label: string; title: string }
 export interface MasterplanEditing {
   snap: GridSnap;
   onSnapChange: (snap: GridSnap) => void;
+  /** Idle vs per-vertex reshaping of the selected custom-shape bed. */
+  mode: DesignerMode;
+  onSetMode: (mode: DesignerMode) => void;
   onMoveBed: (bedId: string, positionX: number, positionY: number) => void;
   onMoveAnnotation: (annotationId: string, positionX: number, positionY: number) => void;
+  onResizeBed: (bedId: string, next: ElementGeometry) => void;
+  onResizeAnnotation: (annotationId: string, next: ElementGeometry) => void;
+  onUpdateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
   onAddBed: (shape: BedShape) => void;
   onAddAnnotation: (presetId: string) => void;
   onDeleteBed: (bedId: string) => void;
@@ -53,6 +61,8 @@ export interface MasterplanEditing {
   /** Attach a crop to the currently-selected bed from the detail panel. */
   onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   onDuplicate: () => void;
+  /** Edit garden-level scale from the masterplan design bar. */
+  onPatchCanvas: (patch: { widthInches?: number; heightInches?: number }) => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -71,7 +81,6 @@ interface GardenMasterplanProps {
   onSelect: (next: SelectedItem) => void;
   onPatchBed: (bedId: string, patch: Partial<GardenBed>) => void;
   onPatchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
-  onOpenLayoutEditor: () => void;
   onApplyTemplate: (templateId: string) => Promise<void>;
   /** Present when the plan is an editable design surface. */
   editing?: MasterplanEditing;
@@ -81,10 +90,10 @@ const SNAP_INCHES: Record<GridSnap, number> = { off: 0, '6': 6, '12': 12 };
 
 /**
  * The masterplan explorer: an isometric illustrated map of the whole
- * garden that doubles as navigation. Drag/scroll/pinch to move around,
- * click any element for its floating detail card. Editing geometry stays
- * in the layout editor — this view is for understanding and exploring
- * the property.
+ * garden that doubles as navigation and the single editing surface.
+ * Drag/scroll/pinch to move around, click any element for its floating
+ * inspector, and — when `editing` is supplied — drag handles to
+ * resize/rotate, reshape custom outlines, and tune every detail in place.
  */
 export function GardenMasterplan({
   canvas,
@@ -97,7 +106,6 @@ export function GardenMasterplan({
   onSelect,
   onPatchBed,
   onPatchAnnotation,
-  onOpenLayoutEditor,
   onApplyTemplate,
   editing,
 }: GardenMasterplanProps) {
@@ -216,8 +224,20 @@ export function GardenMasterplan({
             sunTime={sunTime}
             editable={Boolean(editing)}
             snapInches={editing ? SNAP_INCHES[editing.snap] : 0}
+            mode={editing?.mode ?? 'idle'}
             onMoveBed={editing?.onMoveBed}
             onMoveAnnotation={editing?.onMoveAnnotation}
+            onResizeBed={editing?.onResizeBed}
+            onResizeAnnotation={editing?.onResizeAnnotation}
+            onUpdateBedPoints={editing?.onUpdateBedPoints}
+            onRequestVertexEdit={
+              editing
+                ? (bedId) => {
+                    onSelect({ kind: 'bed', id: bedId });
+                    editing.onSetMode('editing-vertices');
+                  }
+                : undefined
+            }
           />
         </div>
 
@@ -232,6 +252,9 @@ export function GardenMasterplan({
             onUndo={editing.onUndo}
             onRedo={editing.onRedo}
             isSaving={editing.isSaving}
+            widthInches={canvas.widthInches}
+            heightInches={canvas.heightInches}
+            onPatchCanvas={editing.onPatchCanvas}
           />
         )}
 
@@ -421,15 +444,19 @@ export function GardenMasterplan({
                 Planting your starter garden…
               </p>
             )}
-            <p className="mp-templates__or">or start from scratch</p>
-            <button
-              type="button"
-              className="mp-panel__action mp-templates__editor-btn"
-              onClick={onOpenLayoutEditor}
-              disabled={applyingTemplateId !== null}
-            >
-              Open the layout editor
-            </button>
+            {editing && (
+              <>
+                <p className="mp-templates__or">or start from scratch</p>
+                <button
+                  type="button"
+                  className="mp-panel__action mp-templates__editor-btn"
+                  onClick={() => editing.onAddBed('rect')}
+                  disabled={applyingTemplateId !== null}
+                >
+                  Add a raised bed
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -464,10 +491,22 @@ export function GardenMasterplan({
             }
           }}
           onClose={() => onSelect(null)}
-          onOpenLayoutEditor={onOpenLayoutEditor}
           editing={
             editing
               ? {
+                  isSaving: editing.isSaving,
+                  isVertexEditing: editing.mode === 'editing-vertices',
+                  onToggleVertexEditing: () =>
+                    editing.onSetMode(
+                      editing.mode === 'editing-vertices' ? 'idle' : 'editing-vertices'
+                    ),
+                  onPatchBed: (patch) => {
+                    if (selectedBed) onPatchBed(selectedBed.id, patch);
+                  },
+                  onPatchAnnotation: (patch) => {
+                    if (selectedAnnotation)
+                      onPatchAnnotation(selectedAnnotation.id, patch);
+                  },
                   onDuplicate: editing.onDuplicate,
                   onDelete: () => {
                     if (selectedBed) editing.onDeleteBed(selectedBed.id);

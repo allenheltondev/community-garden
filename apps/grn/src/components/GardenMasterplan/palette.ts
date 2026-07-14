@@ -1,7 +1,7 @@
 // Color system for the masterplan view.
 //
 // The palette is deliberately muted — closer to a landscape architect's
-// marker rendering than to the saturated chips used in the layout editor.
+// marker rendering than to saturated UI chips.
 // Flat shading is derived, not hand-picked: every material starts from a
 // base hex and gets a lighter top face, a mid right face, and a darker
 // left face, which keeps the whole scene tonally consistent.
