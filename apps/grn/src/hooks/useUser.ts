@@ -17,7 +17,7 @@ export interface UserState {
  *
  * Features:
  * - Fetches user profile including onboarding status
- * - Includes growerProfile and gathererProfile when available
+ * - Includes growerProfile when available
  * - Manages loading and error states
  * - Provides refresh method to reload user data
  * - Automatically fetches on mount

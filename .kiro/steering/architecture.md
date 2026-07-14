@@ -35,11 +35,11 @@ Entity types:
   - PK: `USER#<user_id>`
   - SK: `LISTING#<listing_id>`
   - GSI1: PK: `GEOHASH#<geohash>`, SK: `LISTING#<timestamp>`
-* **Requests**: Searcher requests for food
+* **Requests**: A grower's requests for food from nearby growers
   - PK: `USER#<user_id>`
   - SK: `REQUEST#<request_id>`
   - GSI1: PK: `GEOHASH#<geohash>`, SK: `REQUEST#<timestamp>`
-* **Commitments**: Coordination state between growers and searchers
+* **Commitments**: Coordination state between growers
   - PK: `LISTING#<listing_id>`
   - SK: `COMMITMENT#<commitment_id>`
 

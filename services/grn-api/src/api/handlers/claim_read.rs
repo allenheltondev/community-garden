@@ -1,4 +1,4 @@
-use crate::auth::{extract_auth_context_with_fallback, require_participant_user_type};
+use crate::auth::{extract_auth_context_with_fallback, require_grower};
 use crate::db;
 use crate::handlers::claim::ClaimResponse;
 use crate::models::crop::ErrorResponse;
@@ -36,7 +36,7 @@ pub async fn list_claims(
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context_with_fallback(request).await?;
-    require_participant_user_type(auth_context.user_type.as_ref())?;
+    require_grower(&auth_context)?;
 
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;

@@ -26,7 +26,7 @@ interface ResolvedScarceCrop extends ScarceCropEntry {
 }
 
 /**
- * Compact chip strip that highlights the crops nearby searchers are
+ * Compact chip strip that highlights the crops nearby neighbors are
  * asking for. Tapping a chip prefills the CropPicker so a grower can
  * commit to that crop in one move. Renders nothing when there is
  * nothing to recommend, so it stays invisible in cold-start regions.
@@ -77,7 +77,7 @@ export function NeededNearbyStrip({
       <div className="grn-needed-nearby__header">
         <span className="grn-needed-nearby__eyebrow">Needed nearby</span>
         <p className="grn-needed-nearby__hint">
-          Local searchers are asking for these. Tap one to start adding it.
+          Neighbors nearby are asking for these. Tap one to start adding it.
         </p>
       </div>
       <ul className="grn-needed-nearby__chips" role="list">

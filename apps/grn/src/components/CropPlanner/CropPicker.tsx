@@ -17,7 +17,7 @@ interface CropPickerProps {
   /** When true, render a more compact variant (no category chips) */
   compact?: boolean;
   /**
-   * Catalog crop IDs that local searchers are asking for and growers
+   * Catalog crop IDs that nearby neighbors are asking for and growers
    * are not yet supplying. When provided, these crops are floated to
    * the top of the list when no query is active and get a "Needed
    * nearby" badge so growers can see them at the decision moment.

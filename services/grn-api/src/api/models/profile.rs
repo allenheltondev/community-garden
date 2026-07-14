@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum UserType {
     Grower,
-    Gatherer,
 }
 
 #[derive(Debug, Serialize)]
@@ -21,19 +20,6 @@ pub struct GrowerProfile {
     pub share_radius_miles: String,
     pub is_organization: bool,
     pub organization_name: Option<String>,
-    pub units: String,
-    pub locale: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GathererProfile {
-    pub address: String,
-    pub geo_key: String,
-    pub lat: f64,
-    pub lng: f64,
-    pub search_radius_miles: String,
-    pub organization_affiliation: Option<String>,
     pub units: String,
     pub locale: Option<String>,
 }
@@ -70,7 +56,6 @@ pub struct MeProfileResponse {
     pub experience_signals: ExperienceSignals,
     pub curated_tips: Vec<GardeningTip>,
     pub grower_profile: Option<GrowerProfile>,
-    pub gatherer_profile: Option<GathererProfile>,
     pub rating_summary: Option<UserRatingSummary>,
 }
 
@@ -106,40 +91,8 @@ pub struct GrowerProfileInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GathererProfileInput {
-    pub address: String,
-    pub search_radius_miles: f64,
-    pub organization_affiliation: Option<String>,
-    pub units: String,
-    pub locale: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PutMeRequest {
     pub display_name: Option<String>,
     pub user_type: Option<UserType>,
     pub grower_profile: Option<GrowerProfileInput>,
-    pub gatherer_profile: Option<GathererProfileInput>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Legacy structure - replaced by PutMeRequest
-pub struct UpsertMeProfileRequest {
-    pub email: Option<String>,
-    pub display_name: Option<String>,
-    pub grower_profile: Option<UpsertGrowerProfileRequest>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Legacy structure - replaced by GrowerProfileInput
-pub struct UpsertGrowerProfileRequest {
-    pub home_zone: Option<String>,
-    pub address: Option<String>,
-    pub geo_key: Option<String>,
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub share_radius_km: Option<String>,
-    pub units: Option<String>,
-    pub locale: Option<String>,
 }

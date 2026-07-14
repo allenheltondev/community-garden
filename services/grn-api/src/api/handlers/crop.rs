@@ -32,7 +32,7 @@ pub async fn list_my_crops(
     request: &Request,
     _correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -58,7 +58,7 @@ pub async fn get_my_crop(
     _correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -130,7 +130,7 @@ pub async fn record_harvest(
     correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -207,7 +207,7 @@ pub async fn list_harvests(
     _correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -257,7 +257,7 @@ pub async fn update_harvest(
     crop_library_id: &str,
     harvest_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -354,7 +354,7 @@ pub async fn delete_harvest(
     crop_library_id: &str,
     harvest_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -417,7 +417,7 @@ pub async fn create_my_crop(
     request: &Request,
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -502,7 +502,7 @@ pub async fn update_my_crop(
     correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 
@@ -603,7 +603,7 @@ pub async fn delete_my_crop(
     correlation_id: &str,
     crop_library_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    // Require grower user type - gatherers will receive 403 Forbidden
+    // Require grower user type - non-growers receive 403 Forbidden
     let auth_context = extract_auth_context_with_fallback(request).await?;
     require_grower(&auth_context)?;
 

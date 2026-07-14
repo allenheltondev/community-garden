@@ -40,9 +40,9 @@ This roadmap defines the phased delivery plan for the platform. Each phase has c
 
 ---
 
-## Phase 2: Searcher Basics
+## Phase 2: Find-Food Basics (grower-to-grower)
 
-**Goal**: Searchers can discover availability and submit requests.
+**Goal**: Any grower can discover availability and submit requests for a neighbor's surplus.
 
 **Deliverables**:
 * Search endpoints by geo context
@@ -50,7 +50,7 @@ This roadmap defines the phased delivery plan for the platform. Each phase has c
 * Basic coordination state machine for commitments
 
 **Exit Criteria**:
-* A searcher can find an item and request it, and a grower can see the request
+* A grower can find an item and request it, and the listing's grower can see the request
 
 ---
 

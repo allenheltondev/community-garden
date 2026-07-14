@@ -4,9 +4,10 @@
 export type UserTier = 'free' | 'supporter' | 'pro';
 
 /**
- * User type indicating participation mode
+ * User type. Everyone is a grower — the field is retained (single-valued) to
+ * mirror the backend contract and gate onboarding-complete access.
  */
-export type UserType = 'grower' | 'gatherer';
+export type UserType = 'grower';
 
 /**
  * Grower-specific profile information
@@ -20,22 +21,6 @@ export interface GrowerProfile {
   shareRadiusMiles: number;
   isOrganization: boolean;
   organizationName?: string;
-  units: 'metric' | 'imperial';
-  locale: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-/**
- * Gatherer-specific profile information
- */
-export interface GathererProfile {
-  address: string;
-  geoKey: string;
-  lat: number;
-  lng: number;
-  searchRadiusMiles: number;
-  organizationAffiliation?: string;
   units: 'metric' | 'imperial';
   locale: string;
   createdAt?: string;
@@ -72,5 +57,4 @@ export interface UserProfile {
   createdAt?: string;
   subscription: SubscriptionMetadata;
   growerProfile?: GrowerProfile | null;
-  gathererProfile?: GathererProfile | null;
 }

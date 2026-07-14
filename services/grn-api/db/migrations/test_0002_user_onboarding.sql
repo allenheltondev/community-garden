@@ -50,7 +50,7 @@ INSERT INTO users (id, email, display_name, user_type, onboarding_completed)
 VALUES (gen_random_uuid(), 'test_grower@example.com', 'Test Grower', 'grower', true);
 
 INSERT INTO users (id, email, display_name, user_type, onboarding_completed)
-VALUES (gen_random_uuid(), 'test_gatherer@example.com', 'Test Gatherer', 'gatherer', false);
+VALUES (gen_random_uuid(), 'test_grower2@example.com', 'Test Grower Two', 'grower', false);
 
 -- Test 5: Verify invalid user_type is rejected
 DO $$

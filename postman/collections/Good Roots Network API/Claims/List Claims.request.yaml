@@ -4,7 +4,7 @@ description: |-
   Retrieve claims for the authenticated user.
   
   For growers: Shows claims on their listings
-  For gatherers: Shows claims they have made
+  For neighbors: Shows claims they have made
 method: GET
 url: '{{baseUrl}}/claims'
 order: 1000

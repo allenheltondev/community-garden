@@ -16,8 +16,8 @@ inputs:
     description: User key whose token should map to pro-auth-token.
     required: false
     default: ""
-  gatherer-user-key:
-    description: User key whose token should map to gatherer-auth-token.
+  neighbor-user-key:
+    description: User key whose token should map to neighbor-auth-token.
     required: false
     default: ""
 
@@ -28,9 +28,9 @@ outputs:
   pro-auth-token:
     description: Access token for the configured pro user.
     value: ${{ steps.seed.outputs.pro-auth-token }}
-  gatherer-auth-token:
-    description: Access token for the configured gatherer user.
-    value: ${{ steps.seed.outputs.gatherer-auth-token }}
+  neighbor-auth-token:
+    description: Access token for the configured second grower (neighbor) user.
+    value: ${{ steps.seed.outputs.neighbor-auth-token }}
 
 runs:
   using: composite
@@ -43,7 +43,7 @@ runs:
         PAYLOAD: ${{ inputs.payload }}
         FREE_USER_KEY: ${{ inputs.free-user-key }}
         PRO_USER_KEY: ${{ inputs.pro-user-key }}
-        GATHERER_USER_KEY: ${{ inputs.gatherer-user-key }}
+        NEIGHBOR_USER_KEY: ${{ inputs.neighbor-user-key }}
       run: |
         if [ -z "$FUNCTION_NAME" ] || [ "$FUNCTION_NAME" = "None" ] || [ "$FUNCTION_NAME" = "NONE" ]; then
           echo "A valid CI auth seed Lambda function name is required."
@@ -86,4 +86,4 @@ runs:
 
         extract_token "$FREE_USER_KEY" "free-auth-token"
         extract_token "$PRO_USER_KEY" "pro-auth-token"
-        extract_token "$GATHERER_USER_KEY" "gatherer-auth-token"
+        extract_token "$NEIGHBOR_USER_KEY" "neighbor-auth-token"

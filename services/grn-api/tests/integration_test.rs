@@ -272,7 +272,6 @@ mod get_me_integration_tests {
         //   "onboardingCompleted": true,
         //   "createdAt": "2024-01-01T00:00:00Z",
         //   "growerProfile": { ... },
-        //   "gathererProfile": null,
         //   "ratingSummary": null
         // }
     }
@@ -284,17 +283,7 @@ mod get_me_integration_tests {
         // This test verifies that GET /me returns growerProfile for grower users
         // Requirement: 8.1 - Response includes growerProfile for growers
 
-        // Expected: growerProfile is populated, gathererProfile is null
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[ignore = "Requires database setup"]
-    async fn test_get_me_includes_gatherer_profile_for_gatherers() {
-        // This test verifies that GET /me returns gathererProfile for gatherer users
-        // Requirement: 8.1 - Response includes gathererProfile for gatherers
-
-        // Expected: gathererProfile is populated, growerProfile is null
+        // Expected: growerProfile is populated
     }
 
     #[tokio::test]

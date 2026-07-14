@@ -14,8 +14,6 @@ function validateEnv() {
     for (const name of REQUIRED_ENV_VARS) {
       console.error(`  ${name}=${process.env[name] ? '✓ set' : '✗ MISSING'}`);
     }
-    console.error('\nOptional:');
-    console.error(`  GATHERER_TOKEN=${process.env.GATHERER_TOKEN ? '✓ set (used to verify grower-only enforcement)' : 'unset (grower-only 403 check is skipped)'}`);
     console.error('\nProvision tokens with the ci-auth-seed Lambda (services/grn-api/functions/ci-auth-seed.mjs).');
     process.exit(1);
   }
@@ -91,7 +89,6 @@ async function run() {
 
   const apiBase = process.env.GRN_API_BASE_URL;
   const growerToken = process.env.GROWER_TOKEN;
-  const gathererToken = process.env.GATHERER_TOKEN;
 
   const noAuthApi = createHttpClient(apiBase);
   const badTokenApi = createHttpClient(apiBase, {
@@ -100,9 +97,6 @@ async function run() {
   const growerApi = createHttpClient(apiBase, {
     Authorization: `Bearer ${growerToken}`
   });
-  const gathererApi = gathererToken
-    ? createHttpClient(apiBase, { Authorization: `Bearer ${gathererToken}` })
-    : null;
 
   const reporter = createReporter(runPrefix);
   const createdBedIds = [];
@@ -162,15 +156,6 @@ async function run() {
     }
   }
 
-  // --- Grower-only enforcement (optional) ---
-  console.log('\n=== Grower-only enforcement ===');
-  if (!gathererApi) {
-    reporter.skip('grower-only', 'GATHERER_TOKEN not set; skipping role enforcement check');
-  } else {
-    const res = await gathererApi.request('/beds');
-    reporter.assert('grower-only', res.status === 403,
-      `GET /beds with gatherer token returns 403 (got ${res.status})`, res.json);
-  }
 
   // --- Bed validation ---
   console.log('\n=== Bed validation ===');

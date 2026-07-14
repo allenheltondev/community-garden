@@ -8,6 +8,7 @@ import { createLogger } from '../../utils/logging';
 import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
 import { HarvestLogModal } from '../Harvests/HarvestLogModal';
+import { daysUntil, formatDate, harvestProgress } from '../../utils/cropTiming';
 
 const logger = createLogger('crop-library');
 
@@ -21,37 +22,6 @@ const STATUS_LABELS: Record<string, { label: string; emoji: string; tone: string
   growing: { label: 'Growing', emoji: '🌱', tone: 'success' },
   paused: { label: 'Paused', emoji: '⏸️', tone: 'muted' },
 };
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const parsed = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function daysUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  const target = new Date(`${iso}T00:00:00Z`).getTime();
-  if (Number.isNaN(target)) return null;
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  return Math.round((target - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function harvestProgress(plantingDate: string | null, harvestDate: string | null): number | null {
-  if (!plantingDate || !harvestDate) return null;
-  const start = new Date(`${plantingDate}T00:00:00Z`).getTime();
-  const end = new Date(`${harvestDate}T00:00:00Z`).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
-  const now = Date.now();
-  if (now <= start) return 0;
-  if (now >= end) return 100;
-  return Math.round(((now - start) / (end - start)) * 100);
-}
 
 export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   void viewerUserId;

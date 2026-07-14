@@ -200,7 +200,6 @@ async function provisionUser(client, { name, role, tier }) {
 const LEGACY_USERS = [
   { name: "grower-free", role: "grower", tier: "free" },
   { name: "grower-pro", role: "grower", tier: "pro" },
-  { name: "gatherer", role: "gatherer", tier: "free" },
 ];
 
 export async function handler(event) {
@@ -236,7 +235,6 @@ export async function handler(event) {
     if (users["grower-free"]) legacy.grower_free = users["grower-free"];
     if (users["grower-pro"]) legacy.grower_pro = users["grower-pro"];
     if (users["grower-pro"]) legacy.grower = users["grower-pro"];
-    if (users["gatherer"]) legacy.gatherer = users["gatherer"];
 
     return {
       statusCode: 200,

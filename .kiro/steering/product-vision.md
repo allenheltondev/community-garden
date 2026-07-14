@@ -16,9 +16,8 @@ The product is built around the gardener. It supports human judgment and follow-
 ### First Wedge
 The first target users are growers using phones. The initial product experience must be fast to learn, low friction, and usable one-handed in real-world conditions.
 
-### User Types
-- **Growers**: Home gardeners, homesteaders, small farms, and community gardens
-- **Searchers**: Families, food banks, community kitchens, schools, and mutual aid organizations
+### User Type
+Every user is a **grower**: home gardeners, homesteaders, small farms, and community gardens. The product is built around individual growing first; connecting with others (sharing surplus, finding food from neighbors) is an optional layer available to any grower — not a separate account type.
 
 ## Product Principles
 
@@ -40,8 +39,8 @@ Communities are defined implicitly through geographic proximity and participatio
 * Receive AI-assisted planting guidance based on seasonality and aggregated community trends
 * See private, non-competitive impact feedback
 
-### Searcher Workspace
-* Discover available and upcoming food within a local context
+### Connect (optional, for any grower)
+* Discover available and upcoming food from nearby growers within a local context
 * Submit requests for items and quantities
 * Coordinate pickup windows and receive updates
 

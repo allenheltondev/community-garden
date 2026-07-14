@@ -35,7 +35,6 @@ mod get_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -69,14 +68,11 @@ mod get_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
-        // Verify growerProfile is present and gathererProfile is null
         assert!(grower_response.get("growerProfile").is_some());
         assert!(!grower_response["growerProfile"].is_null());
-        assert!(grower_response["gathererProfile"].is_null());
         assert_eq!(grower_response["userType"], "grower");
 
         // Verify growerProfile has required fields
@@ -90,47 +86,6 @@ mod get_me_tests {
         assert!(grower_profile.get("organizationName").is_some());
         assert!(grower_profile.get("units").is_some());
         assert!(grower_profile.get("locale").is_some());
-    }
-
-    /// Test that GET /me includes gathererProfile for gatherer users
-    /// Validates: Requirement 8.1
-    #[test]
-    fn test_response_includes_gatherer_profile_for_gatherers() {
-        let gatherer_response = json!({
-            "id": "550e8400-e29b-41d4-a716-446655440001",
-            "email": "gatherer@example.com",
-            "displayName": "Gatherer User",
-            "isVerified": false,
-            "userType": "gatherer",
-            "onboardingCompleted": true,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "growerProfile": null,
-            "gathererProfile": {
-                "geoKey": "9q8yy9m",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusKm": "10.0",
-                "organizationAffiliation": "SF Food Bank",
-                "units": "metric",
-                "locale": "en-US"
-            },
-            "ratingSummary": null
-        });
-
-        // Verify gathererProfile is present and growerProfile is null
-        assert!(gatherer_response.get("gathererProfile").is_some());
-        assert!(!gatherer_response["gathererProfile"].is_null());
-        assert!(gatherer_response["growerProfile"].is_null());
-        assert_eq!(gatherer_response["userType"], "gatherer");
-
-        // Verify gathererProfile has required fields
-        let gatherer_profile = &gatherer_response["gathererProfile"];
-        assert!(gatherer_profile.get("geoKey").is_some());
-        assert!(gatherer_profile.get("lat").is_some());
-        assert!(gatherer_profile.get("lng").is_some());
-        assert!(gatherer_profile.get("searchRadiusKm").is_some());
-        assert!(gatherer_profile.get("units").is_some());
-        assert!(gatherer_profile.get("locale").is_some());
     }
 
     /// Test that GET /me supports resume onboarding scenario
@@ -148,7 +103,6 @@ mod get_me_tests {
             "onboardingCompleted": false,
             "createdAt": "2024-01-01T00:00:00Z",
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -158,7 +112,6 @@ mod get_me_tests {
 
         // Both profiles should be null since onboarding isn't complete
         assert!(incomplete_onboarding_response["growerProfile"].is_null());
-        assert!(incomplete_onboarding_response["gathererProfile"].is_null());
 
         // This allows the frontend to resume at the correct wizard step
         // (grower-wizard in this case, since userType is 'grower')
@@ -176,7 +129,6 @@ mod get_me_tests {
             "onboardingCompleted": false,
             "createdAt": "2024-01-01T00:00:00Z",
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -186,7 +138,6 @@ mod get_me_tests {
 
         // Both profiles should be null
         assert!(new_user_response["growerProfile"].is_null());
-        assert!(new_user_response["gathererProfile"].is_null());
 
         // This triggers the onboarding flow starting at user type selection
     }
@@ -213,7 +164,6 @@ mod get_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": {
                 "avgScore": "4.5",
                 "ratingCount": 10
@@ -229,39 +179,7 @@ mod get_me_tests {
         assert!(complete_response.get("onboardingCompleted").is_some());
         assert!(complete_response.get("createdAt").is_some());
         assert!(complete_response.get("growerProfile").is_some());
-        assert!(complete_response.get("gathererProfile").is_some());
         assert!(complete_response.get("ratingSummary").is_some());
-    }
-
-    /// Test gatherer with organization affiliation
-    #[test]
-    fn test_gatherer_with_organization_affiliation() {
-        let gatherer_with_org = json!({
-            "id": "550e8400-e29b-41d4-a716-446655440004",
-            "email": "org@example.com",
-            "displayName": "Organization User",
-            "isVerified": false,
-            "userType": "gatherer",
-            "onboardingCompleted": true,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "growerProfile": null,
-            "gathererProfile": {
-                "geoKey": "9q8yy9m",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusKm": "15.0",
-                "organizationAffiliation": "Community Food Bank",
-                "units": "metric",
-                "locale": "en-US"
-            },
-            "ratingSummary": null
-        });
-
-        let gatherer_profile = &gatherer_with_org["gathererProfile"];
-        assert_eq!(
-            gatherer_profile["organizationAffiliation"],
-            "Community Food Bank"
-        );
     }
 
     #[test]
@@ -286,7 +204,6 @@ mod get_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -296,34 +213,6 @@ mod get_me_tests {
             grower_profile["organizationName"],
             "North Austin Community Garden"
         );
-    }
-
-    /// Test gatherer without organization affiliation
-    #[test]
-    fn test_gatherer_without_organization_affiliation() {
-        let gatherer_without_org = json!({
-            "id": "550e8400-e29b-41d4-a716-446655440005",
-            "email": "individual@example.com",
-            "displayName": "Individual User",
-            "isVerified": false,
-            "userType": "gatherer",
-            "onboardingCompleted": true,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "growerProfile": null,
-            "gathererProfile": {
-                "geoKey": "9q8yy9m",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusKm": "5.0",
-                "organizationAffiliation": null,
-                "units": "imperial",
-                "locale": "en-US"
-            },
-            "ratingSummary": null
-        });
-
-        let gatherer_profile = &gatherer_without_org["gathererProfile"];
-        assert!(gatherer_profile["organizationAffiliation"].is_null());
     }
 
     /// Test that GET /me response includes gardenerTier with correct structure
@@ -362,7 +251,6 @@ mod get_me_tests {
             "experienceSignals": { "completedGrows": 0, "successfulHarvests": 0, "activeDaysLast90": 0, "seasonalConsistency": 0, "varietyBreadth": 0, "badgeCredibility": 0 },
             "curatedTips": [],
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -582,7 +470,6 @@ mod get_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -622,7 +509,6 @@ mod get_me_tests {
         assert!(response.get("createdAt").is_some());
         assert!(response.get("subscription").is_some());
         assert!(response.get("growerProfile").is_some());
-        assert!(response.get("gathererProfile").is_some());
         assert!(response.get("ratingSummary").is_some());
     }
 
@@ -672,7 +558,6 @@ mod get_me_tests {
             },
             "curatedTips": [],
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 

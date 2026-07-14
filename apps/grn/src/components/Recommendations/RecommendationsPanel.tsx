@@ -200,7 +200,7 @@ export function RecommendationsPanel({
           <div className="space-y-1">
             <h3 className="text-lg font-semibold text-neutral-900">What to grow nearby</h3>
             <p className="text-sm text-neutral-600">
-              Recommendations look at what neighbors are growing and what local searchers are asking for, then highlight gaps you could fill.
+              Recommendations look at what neighbors are growing and what neighbors nearby are asking for, then highlight gaps you could fill.
             </p>
           </div>
 

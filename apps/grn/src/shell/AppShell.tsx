@@ -26,20 +26,30 @@ type NavItem = {
   icon: ReactNode;
 };
 
-const baseNavItems: NavItem[] = [
+type NavSection = {
+  id: string;
+  /** Group heading shown when the rail is expanded; omit for the pinned utility group. */
+  title?: string;
+  /** Pins the group to the bottom of the rail (used for account/settings). */
+  pinBottom?: boolean;
+  items: NavItem[];
+};
+
+// Individual growing is the primary experience: everyone sees the same
+// "Your garden" tools, no participation-mode branching. "Connect" is a single
+// optional door to the social surfaces (share surplus, find food, community
+// insights, share garden) that used to be scattered across the menu.
+const gardenNavItems: NavItem[] = [
   {
     id: 'dashboard',
     path: '/',
-    label: 'Dashboard',
+    label: 'Home',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z" fill="currentColor" />
+        <path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5L12 3Z" fill="currentColor" />
       </svg>
     ),
   },
-];
-
-const growerNavItems: NavItem[] = [
   {
     id: 'crops',
     path: '/crops',
@@ -67,19 +77,6 @@ const growerNavItems: NavItem[] = [
     ),
   },
   {
-    id: 'recommendations',
-    path: '/recommendations',
-    label: 'Recommendations',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 2a1 1 0 0 1 .9.56l2.18 4.42 4.88.71a1 1 0 0 1 .55 1.71l-3.53 3.44.83 4.86a1 1 0 0 1-1.45 1.05L12 16.77l-4.36 2.29A1 1 0 0 1 6.19 18l.83-4.86L3.49 9.7a1 1 0 0 1 .55-1.71l4.88-.71L11.1 2.56A1 1 0 0 1 12 2Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-  {
     id: 'garden',
     path: '/garden',
     label: 'Designer',
@@ -96,13 +93,13 @@ const growerNavItems: NavItem[] = [
     ),
   },
   {
-    id: 'listings',
-    path: '/listings',
-    label: 'Listings',
+    id: 'reminders',
+    path: '/reminders',
+    label: 'Reminders',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path
-          d="M4 5h16v3H4V5Zm0 5h16v3H4v-3Zm0 5h10v3H4v-3Z"
+          d="M12 2a7 7 0 0 0-7 7v3.6L3 16h18l-2-3.4V9a7 7 0 0 0-7-7Zm0 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3Z"
           fill="currentColor"
         />
       </svg>
@@ -110,15 +107,15 @@ const growerNavItems: NavItem[] = [
   },
 ];
 
-const gathererNavItems: NavItem[] = [
+const connectNavItems: NavItem[] = [
   {
-    id: 'requests',
-    path: '/requests',
-    label: 'Requests',
+    id: 'connect',
+    path: '/connect',
+    label: 'Connect',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path
-          d="M11 3a8 8 0 1 0 5.3 14L21 21.7l1.4-1.4-4.7-4.7A8 8 0 0 0 11 3Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"
+          d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.7 0-6 1.34-6 4v2h8v-2c0-.98.45-1.86 1.2-2.56A9.6 9.6 0 0 0 8 13Zm8 0c-.35 0-.74.02-1.15.06C16.16 13.9 17 15 17 16.5V19h7v-2c0-2.66-3.3-4-6-4Z"
           fill="currentColor"
         />
       </svg>
@@ -126,33 +123,28 @@ const gathererNavItems: NavItem[] = [
   },
 ];
 
-const remindersNavItem: NavItem = {
-  id: 'reminders',
-  path: '/reminders',
-  label: 'Reminders',
-  icon: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M12 2a7 7 0 0 0-7 7v3.6L3 16h18l-2-3.4V9a7 7 0 0 0-7-7Zm0 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3Z"
-        fill="currentColor"
-      />
-    </svg>
-  ),
-};
+const settingsNavItems: NavItem[] = [
+  {
+    id: 'settings',
+    path: '/settings',
+    label: 'Settings',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 5a7.9 7.9 0 0 0 0-2l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1l-.4-2.5H9.6l-.4 2.5a8 8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.9 7.9 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.4 2.5h4.8l.4-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+];
 
-const settingsNavItem: NavItem = {
-  id: 'settings',
-  path: '/settings',
-  label: 'Settings',
-  icon: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 5a7.9 7.9 0 0 0 0-2l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1l-.4-2.5H9.6l-.4 2.5a8 8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.9 7.9 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.4 2.5h4.8l.4-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
-        fill="currentColor"
-      />
-    </svg>
-  ),
-};
+// Same structure for everyone — no dependence on user type.
+const navSections: NavSection[] = [
+  { id: 'garden', title: 'Your garden', items: gardenNavItems },
+  { id: 'connect', title: 'Connect', items: connectNavItems },
+  { id: 'account', pinBottom: true, items: settingsNavItems },
+];
 
 const footerLinks = [
   { id: 'home', label: 'Foundation home', href: `${foundationHomeUrl}/` },
@@ -242,14 +234,6 @@ export function AppShell({ user, children }: AppShellProps) {
     window.location.assign(`${foundationHomeUrl}/login`);
   };
 
-  const navItems: NavItem[] = [
-    ...baseNavItems,
-    ...(user?.userType === 'grower' ? growerNavItems : []),
-    ...(user?.userType === 'gatherer' ? gathererNavItems : []),
-    remindersNavItem,
-    settingsNavItem,
-  ];
-
   const headerNavItems = foundationHeaderNav.map((item) => ({
     id: item.id,
     label: item.label,
@@ -329,24 +313,38 @@ export function AppShell({ user, children }: AppShellProps) {
             </button>
           </div>
 
-          <ul className="grn-vertical-nav__list" role="list">
-            {navItems.map((item) => (
-              <li key={item.id}>
-                <NavLink
-                  to={item.path}
-                  end={item.path === '/'}
-                  className={({ isActive }) =>
-                    `grn-vertical-nav__link ${isActive ? 'is-active' : ''}`.trim()
-                  }
-                  title={expanded ? undefined : item.label}
-                  onClick={() => setMobileNavOpen(false)}
-                >
-                  <span className="grn-vertical-nav__icon" aria-hidden="true">{item.icon}</span>
-                  <span className="grn-vertical-nav__label">{item.label}</span>
-                </NavLink>
-              </li>
+          <div className="grn-vertical-nav__scroll">
+            {navSections.map((section) => (
+              <div
+                key={section.id}
+                className={`grn-vertical-nav__section ${section.pinBottom ? 'grn-vertical-nav__section--pinned' : ''}`.trim()}
+              >
+                {section.title ? (
+                  <p className="grn-vertical-nav__section-title" aria-hidden="true">
+                    {section.title}
+                  </p>
+                ) : null}
+                <ul className="grn-vertical-nav__list" role="list" aria-label={section.title}>
+                  {section.items.map((item) => (
+                    <li key={item.id}>
+                      <NavLink
+                        to={item.path}
+                        end={item.path === '/'}
+                        className={({ isActive }) =>
+                          `grn-vertical-nav__link ${isActive ? 'is-active' : ''}`.trim()
+                        }
+                        title={expanded ? undefined : item.label}
+                        onClick={() => setMobileNavOpen(false)}
+                      >
+                        <span className="grn-vertical-nav__icon" aria-hidden="true">{item.icon}</span>
+                        <span className="grn-vertical-nav__label">{item.label}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
 
           <button
             type="button"

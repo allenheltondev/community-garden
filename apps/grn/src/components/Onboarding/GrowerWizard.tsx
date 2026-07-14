@@ -453,14 +453,16 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
         )}
 
         <div className="flex gap-3 mt-8">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={isSubmitting}
-            className="flex-1"
-          >
-            Back
-          </Button>
+          {currentStep !== 'location' || onBack ? (
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={isSubmitting}
+              className="flex-1"
+            >
+              Back
+            </Button>
+          ) : null}
 
           {currentStep !== 'preferences' ? (
             <Button

@@ -43,19 +43,16 @@ AWS-provided libraries that standardize structured logging, tracing, metrics, an
 ## Domain Terms
 
 **Grower**
-A user who produces food surplus - includes home gardeners, homesteaders, small farms, and community gardens.
-
-**Searcher**
-A user seeking available food - includes families, food banks, community kitchens, schools, and mutual aid organizations.
+Every user is a grower - home gardeners, homesteaders, small farms, and community gardens. Growers track their own garden, share surplus, and can look for food from neighbors.
 
 **Listing**
 A declaration of available or upcoming food surplus with time window and location.
 
 **Request**
-A searcher's expression of interest in specific items and quantities.
+A grower's expression of interest in specific items and quantities from nearby growers' surplus.
 
 **Commitment**
-A coordination agreement between a grower and searcher for food pickup.
+A coordination agreement between two growers for food pickup.
 
 **Community Context**
 The localized geographic area and participant group relevant to a user, defined implicitly through proximity rather than explicit membership.

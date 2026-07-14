@@ -1,7 +1,7 @@
 $kind: http-request
 name: 'Step 5 - Grower Confirms'
 description: |-
-  Swap back to grower token and confirm the gatherer's claim.
+  Swap back to grower token and confirm the neighbor's claim.
 
   **Depends on**: `claimId` captured in Step 4
   **Chaining**: Sets `authToken` back to `{{growerAuthToken}}`.

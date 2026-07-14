@@ -1,7 +1,7 @@
 /requests:
   post:
-    tags: [Requests, Idempotent, Gatherer Only]
-    summary: Create a gatherer food request
+    tags: [Requests, Idempotent]
+    summary: Create a food request
     operationId: createRequest
     requestBody:
       required: true
@@ -35,8 +35,8 @@
         type: string
         format: uuid
   put:
-    tags: [Requests, Gatherer Only]
-    summary: Update a gatherer food request
+    tags: [Requests]
+    summary: Update a food request
     operationId: updateRequest
     requestBody:
       required: true

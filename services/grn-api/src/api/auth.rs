@@ -8,7 +8,6 @@ use uuid::Uuid;
 #[serde(rename_all = "lowercase")]
 pub enum UserType {
     Grower,
-    Gatherer,
 }
 
 #[derive(Debug, Clone)]
@@ -102,15 +101,6 @@ async fn load_user_type_from_db(user_id: &str) -> Option<UserType> {
 pub fn require_grower(ctx: &AuthContext) -> Result<(), Error> {
     match &ctx.user_type {
         Some(UserType::Grower) => Ok(()),
-        Some(UserType::Gatherer) => {
-            error!(
-                user_id = ctx.user_id.as_str(),
-                "Gatherers cannot access grower-only features"
-            );
-            Err(Error::from(
-                "Forbidden: This feature is only available to growers",
-            ))
-        }
         None => {
             error!(
                 user_id = ctx.user_id.as_str(),
@@ -120,15 +110,6 @@ pub fn require_grower(ctx: &AuthContext) -> Result<(), Error> {
                 "Forbidden: User type not set. Please complete onboarding.",
             ))
         }
-    }
-}
-
-pub fn require_participant_user_type(user_type: Option<&UserType>) -> Result<(), Error> {
-    match user_type {
-        Some(UserType::Grower | UserType::Gatherer) => Ok(()),
-        None => Err(Error::from(
-            "Forbidden: User type not set. Please complete onboarding.",
-        )),
     }
 }
 
@@ -140,34 +121,6 @@ pub fn require_admin(ctx: &AuthContext) -> Result<(), Error> {
         Err(Error::from(
             "Forbidden: This feature is only available to administrators",
         ))
-    }
-}
-
-#[allow(dead_code)] // Will be used when gatherer-specific endpoints are implemented
-pub fn require_user_type(ctx: &AuthContext, required: &UserType) -> Result<(), Error> {
-    match &ctx.user_type {
-        Some(user_type) if user_type == required => Ok(()),
-        Some(_) => {
-            error!(
-                user_id = ctx.user_id.as_str(),
-                required_type = ?required,
-                actual_type = ?ctx.user_type,
-                "User does not have required user type"
-            );
-            Err(Error::from(format!(
-                "Forbidden: This feature requires user type {required:?}"
-            )))
-        }
-        None => {
-            error!(
-                user_id = ctx.user_id.as_str(),
-                required_type = ?required,
-                "User type not set, onboarding may be incomplete"
-            );
-            Err(Error::from(
-                "Forbidden: User type not set. Please complete onboarding.",
-            ))
-        }
     }
 }
 
@@ -183,7 +136,6 @@ fn extract_authorizer_field(request: &Request, field_name: &str) -> Option<Strin
 fn parse_user_type(s: &str) -> Option<UserType> {
     match s.to_lowercase().as_str() {
         "grower" => Some(UserType::Grower),
-        "gatherer" => Some(UserType::Gatherer),
         _ => None,
     }
 }
@@ -201,16 +153,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_user_type_gatherer() {
-        assert_eq!(parse_user_type("gatherer"), Some(UserType::Gatherer));
-        assert_eq!(parse_user_type("Gatherer"), Some(UserType::Gatherer));
-        assert_eq!(parse_user_type("GATHERER"), Some(UserType::Gatherer));
-    }
-
-    #[test]
     fn parse_user_type_invalid() {
         assert_eq!(parse_user_type("invalid"), None);
         assert_eq!(parse_user_type(""), None);
+        assert_eq!(parse_user_type("gatherer"), None);
         assert_eq!(parse_user_type("recipient"), None);
     }
 
@@ -224,23 +170,6 @@ mod tests {
             email: None,
         };
         assert!(require_grower(&ctx).is_ok());
-    }
-
-    #[test]
-    fn require_grower_with_gatherer_fails() {
-        let ctx = AuthContext {
-            user_id: String::from("test-user"),
-            user_type: Some(UserType::Gatherer),
-            is_admin: false,
-            tier: String::from("free"),
-            email: None,
-        };
-        let result = require_grower(&ctx);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("only available to growers"));
     }
 
     #[test]
@@ -261,85 +190,16 @@ mod tests {
     }
 
     #[test]
-    fn require_participant_user_type_accepts_grower_and_gatherer() {
-        assert!(require_participant_user_type(Some(&UserType::Grower)).is_ok());
-        assert!(require_participant_user_type(Some(&UserType::Gatherer)).is_ok());
-    }
-
-    #[test]
-    fn require_participant_user_type_rejects_missing_type() {
-        let result = require_participant_user_type(None);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("User type not set"));
-    }
-
-    #[test]
-    fn require_user_type_with_matching_type_succeeds() {
-        let ctx = AuthContext {
-            user_id: String::from("test-user"),
-            user_type: Some(UserType::Gatherer),
-            is_admin: false,
-            tier: String::from("free"),
-            email: None,
-        };
-        assert!(require_user_type(&ctx, &UserType::Gatherer).is_ok());
-    }
-
-    #[test]
-    fn require_user_type_with_non_matching_type_fails() {
-        let ctx = AuthContext {
-            user_id: String::from("test-user"),
-            user_type: Some(UserType::Grower),
-            is_admin: false,
-            tier: String::from("free"),
-            email: None,
-        };
-        let result = require_user_type(&ctx, &UserType::Gatherer);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("requires user type"));
-    }
-
-    #[test]
-    fn require_user_type_with_no_type_fails() {
-        let ctx = AuthContext {
-            user_id: String::from("test-user"),
-            user_type: None,
-            is_admin: false,
-            tier: String::from("free"),
-            email: None,
-        };
-        let result = require_user_type(&ctx, &UserType::Grower);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("User type not set"));
-    }
-
-    #[test]
     fn user_type_serialization() {
         let grower = UserType::Grower;
         let json = serde_json::to_string(&grower).unwrap();
         assert_eq!(json, r#""grower""#);
-
-        let gatherer = UserType::Gatherer;
-        let json = serde_json::to_string(&gatherer).unwrap();
-        assert_eq!(json, r#""gatherer""#);
     }
 
     #[test]
     fn user_type_deserialization() {
         let grower: UserType = serde_json::from_str(r#""grower""#).unwrap();
         assert_eq!(grower, UserType::Grower);
-
-        let gatherer: UserType = serde_json::from_str(r#""gatherer""#).unwrap();
-        assert_eq!(gatherer, UserType::Gatherer);
     }
 
     #[test]

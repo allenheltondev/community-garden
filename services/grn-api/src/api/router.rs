@@ -480,9 +480,8 @@ fn map_api_error_to_response(
         || message.contains("windowDays")
         || message.contains("radiusMiles")
         || message.contains("shareRadiusMiles")
-        || message.contains("searchRadiusMiles")
         || message.contains("organizationName")
-        || message.contains("Gatherer profile location is required")
+        || message.contains("A grower profile location is required")
         || message.contains("Listing is not claimable")
         || message.contains("requestId must reference an open request")
         || message.contains("requestId crop must match listing crop")
@@ -604,14 +603,6 @@ mod tests {
     #[test]
     fn map_api_error_maps_share_radius_miles_validation_to_400() {
         let error = lambda_http::Error::from("shareRadiusMiles must be greater than 0".to_string());
-        let response = map_api_error_to_response(&error).unwrap();
-        assert_eq!(response.status().as_u16(), 400);
-    }
-
-    #[test]
-    fn map_api_error_maps_search_radius_miles_validation_to_400() {
-        let error =
-            lambda_http::Error::from("searchRadiusMiles must be greater than 0".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 400);
     }
