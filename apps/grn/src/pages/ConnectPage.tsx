@@ -11,7 +11,7 @@ interface ConnectOption {
   to: string;
 }
 
-// The Connect hub is the single optional door to GRN's social surfaces. Each
+// The Share hub is the single optional door to GRN's social surfaces. Each
 // card routes to an existing page — nothing here is required for individual
 // growing, it's all opt-in.
 const options: ConnectOption[] = [
@@ -21,7 +21,7 @@ const options: ConnectOption[] = [
     title: 'Share your surplus',
     body: 'Post what’s ready to give away so nearby neighbors can pick it up before it goes to waste.',
     cta: 'Post a listing',
-    to: '/listings',
+    to: '/share/listings',
   },
   {
     id: 'find',
@@ -29,7 +29,7 @@ const options: ConnectOption[] = [
     title: 'Find food nearby',
     body: 'Browse fresh food shared by growers around you and request what your household needs.',
     cta: 'Discover food',
-    to: '/requests',
+    to: '/share/find',
   },
   {
     id: 'insights',
@@ -37,7 +37,7 @@ const options: ConnectOption[] = [
     title: 'What neighbors need',
     body: 'See what’s abundant and what’s scarce near you, and get ideas for what to plant next.',
     cta: 'View insights',
-    to: '/recommendations',
+    to: '/garden/plan/recommendations',
   },
   {
     id: 'garden-link',
@@ -68,8 +68,7 @@ export function ConnectPage() {
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Connect"
-        title="Connect with people nearby"
+        title="Share with people nearby"
         body="Growing is better together. Share what you have, find what you need, and stay in touch with your local food community — all optional."
       />
       <div className="grn-connect-grid">

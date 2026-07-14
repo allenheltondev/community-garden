@@ -158,7 +158,7 @@ export function PlannerPage() {
               isLoading={isLoadingCrops}
               hasError={isCropsError}
               onRetry={() => void refetchCrops()}
-              onAddCrop={() => navigate('/crops/new')}
+              onAddCrop={() => navigate('/garden/plants/new')}
             />
           </section>
         </div>

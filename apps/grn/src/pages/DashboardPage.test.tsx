@@ -93,7 +93,7 @@ describe('DashboardPage', () => {
 
     await userEvent.click(cta);
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/crops/new');
+      expect(screen.getByTestId('location')).toHaveTextContent('/garden/plants/new');
     });
   });
 

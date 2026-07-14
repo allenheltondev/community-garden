@@ -31,7 +31,7 @@ describe('ConnectPage', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /post a listing/i }));
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/listings');
+      expect(screen.getByTestId('location')).toHaveTextContent('/share/listings');
     });
   });
 
@@ -39,7 +39,7 @@ describe('ConnectPage', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /discover food/i }));
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/requests');
+      expect(screen.getByTestId('location')).toHaveTextContent('/share/find');
     });
   });
 });

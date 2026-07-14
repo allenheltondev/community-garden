@@ -154,21 +154,21 @@ export function DashboardPage() {
             Add your first crop to track planting dates, beds, and harvests — and
             we&apos;ll surface what needs your attention right here.
           </p>
-          <Button variant="primary" size="md" onClick={() => navigate('/crops/new')}>
+          <Button variant="primary" size="md" onClick={() => navigate('/garden/plants/new')}>
             Add your first crop
           </Button>
         </Card>
       ) : (
         <div className="grn-stat-grid">
-          <button type="button" className="grn-stat-tile" onClick={() => navigate('/crops')}>
+          <button type="button" className="grn-stat-tile" onClick={() => navigate('/garden/plants')}>
             <span className="grn-stat-tile__value">{stats.growing.length}</span>
             <span className="grn-stat-tile__label">Growing now</span>
           </button>
-          <button type="button" className="grn-stat-tile" onClick={() => navigate('/crops')}>
+          <button type="button" className="grn-stat-tile" onClick={() => navigate('/garden/plants')}>
             <span className="grn-stat-tile__value">{stats.readySoon.length}</span>
             <span className="grn-stat-tile__label">Ready to harvest</span>
           </button>
-          <button type="button" className="grn-stat-tile" onClick={() => navigate('/planner')}>
+          <button type="button" className="grn-stat-tile" onClick={() => navigate('/garden/plan')}>
             <span className="grn-stat-tile__value">{stats.planning.length}</span>
             <span className="grn-stat-tile__label">Planning &amp; interested</span>
           </button>
@@ -180,7 +180,7 @@ export function DashboardPage() {
           <Card padding="6" className="grn-dashboard__panel">
             <div className="grn-dashboard__panel-head">
               <h3>Upcoming harvests</h3>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/crops')}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/garden/plants')}>
                 My garden
               </Button>
             </div>
@@ -227,7 +227,7 @@ export function DashboardPage() {
           <Card padding="6" className="grn-dashboard__panel">
             <div className="grn-dashboard__panel-head">
               <h3>Upcoming reminders</h3>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/reminders')}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/today/reminders')}>
                 Reminders
               </Button>
             </div>
@@ -260,8 +260,8 @@ export function DashboardPage() {
             all optional, whenever you&apos;re ready.
           </p>
         </div>
-        <Button variant="secondary" size="md" onClick={() => navigate('/connect')}>
-          Explore Connect
+        <Button variant="secondary" size="md" onClick={() => navigate('/share')}>
+          Explore Share
         </Button>
       </Card>
     </section>

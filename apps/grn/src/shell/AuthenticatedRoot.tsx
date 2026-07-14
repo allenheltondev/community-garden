@@ -4,6 +4,8 @@ import { useUser } from '../hooks/useUser';
 import { PlantLoader } from '../components/branding/PlantLoader';
 import { AppShell } from './AppShell';
 import { OnboardingGuard } from '../components/Onboarding/OnboardingGuard';
+import { LegacyRouteRedirect } from './LegacyRouteRedirect';
+import { LEGACY_ROUTE_REDIRECTS } from './navigation';
 
 const DashboardPage = lazy(() =>
   import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage }))
@@ -67,16 +69,19 @@ export function AuthenticatedRoot() {
           <OnboardingGuard user={user} refreshUser={refreshUser}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/crops" element={<CropsPage />} />
-              <Route path="/crops/new" element={<NewCropPage />} />
-              <Route path="/planner" element={<PlannerPage />} />
-              <Route path="/recommendations" element={<RecommendationsPage />} />
+              <Route path="/today/reminders" element={<RemindersPage />} />
               <Route path="/garden" element={<GardenDesignerPage />} />
-              <Route path="/listings" element={<ListingsPage />} />
-              <Route path="/connect" element={<ConnectPage />} />
-              <Route path="/requests" element={<RequestsPage />} />
-              <Route path="/reminders" element={<RemindersPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/garden/plants" element={<CropsPage />} />
+              <Route path="/garden/plants/new" element={<NewCropPage />} />
+              <Route path="/garden/plan" element={<PlannerPage />} />
+              <Route path="/garden/plan/recommendations" element={<RecommendationsPage />} />
+              <Route path="/share" element={<ConnectPage />} />
+              <Route path="/share/listings" element={<ListingsPage />} />
+              <Route path="/share/find" element={<RequestsPage />} />
+              <Route path="/settings" element={<SettingsPage user={user} />} />
+              {Object.entries(LEGACY_ROUTE_REDIRECTS).map(([from, to]) => (
+                <Route key={from} path={from} element={<LegacyRouteRedirect to={to} />} />
+              ))}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </OnboardingGuard>

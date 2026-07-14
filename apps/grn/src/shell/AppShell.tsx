@@ -1,11 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AvatarMenu, SiteFooter, SiteHeader } from '@olivias/ui';
 import { brandConfig } from '../config/brand';
 import { useAuth } from '../hooks/useAuth';
 import type { UserProfile } from '../types/user';
+import { createLogger } from '../utils/logging';
+import {
+  PRIMARY_NAVIGATION,
+  isPrimaryDestinationActive,
+  type PrimaryDestinationId,
+} from './navigation';
 
 const NAV_EXPANDED_STORAGE_KEY = 'og-grn-nav-expanded';
+const navigationLogger = createLogger('navigation');
 
 const foundationLogo = '/images/icons/logo.svg';
 
@@ -19,132 +26,29 @@ const adminUrl = (import.meta.env.VITE_ADMIN_URL as string | undefined)?.replace
 const instagramUrl = 'https://instagram.com/oliviasgardentx';
 const facebookUrl = 'https://www.facebook.com/profile.php?id=100087146659606#';
 
-type NavItem = {
-  id: string;
-  path: string;
-  label: string;
-  icon: ReactNode;
+const navigationIcons: Record<PrimaryDestinationId, ReactNode> = {
+  today: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5L12 3Z" fill="currentColor" />
+    </svg>
+  ),
+  garden: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M12 3c-3.5 3-5 6-5 9a5 5 0 0 0 4 4.9V21a1 1 0 1 0 2 0v-4.1a5 5 0 0 0 4-4.9c0-3-1.5-6-5-9Zm0 12a3 3 0 0 1-3-3c0-1.7.8-3.6 3-5.7 2.2 2.1 3 4 3 5.7a3 3 0 0 1-3 3Z"
+        fill="currentColor"
+      />
+    </svg>
+  ),
+  share: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M18 16a3 3 0 0 0-2.4 1.2l-6.8-3.4a3.3 3.3 0 0 0 0-1.6l6.8-3.4A3 3 0 1 0 15 7a3.3 3.3 0 0 0 .1.8L8.4 11.2a3 3 0 1 0 0 3.6l6.7 3.4A3 3 0 1 0 18 16Z"
+        fill="currentColor"
+      />
+    </svg>
+  ),
 };
-
-type NavSection = {
-  id: string;
-  /** Group heading shown when the rail is expanded; omit for the pinned utility group. */
-  title?: string;
-  /** Pins the group to the bottom of the rail (used for account/settings). */
-  pinBottom?: boolean;
-  items: NavItem[];
-};
-
-// Individual growing is the primary experience: everyone sees the same
-// "Your garden" tools, no participation-mode branching. "Connect" is a single
-// optional door to the social surfaces (share surplus, find food, community
-// insights, share garden) that used to be scattered across the menu.
-const gardenNavItems: NavItem[] = [
-  {
-    id: 'dashboard',
-    path: '/',
-    label: 'Home',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5L12 3Z" fill="currentColor" />
-      </svg>
-    ),
-  },
-  {
-    id: 'crops',
-    path: '/crops',
-    label: 'My garden',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 3c-3.5 3-5 6-5 9a5 5 0 0 0 4 4.9V21a1 1 0 1 0 2 0v-4.1a5 5 0 0 0 4-4.9c0-3-1.5-6-5-9Zm0 12a3 3 0 0 1-3-3c0-1.7.8-3.6 3-5.7 2.2 2.1 3 4 3 5.7a3 3 0 0 1-3 3Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: 'planner',
-    path: '/planner',
-    label: 'Planner',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 3 2 20h20L12 3Zm0 4.6 2.1 3.6H9.9L12 7.6ZM8.7 13.2h6.6l1.5 2.6H7.2l1.5-2.6ZM5.6 18.6 6.6 17h10.8l1 1.6H5.6Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: 'garden',
-    path: '/garden',
-    label: 'Designer',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M3 4h8v8H3V4Zm0 10h8v6H3v-6Zm10-10h8v6h-8V4Zm0 8h8v8h-8v-8Z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: 'reminders',
-    path: '/reminders',
-    label: 'Reminders',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 2a7 7 0 0 0-7 7v3.6L3 16h18l-2-3.4V9a7 7 0 0 0-7-7Zm0 19a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-];
-
-const connectNavItems: NavItem[] = [
-  {
-    id: 'connect',
-    path: '/connect',
-    label: 'Connect',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.7 0-6 1.34-6 4v2h8v-2c0-.98.45-1.86 1.2-2.56A9.6 9.6 0 0 0 8 13Zm8 0c-.35 0-.74.02-1.15.06C16.16 13.9 17 15 17 16.5V19h7v-2c0-2.66-3.3-4-6-4Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-];
-
-const settingsNavItems: NavItem[] = [
-  {
-    id: 'settings',
-    path: '/settings',
-    label: 'Settings',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 5a7.9 7.9 0 0 0 0-2l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1l-.4-2.5H9.6l-.4 2.5a8 8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.9 7.9 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.4 2.5h4.8l.4-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
-          fill="currentColor"
-        />
-      </svg>
-    ),
-  },
-];
-
-// Same structure for everyone — no dependence on user type.
-const navSections: NavSection[] = [
-  { id: 'garden', title: 'Your garden', items: gardenNavItems },
-  { id: 'connect', title: 'Connect', items: connectNavItems },
-  { id: 'account', pinBottom: true, items: settingsNavItems },
-];
 
 const footerLinks = [
   { id: 'home', label: 'Foundation home', href: `${foundationHomeUrl}/` },
@@ -194,51 +98,32 @@ export interface AppShellProps {
 export function AppShell({ user, children }: AppShellProps) {
   const { signOut } = useAuth();
   const [expanded, setExpanded] = useState<boolean>(() => readStoredExpanded());
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     try {
       window.localStorage.setItem(NAV_EXPANDED_STORAGE_KEY, String(expanded));
     } catch {
-      // ignore storage errors
+      // Ignore storage errors; the rail remains usable for this session.
     }
   }, [expanded]);
-
-  // Close the mobile drawer whenever the route changes.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMobileNavOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavOpen(false);
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [mobileNavOpen]);
 
   const handleLogout = async () => {
     try {
       await signOut();
     } catch {
-      // ignore — page reload clears local session
+      // The foundation login navigation clears any remaining local session.
     }
     window.location.assign(`${foundationHomeUrl}/login`);
   };
 
-  const headerNavItems = foundationHeaderNav.map((item) => ({
-    id: item.id,
-    label: item.label,
-    href: item.href,
-  }));
+  const logDestination = (
+    destination: PrimaryDestinationId,
+    source: 'desktop_rail' | 'mobile_bottom_nav'
+  ) => {
+    navigationLogger.info('Primary navigation selected', { destination, source });
+  };
 
   const initials = getInitials(user?.displayName, user?.email);
   const displayName = user?.displayName?.trim() || user?.email || 'Member';
@@ -251,12 +136,19 @@ export function AppShell({ user, children }: AppShellProps) {
         brandEyebrow="Olivia's Garden Foundation"
         brandTitle={brandConfig.name.full}
         brandHref={`${foundationHomeUrl}/`}
-        navItems={headerNavItems}
+        navItems={foundationHeaderNav}
         utility={(
           <div className="og-auth-utility">
             <AvatarMenu
               initials={initials}
               label={displayName}
+              onProfile={() => navigate('/settings#profile')}
+              profileLabel="Profile"
+              personalLinks={[
+                { id: 'membership', label: 'Membership', href: '/settings#membership' },
+                { id: 'settings', label: 'Settings', href: '/settings' },
+                { id: 'api-keys', label: 'API keys', href: '/settings#api-keys' },
+              ]}
               appLinks={[
                 { id: 'foundation', label: 'Foundation home', href: foundationHomeUrl },
                 { id: 'admin', label: 'Admin console', href: adminUrl },
@@ -266,85 +158,33 @@ export function AppShell({ user, children }: AppShellProps) {
           </div>
         )}
       />
-      <div
-        className={`grn-shell-body ${expanded ? 'is-expanded' : 'is-collapsed'} ${mobileNavOpen ? 'is-mobile-nav-open' : ''}`.trim()}
-      >
-        <button
-          type="button"
-          className="grn-mobile-nav-trigger"
-          aria-expanded={mobileNavOpen}
-          aria-controls="grn-vertical-nav"
-          aria-label="Open sections"
-          onClick={() => setMobileNavOpen(true)}
+
+      <div className={`grn-shell-body ${expanded ? 'is-expanded' : 'is-collapsed'}`}>
+        <nav
+          className={`grn-vertical-nav ${expanded ? 'is-expanded' : 'is-collapsed'}`}
+          aria-label="Primary navigation"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4 7h16v2H4V7Zm0 4h16v2H4v-2Zm0 4h16v2H4v-2Z" fill="currentColor" />
-          </svg>
-          <span>Sections</span>
-        </button>
-
-        <button
-          type="button"
-          className="grn-mobile-nav-backdrop"
-          aria-label="Close sections"
-          tabIndex={mobileNavOpen ? 0 : -1}
-          onClick={() => setMobileNavOpen(false)}
-        />
-
-        <aside
-          id="grn-vertical-nav"
-          className={`grn-vertical-nav ${expanded ? 'is-expanded' : 'is-collapsed'} ${mobileNavOpen ? 'is-mobile-open' : ''}`.trim()}
-          aria-label="Good Roots Network sections"
-        >
-          <div className="grn-vertical-nav__mobile-header">
-            <span className="grn-vertical-nav__mobile-title">Sections</span>
-            <button
-              type="button"
-              className="grn-vertical-nav__mobile-close"
-              aria-label="Close sections"
-              onClick={() => setMobileNavOpen(false)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path
-                  d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4L13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div className="grn-vertical-nav__scroll">
-            {navSections.map((section) => (
-              <div
-                key={section.id}
-                className={`grn-vertical-nav__section ${section.pinBottom ? 'grn-vertical-nav__section--pinned' : ''}`.trim()}
-              >
-                {section.title ? (
-                  <p className="grn-vertical-nav__section-title" aria-hidden="true">
-                    {section.title}
-                  </p>
-                ) : null}
-                <ul className="grn-vertical-nav__list" role="list" aria-label={section.title}>
-                  {section.items.map((item) => (
-                    <li key={item.id}>
-                      <NavLink
-                        to={item.path}
-                        end={item.path === '/'}
-                        className={({ isActive }) =>
-                          `grn-vertical-nav__link ${isActive ? 'is-active' : ''}`.trim()
-                        }
-                        title={expanded ? undefined : item.label}
-                        onClick={() => setMobileNavOpen(false)}
-                      >
-                        <span className="grn-vertical-nav__icon" aria-hidden="true">{item.icon}</span>
-                        <span className="grn-vertical-nav__label">{item.label}</span>
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <ul className="grn-vertical-nav__list" role="list">
+            {PRIMARY_NAVIGATION.map((item) => {
+              const isActive = isPrimaryDestinationActive(item.id, location.pathname);
+              return (
+                <li key={item.id}>
+                  <Link
+                    to={item.path}
+                    className={`grn-vertical-nav__link ${isActive ? 'is-active' : ''}`.trim()}
+                    aria-current={isActive ? 'page' : undefined}
+                    title={expanded ? undefined : item.label}
+                    onClick={() => logDestination(item.id, 'desktop_rail')}
+                  >
+                    <span className="grn-vertical-nav__icon" aria-hidden="true">
+                      {navigationIcons[item.id]}
+                    </span>
+                    <span className="grn-vertical-nav__label">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
 
           <button
             type="button"
@@ -363,14 +203,33 @@ export function AppShell({ user, children }: AppShellProps) {
               />
             </svg>
           </button>
-        </aside>
+        </nav>
 
         <main className="grn-shell-main">
-          <div className="grn-shell-main__inner">
-            {children}
-          </div>
+          <div className="grn-shell-main__inner">{children}</div>
         </main>
       </div>
+
+      <nav className="grn-bottom-nav" aria-label="Primary navigation">
+        {PRIMARY_NAVIGATION.map((item) => {
+          const isActive = isPrimaryDestinationActive(item.id, location.pathname);
+          return (
+            <Link
+              key={item.id}
+              to={item.path}
+              className={`grn-bottom-nav__link ${isActive ? 'is-active' : ''}`.trim()}
+              aria-current={isActive ? 'page' : undefined}
+              onClick={() => logDestination(item.id, 'mobile_bottom_nav')}
+            >
+              <span className="grn-bottom-nav__icon" aria-hidden="true">
+                {navigationIcons[item.id]}
+              </span>
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
       <SiteFooter
         meta={`${new Date().getFullYear()} Olivia's Garden Foundation. All rights reserved.`}
         links={footerLinks}

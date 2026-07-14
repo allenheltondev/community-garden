@@ -93,7 +93,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
           <p>
             Add your first crop and start mapping out beds, planting dates, and what you&apos;d like to grow.
           </p>
-          <Button variant="primary" size="md" onClick={() => navigate('/crops/new')}>
+          <Button variant="primary" size="md" onClick={() => navigate('/garden/plants/new')}>
             Add a crop
           </Button>
           {beds.length === 0 ? (
@@ -117,7 +117,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
               {beds.length ? ` · ${beds.length} bed${beds.length === 1 ? '' : 's'}` : ''}
             </p>
           </div>
-          <Button variant="primary" size="sm" onClick={() => navigate('/crops/new')}>
+          <Button variant="primary" size="sm" onClick={() => navigate('/garden/plants/new')}>
             + Add crop
           </Button>
         </div>
@@ -246,7 +246,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => navigate(`/crops/new?edit=${crop.id}`)}
+                    onClick={() => navigate(`/garden/plants/new?edit=${crop.id}`)}
                     disabled
                     title="Editing comes next — for now, remove and re-add"
                   >
