@@ -30,8 +30,8 @@ import {
   type ProcessedQueuedClaimAction,
 } from '../../utils/claimOfflineQueue';
 
-const logger = createLogger('searcher-requests');
-const REQUEST_DRAFT_KEY = 'searcher-request-draft-v1';
+const logger = createLogger('find-food');
+const REQUEST_DRAFT_KEY = 'find-food-draft-v1';
 const AI_OPT_OUT_KEY_PREFIX = 'ai-insights-opt-out';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -49,9 +49,9 @@ interface MatchingRequestResult {
   ambiguous: boolean;
 }
 
-export interface SearcherRequestPanelProps {
+export interface FindFoodPanelProps {
   viewerUserId?: string;
-  gathererGeoKey?: string;
+  originGeoKey?: string;
   defaultLat?: number;
   defaultLng?: number;
   defaultRadiusMiles?: number;
@@ -167,7 +167,7 @@ function resolveDefaultClaimQuantity(listing: Listing): number {
   return Math.min(1, remaining);
 }
 
-function getSearcherActions(status: ClaimStatus): ClaimStatus[] {
+function getClaimActions(status: ClaimStatus): ClaimStatus[] {
   if (status === 'pending') {
     return ['cancelled'];
   }
@@ -235,13 +235,13 @@ function resolveMatchingRequestId(
   return { ambiguous: true };
 }
 
-export function SearcherRequestPanel({
+export function FindFoodPanel({
   viewerUserId,
-  gathererGeoKey,
+  originGeoKey,
   defaultLat,
   defaultLng,
   defaultRadiusMiles = 15,
-}: SearcherRequestPanelProps) {
+}: FindFoodPanelProps) {
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const [radiusMiles, setRadiusMiles] = useState<number>(defaultRadiusMiles);
   const [selectedCropId, setSelectedCropId] = useState<string>('all');
@@ -346,15 +346,15 @@ export function SearcherRequestPanel({
   });
 
   const discoveryQuery = useQuery({
-    queryKey: ['discoverListings', gathererGeoKey, radiusMiles],
+    queryKey: ['discoverListings', originGeoKey, radiusMiles],
     queryFn: () =>
       discoverListings({
-        geoKey: gathererGeoKey ?? '',
+        geoKey: originGeoKey ?? '',
         radiusMiles,
         limit: 30,
         offset: 0,
       }),
-    enabled: Boolean(gathererGeoKey) && !isOffline,
+    enabled: Boolean(originGeoKey) && !isOffline,
     staleTime: 30 * 1000,
   });
 
@@ -369,24 +369,24 @@ export function SearcherRequestPanel({
     entitlementsQuery.data?.entitlements?.includes('ai.feed_insights.read') ?? false;
 
   const derivedFeedQuery = useQuery({
-    queryKey: ['derivedFeed', gathererGeoKey],
+    queryKey: ['derivedFeed', originGeoKey],
     queryFn: () =>
       getDerivedFeed({
-        geoKey: gathererGeoKey ?? '',
+        geoKey: originGeoKey ?? '',
         windowDays: 7,
         limit: 20,
         offset: 0,
       }),
     enabled:
-      Boolean(gathererGeoKey) && !isOffline && !aiInsightsOptOut && hasProAiInsights,
+      Boolean(originGeoKey) && !isOffline && !aiInsightsOptOut && hasProAiInsights,
     staleTime: 30 * 1000,
   });
 
   const weeklyPlanQuery = useQuery({
-    queryKey: ['weeklyGrowPlan', gathererGeoKey],
-    queryFn: () => getWeeklyGrowPlan(gathererGeoKey ?? '', 7),
+    queryKey: ['weeklyGrowPlan', originGeoKey],
+    queryFn: () => getWeeklyGrowPlan(originGeoKey ?? '', 7),
     enabled:
-      Boolean(gathererGeoKey) && !isOffline && !aiInsightsOptOut && hasProAiInsights,
+      Boolean(originGeoKey) && !isOffline && !aiInsightsOptOut && hasProAiInsights,
     staleTime: 60 * 1000,
   });
 
@@ -706,12 +706,12 @@ export function SearcherRequestPanel({
     }
   };
 
-  if (!gathererGeoKey) {
+  if (!originGeoKey) {
     return (
       <Card className="space-y-3" padding="6">
-        <h3 className="text-lg font-semibold text-neutral-900">Search and request</h3>
+        <h3 className="text-lg font-semibold text-neutral-900">Find food nearby</h3>
         <p className="text-sm text-neutral-700">
-          Add your location in onboarding to start discovering nearby listings.
+          Add your garden location in Settings to start discovering nearby listings.
         </p>
       </Card>
     );
@@ -747,11 +747,11 @@ export function SearcherRequestPanel({
           />
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-neutral-700" htmlFor="searcher-crop-filter">
+            <label className="text-sm font-medium text-neutral-700" htmlFor="find-food-crop-filter">
               Crop filter
             </label>
             <select
-              id="searcher-crop-filter"
+              id="find-food-crop-filter"
               value={selectedCropId}
               onChange={(event) => setSelectedCropId(event.target.value)}
               className="w-full rounded-base border-2 border-neutral-300 bg-white px-3 py-2 text-base text-neutral-800"
@@ -1093,7 +1093,7 @@ export function SearcherRequestPanel({
         successMessage={claimSuccessMessage}
         errorMessage={claimError}
         emptyMessage="No claims tracked in this session yet."
-        getActions={(claim) => getSearcherActions(claim.status)}
+        getActions={(claim) => getClaimActions(claim.status)}
         onTransition={handleClaimTransition}
       />
 
@@ -1127,5 +1127,5 @@ export function SearcherRequestPanel({
   );
 }
 
-export default SearcherRequestPanel;
+export default FindFoodPanel;
 

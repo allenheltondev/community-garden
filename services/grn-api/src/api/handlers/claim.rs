@@ -1,5 +1,5 @@
 use crate::auth::{
-    extract_auth_context_with_fallback, require_participant_user_type, require_user_type, UserType,
+    extract_auth_context_with_fallback, require_grower, require_participant_user_type, UserType,
 };
 use crate::db;
 use crate::models::crop::ErrorResponse;
@@ -101,7 +101,7 @@ pub async fn create_claim(
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context_with_fallback(request).await?;
-    require_user_type(&auth_context, &UserType::Gatherer)?;
+    require_grower(&auth_context)?;
 
     let claimer_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
@@ -791,9 +791,8 @@ mod tests {
     }
 
     #[test]
-    fn require_claim_transition_user_type_accepts_grower_and_gatherer() {
+    fn require_claim_transition_user_type_accepts_grower() {
         assert!(require_claim_transition_user_type(Some(&UserType::Grower)).is_ok());
-        assert!(require_claim_transition_user_type(Some(&UserType::Gatherer)).is_ok());
     }
 
     #[test]

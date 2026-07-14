@@ -1202,17 +1202,17 @@ jobs:
             payload: '{"users":[{"name":"contract-grower-free","role":"grower","tier":"free"},{"name":"contract-grower-pro","role":"grower","tier":"pro"}]}'
             free_user_key: contract-grower-free
             pro_user_key: contract-grower-pro
-            gatherer_user_key: ""
+            neighbor_user_key: ""
           - id: utility
-            payload: '{"users":[{"name":"util-grower-free","role":"grower","tier":"free"},{"name":"util-grower-pro","role":"grower","tier":"pro"},{"name":"util-gatherer","role":"gatherer","tier":"free"}]}'
+            payload: '{"users":[{"name":"util-grower-free","role":"grower","tier":"free"},{"name":"util-grower-pro","role":"grower","tier":"pro"},{"name":"util-grower-two","role":"grower","tier":"free"}]}'
             free_user_key: util-grower-free
             pro_user_key: util-grower-pro
-            gatherer_user_key: util-gatherer
+            neighbor_user_key: util-grower-two
           - id: e2e
-            payload: '{"users":[{"name":"e2e-grower-free","role":"grower","tier":"free"},{"name":"e2e-grower-pro","role":"grower","tier":"pro"},{"name":"e2e-gatherer","role":"gatherer","tier":"free"}]}'
+            payload: '{"users":[{"name":"e2e-grower-free","role":"grower","tier":"free"},{"name":"e2e-grower-pro","role":"grower","tier":"pro"},{"name":"e2e-grower-two","role":"grower","tier":"free"}]}'
             free_user_key: e2e-grower-free
             pro_user_key: e2e-grower-pro
-            gatherer_user_key: e2e-gatherer
+            neighbor_user_key: e2e-grower-two
 
     steps:
       - name: Checkout code
@@ -1233,7 +1233,7 @@ jobs:
           payload: ${{ matrix.suite.payload }}
           free-user-key: ${{ matrix.suite.free_user_key }}
           pro-user-key: ${{ matrix.suite.pro_user_key }}
-          gatherer-user-key: ${{ matrix.suite.gatherer_user_key }}
+          neighbor-user-key: ${{ matrix.suite.neighbor_user_key }}
 
       - name: Setup Postman CLI
         uses: ./.github/actions/setup-postman-cli
@@ -1270,7 +1270,7 @@ jobs:
             --env-var "proAuthToken=${{ steps.ci-auth.outputs.pro-auth-token }}" \
             --env-var "premiumAuthToken=${{ steps.ci-auth.outputs.pro-auth-token }}" \
             --env-var "freeAuthToken=${{ steps.ci-auth.outputs.free-auth-token }}" \
-            --env-var "gathererAuthToken=${{ steps.ci-auth.outputs.gatherer-auth-token }}"
+            --env-var "neighborAuthToken=${{ steps.ci-auth.outputs.neighbor-auth-token }}"
 
       - name: Run E2E Postman suite
         if: matrix.suite.id == 'e2e'
@@ -1278,7 +1278,7 @@ jobs:
           postman collection run "postman/collections/Good Roots Network API - E2E Flows" \
             --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
             --env-var "growerAuthToken=${{ steps.ci-auth.outputs.pro-auth-token }}" \
-            --env-var "gathererAuthToken=${{ steps.ci-auth.outputs.gatherer-auth-token }}"
+            --env-var "neighborAuthToken=${{ steps.ci-auth.outputs.neighbor-auth-token }}"
 
   okra-api-integration:
     name: Okra API Integration (Staging)

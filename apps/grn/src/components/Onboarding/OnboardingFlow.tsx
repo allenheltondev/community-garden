@@ -12,7 +12,7 @@ export interface OnboardingFlowProps {
  * OnboardingFlow Component
  *
  * GRN is individual-growing-first: everyone is a grower, so onboarding is a
- * single grower setup wizard — there is no grower/gatherer choice. Connecting
+ * single grower setup wizard with no participation-mode choice. Connecting
  * with others (sharing surplus, finding food) is opt-in from the Connect hub
  * after setup, not a mode picked up front.
  *

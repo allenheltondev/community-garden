@@ -25,7 +25,6 @@ const completedUser: UserProfile = {
     units: 'imperial',
     locale: 'en-US',
   },
-  gathererProfile: null,
 };
 
 const incompleteUser: UserProfile = {

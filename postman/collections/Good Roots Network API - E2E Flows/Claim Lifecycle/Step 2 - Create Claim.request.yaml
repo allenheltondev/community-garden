@@ -4,7 +4,7 @@ description: |-
   Create a claim against the listing from Step 1.
 
   **Depends on**: `listingId` captured in Step 1
-  **Chaining**: Sets `authToken` to `{{gathererAuthToken}}`, captures `claimId` from the response; asserts initial status is `pending`.
+  **Chaining**: Sets `authToken` to `{{neighborAuthToken}}`, captures `claimId` from the response; asserts initial status is `pending`.
 method: POST
 url: '{{baseUrl}}/claims'
 order: 2000
@@ -25,11 +25,11 @@ scripts:
   - type: beforeRequest
     language: text/javascript
     code: |-
-      const gathererToken = pm.variables.get("gathererAuthToken");
-      if (gathererToken) {
-          pm.collectionVariables.set("authToken", gathererToken);
+      const neighborToken = pm.variables.get("neighborAuthToken");
+      if (neighborToken) {
+          pm.collectionVariables.set("authToken", neighborToken);
       } else {
-          console.error("gathererAuthToken not set; aborting.");
+          console.error("neighborAuthToken not set; aborting.");
           pm.execution.setNextRequest(null);
       }
 

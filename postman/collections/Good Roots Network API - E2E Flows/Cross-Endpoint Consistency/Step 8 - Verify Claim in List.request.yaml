@@ -3,7 +3,7 @@ name: 'Step 8 - Verify Claim in List'
 description: |-
   Verify the claim created in Step 7 appears in GET /claims with matching id and listingId.
 
-  Still running as gatherer (token swapped in Step 7).
+  Still running as neighbor (token swapped in Step 7).
 
   **Depends on**: `consistencyClaimId` and `consistencyListingId` captured in previous steps
   **Validates**: Requirement 12.4 — write-then-read consistency for claims

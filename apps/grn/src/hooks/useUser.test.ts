@@ -34,7 +34,6 @@ describe('useUser', () => {
       units: 'imperial',
       locale: 'en-US',
     },
-    gathererProfile: null,
   };
 
   beforeEach(() => {
@@ -88,38 +87,6 @@ describe('useUser', () => {
     expect(result.current.user?.growerProfile?.homeZone).toBe('8a');
     expect(result.current.user?.growerProfile?.shareRadiusMiles).toBe(5.0);
     expect(result.current.user?.growerProfile?.isOrganization).toBe(false);
-    expect(result.current.user?.gathererProfile).toBeNull();
-  });
-
-  it('should include gathererProfile when user is a gatherer', async () => {
-    const gathererProfile: UserProfile = {
-      ...mockUserProfile,
-      userType: 'gatherer',
-      growerProfile: null,
-      gathererProfile: {
-        address: '456 Oak Ave, Springfield, IL',
-        geoKey: '9q8yy9',
-        lat: 37.7749,
-        lng: -122.4194,
-        searchRadiusMiles: 10.0,
-        organizationAffiliation: 'SF Food Bank',
-        units: 'metric',
-        locale: 'en-US',
-      },
-    };
-
-    vi.mocked(api.getMe).mockResolvedValue(gathererProfile);
-
-    const { result } = renderHook(() => useUser());
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    expect(result.current.user?.gathererProfile).toBeDefined();
-    expect(result.current.user?.gathererProfile?.searchRadiusMiles).toBe(10.0);
-    expect(result.current.user?.gathererProfile?.organizationAffiliation).toBe('SF Food Bank');
-    expect(result.current.user?.growerProfile).toBeNull();
   });
 
   it('should handle incomplete onboarding', async () => {
@@ -128,7 +95,6 @@ describe('useUser', () => {
       userType: null,
       onboardingCompleted: false,
       growerProfile: null,
-      gathererProfile: null,
     };
 
     vi.mocked(api.getMe).mockResolvedValue(incompleteUser);
@@ -142,7 +108,6 @@ describe('useUser', () => {
     expect(result.current.user?.onboardingCompleted).toBe(false);
     expect(result.current.user?.userType).toBeNull();
     expect(result.current.user?.growerProfile).toBeNull();
-    expect(result.current.user?.gathererProfile).toBeNull();
   });
 
   it('should handle API errors', async () => {

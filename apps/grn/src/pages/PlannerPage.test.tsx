@@ -208,8 +208,8 @@ describe('PlannerPage', () => {
     expect(screen.getByText('Dragonfruit cactus')).toBeInTheDocument();
   });
 
-  it('redirects non-growers home', async () => {
-    mockGetMe.mockResolvedValue({ id: 'g1', userType: 'gatherer' } as unknown as UserProfile);
+  it('redirects users without a grower type home', async () => {
+    mockGetMe.mockResolvedValue({ id: 'g1', userType: null } as unknown as UserProfile);
     renderPage();
     await waitFor(() => {
       expect(screen.queryByTestId('pyramid-band-foundation')).not.toBeInTheDocument();

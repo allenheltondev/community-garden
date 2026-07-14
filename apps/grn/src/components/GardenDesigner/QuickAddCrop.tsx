@@ -17,7 +17,7 @@ interface QuickAddCropProps {
    */
   onAdd: (input: QuickAddCropInput) => Promise<void> | void;
   disabled?: boolean;
-  /** Catalog crop IDs local searchers want — float + badge them in the picker. */
+  /** Catalog crop IDs neighbors nearby want — float + badge them in the picker. */
   scarceCropIds?: Set<string>;
   /** Catalog crop IDs already in this garden — badged in the picker. */
   growingCropIds?: Set<string>;

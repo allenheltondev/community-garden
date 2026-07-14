@@ -1,10 +1,10 @@
 $kind: http-request
 name: 'Step 7 - Create Claim'
 description: |-
-  Swap to gatherer token and create a claim against the listing from Step 3.
+  Swap to neighbor token and create a claim against the listing from Step 3.
 
   **Depends on**: `consistencyListingId` captured in Step 3
-  **Chaining**: Sets `authToken` to `{{gathererAuthToken}}`, captures `consistencyClaimId` from the response.
+  **Chaining**: Sets `authToken` to `{{neighborAuthToken}}`, captures `consistencyClaimId` from the response.
 method: POST
 url: '{{baseUrl}}/claims'
 order: 7000
@@ -25,12 +25,12 @@ scripts:
   - type: beforeRequest
     language: text/javascript
     code: |-
-      // Swap authToken to gatherer for claiming
-      const gathererToken = pm.variables.get("gathererAuthToken");
-      if (gathererToken) {
-          pm.collectionVariables.set("authToken", gathererToken);
+      // Swap authToken to neighbor for claiming
+      const neighborToken = pm.variables.get("neighborAuthToken");
+      if (neighborToken) {
+          pm.collectionVariables.set("authToken", neighborToken);
       } else {
-          console.error("gathererAuthToken not set; aborting.");
+          console.error("neighborAuthToken not set; aborting.");
           pm.execution.setNextRequest(null);
       }
 

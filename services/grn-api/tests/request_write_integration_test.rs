@@ -64,15 +64,18 @@ mod request_write_tests {
     }
 
     #[test]
-    fn test_request_write_endpoints_are_gatherer_only_contract() {
+    fn test_request_write_requires_grower_location_contract() {
+        // Requests are grower-to-grower: the requester's geo is sourced from
+        // their grower profile, so a grower without a location cannot manage
+        // requests yet.
         let expected_error = json!({
-            "error": "Forbidden: This feature requires user type Gatherer"
+            "error": "A grower profile location is required before managing requests"
         });
 
         assert!(expected_error["error"]
             .as_str()
             .unwrap()
-            .contains("requires user type Gatherer"));
+            .contains("grower profile location is required"));
     }
 
     #[test]

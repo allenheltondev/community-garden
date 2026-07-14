@@ -2,7 +2,6 @@
 // These tests verify the complete onboarding flow including:
 // - userType selection persistence
 // - grower profile upsert
-// - gatherer profile upsert
 // - onboarding_completed flag management
 // - validation error responses
 // - idempotency via upsert
@@ -20,12 +19,7 @@ mod put_me_tests {
             "userType": "grower"
         });
 
-        let gatherer_request = json!({
-            "userType": "gatherer"
-        });
-
         assert_eq!(grower_request["userType"], "grower");
-        assert_eq!(gatherer_request["userType"], "gatherer");
 
         let expected_grower_response = json!({
             "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -36,7 +30,6 @@ mod put_me_tests {
             "onboardingCompleted": false,
             "createdAt": "2024-01-01T00:00:00Z",
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -92,107 +85,12 @@ mod put_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
         assert_eq!(expected_response["onboardingCompleted"], true);
         assert!(!expected_response["growerProfile"].is_null());
-        assert!(expected_response["gathererProfile"].is_null());
         assert!(expected_response["growerProfile"]["geoKey"].is_string());
-    }
-
-    #[test]
-    fn test_gatherer_profile_upsert() {
-        let gatherer_profile_request = json!({
-            "userType": "gatherer",
-            "gathererProfile": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": 10.0,
-                "organizationAffiliation": "SF Food Bank",
-                "units": "metric",
-                "locale": "en-US"
-            }
-        });
-
-        assert!(gatherer_profile_request.get("gathererProfile").is_some());
-        assert_eq!(gatherer_profile_request["userType"], "gatherer");
-
-        let profile = &gatherer_profile_request["gathererProfile"];
-        assert_eq!(profile["lat"], 37.7749);
-        assert_eq!(profile["lng"], -122.4194);
-        assert_eq!(profile["searchRadiusMiles"], 10.0);
-        assert_eq!(profile["organizationAffiliation"], "SF Food Bank");
-        assert_eq!(profile["units"], "metric");
-        assert_eq!(profile["locale"], "en-US");
-
-        let expected_response = json!({
-            "id": "550e8400-e29b-41d4-a716-446655440001",
-            "email": "gatherer@example.com",
-            "displayName": "Gatherer User",
-            "isVerified": false,
-            "userType": "gatherer",
-            "onboardingCompleted": true,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "growerProfile": null,
-            "gathererProfile": {
-                "geoKey": "9q8yy9m",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": "10.0",
-                "organizationAffiliation": "SF Food Bank",
-                "units": "metric",
-                "locale": "en-US"
-            },
-            "ratingSummary": null
-        });
-
-        assert_eq!(expected_response["onboardingCompleted"], true);
-        assert!(expected_response["growerProfile"].is_null());
-        assert!(!expected_response["gathererProfile"].is_null());
-        assert!(expected_response["gathererProfile"]["geoKey"].is_string());
-    }
-
-    #[test]
-    fn test_gatherer_profile_without_organization() {
-        let gatherer_profile_request = json!({
-            "userType": "gatherer",
-            "gathererProfile": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": 10.0,
-                "units": "metric",
-                "locale": "en-US"
-            }
-        });
-
-        let profile = &gatherer_profile_request["gathererProfile"];
-        assert!(profile.get("organizationAffiliation").is_none());
-
-        let expected_response = json!({
-            "id": "550e8400-e29b-41d4-a716-446655440001",
-            "email": "gatherer@example.com",
-            "displayName": "Gatherer User",
-            "isVerified": false,
-            "userType": "gatherer",
-            "onboardingCompleted": true,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "growerProfile": null,
-            "gathererProfile": {
-                "geoKey": "9q8yy9m",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": "10.0",
-                "organizationAffiliation": null,
-                "units": "metric",
-                "locale": "en-US"
-            },
-            "ratingSummary": null
-        });
-
-        assert_eq!(expected_response["onboardingCompleted"], true);
-        assert!(expected_response["gathererProfile"]["organizationAffiliation"].is_null());
     }
 
     #[test]
@@ -210,7 +108,6 @@ mod put_me_tests {
             "onboardingCompleted": false,
             "createdAt": "2024-01-01T00:00:00Z",
             "growerProfile": null,
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -250,7 +147,6 @@ mod put_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -321,23 +217,6 @@ mod put_me_tests {
     }
 
     #[test]
-    fn test_validation_error_negative_gatherer_radius() {
-        let invalid_request = json!({
-            "userType": "gatherer",
-            "gathererProfile": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": -10.0,
-                "units": "metric",
-                "locale": "en-US"
-            }
-        });
-
-        let profile = &invalid_request["gathererProfile"];
-        assert!(profile["searchRadiusMiles"].as_f64().unwrap() < 0.0);
-    }
-
-    #[test]
     fn test_validation_error_invalid_latitude() {
         let invalid_request = json!({
             "userType": "grower",
@@ -395,66 +274,6 @@ mod put_me_tests {
     }
 
     #[test]
-    fn test_validation_error_both_profiles() {
-        let invalid_request = json!({
-            "userType": "grower",
-            "growerProfile": {
-                "homeZone": "8a",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "shareRadiusMiles": 5.0,
-                "units": "imperial",
-                "locale": "en-US"
-            },
-            "gathererProfile": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": 10.0,
-                "units": "metric",
-                "locale": "en-US"
-            }
-        });
-
-        assert!(invalid_request.get("growerProfile").is_some());
-        assert!(invalid_request.get("gathererProfile").is_some());
-    }
-
-    #[test]
-    fn test_validation_error_profile_mismatch_grower() {
-        let invalid_request = json!({
-            "userType": "gatherer",
-            "growerProfile": {
-                "homeZone": "8a",
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "shareRadiusMiles": 5.0,
-                "units": "imperial",
-                "locale": "en-US"
-            }
-        });
-
-        assert_eq!(invalid_request["userType"], "gatherer");
-        assert!(invalid_request.get("growerProfile").is_some());
-    }
-
-    #[test]
-    fn test_validation_error_profile_mismatch_gatherer() {
-        let invalid_request = json!({
-            "userType": "grower",
-            "gathererProfile": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "searchRadiusMiles": 10.0,
-                "units": "metric",
-                "locale": "en-US"
-            }
-        });
-
-        assert_eq!(invalid_request["userType"], "grower");
-        assert!(invalid_request.get("gathererProfile").is_some());
-    }
-
-    #[test]
     fn test_idempotency_repeat_request() {
         let _request = json!({
             "userType": "grower",
@@ -485,7 +304,6 @@ mod put_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -538,7 +356,6 @@ mod put_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 
@@ -581,7 +398,6 @@ mod put_me_tests {
                 "units": "imperial",
                 "locale": "en-US"
             },
-            "gathererProfile": null,
             "ratingSummary": null
         });
 

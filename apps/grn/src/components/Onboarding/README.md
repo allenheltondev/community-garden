@@ -35,7 +35,6 @@ if (isAuthenticated) {
 - [ ] Task 4.2: OnboardingFlow orchestrator component
 - [ ] Task 4.3: UserTypeSelection component
 - [ ] Task 4.4: GrowerWizard component
-- [ ] Task 4.5: GathererWizard component
 
 ### Requirements Validated
 

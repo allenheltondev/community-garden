@@ -14,7 +14,7 @@ MeProfileResponse:
       nullable: true
     userType:
       type: string
-      enum: [grower, gatherer]
+      enum: [grower]
       nullable: true
     onboardingCompleted:
       type: boolean
@@ -28,9 +28,6 @@ MeProfileResponse:
     growerProfile:
       $ref: '#/GrowerProfile'
       nullable: true
-    gathererProfile:
-      $ref: '#/GathererProfile'
-      nullable: true
     ratingSummary:
       $ref: '#/UserRatingSummary'
       nullable: true
@@ -43,13 +40,10 @@ PutMeRequest:
       nullable: true
     userType:
       type: string
-      enum: [grower, gatherer]
+      enum: [grower]
       nullable: true
     growerProfile:
       $ref: '#/GrowerProfileInput'
-      nullable: true
-    gathererProfile:
-      $ref: '#/GathererProfileInput'
       nullable: true
 
 EntitlementsResponse:
@@ -160,50 +154,6 @@ GrowerProfileInput:
       type: boolean
       default: false
     organizationName:
-      type: string
-      nullable: true
-    units:
-      type: string
-      enum: [imperial, metric]
-    locale:
-      type: string
-
-GathererProfile:
-  type: object
-  properties:
-    address:
-      type: string
-    geoKey:
-      type: string
-    lat:
-      type: number
-      format: double
-    lng:
-      type: number
-      format: double
-    searchRadiusMiles:
-      type: string
-    organizationAffiliation:
-      type: string
-      nullable: true
-    units:
-      type: string
-      enum: [imperial, metric]
-    locale:
-      type: string
-      nullable: true
-
-GathererProfileInput:
-  type: object
-  required: [address, searchRadiusMiles, units, locale]
-  properties:
-    address:
-      type: string
-    searchRadiusMiles:
-      type: number
-      format: double
-      exclusiveMinimum: 0
-    organizationAffiliation:
       type: string
       nullable: true
     units:

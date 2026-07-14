@@ -1,7 +1,7 @@
 $kind: http-request
 name: Create Claim
 description: |-
-  Create a gatherer claim on a listing.
+  Create a neighbor claim on a listing.
   
   This reserves the listing for pickup. The claim starts in `pending` state.
 method: POST

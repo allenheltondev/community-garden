@@ -1,4 +1,4 @@
-use crate::auth::{extract_auth_context, require_user_type, UserType};
+use crate::auth::{extract_auth_context, require_grower};
 use crate::db;
 use crate::models::crop::ErrorResponse;
 use aws_config::BehaviorVersion;
@@ -37,7 +37,7 @@ struct NormalizedRequestInput {
 }
 
 #[derive(Debug)]
-struct GathererGeoContext {
+struct RequesterGeoContext {
     geo_key: String,
     lat: f64,
     lng: f64,
@@ -66,7 +66,7 @@ pub async fn create_request(
     correlation_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context(request)?;
-    require_user_type(&auth_context, &UserType::Gatherer)?;
+    require_grower(&auth_context)?;
 
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
@@ -84,7 +84,7 @@ pub async fn create_request(
 
     let client = db::connect().await?;
     validate_catalog_links(&client, normalized.crop_id, normalized.variety_id).await?;
-    let geo_context = load_gatherer_geo_context(&client, user_id).await?;
+    let geo_context = load_requester_geo_context(&client, user_id).await?;
 
     let maybe_inserted_row = client
         .query_opt(
@@ -151,7 +151,7 @@ pub async fn create_request(
         user_id = %user_id,
         request_id = %row.get::<_, Uuid>("id"),
         idempotency_replay = !is_new_row,
-        "Created gatherer request"
+        "Created request"
     );
 
     json_response(201, &row_to_write_response(&row))
@@ -163,7 +163,7 @@ pub async fn update_request(
     request_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context(request)?;
-    require_user_type(&auth_context, &UserType::Gatherer)?;
+    require_grower(&auth_context)?;
 
     let user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
@@ -174,7 +174,7 @@ pub async fn update_request(
 
     let client = db::connect().await?;
     validate_catalog_links(&client, normalized.crop_id, normalized.variety_id).await?;
-    let geo_context = load_gatherer_geo_context(&client, user_id).await?;
+    let geo_context = load_requester_geo_context(&client, user_id).await?;
 
     let maybe_row = client
         .query_opt(
@@ -223,7 +223,7 @@ pub async fn update_request(
             correlation_id = correlation_id,
             user_id = %user_id,
             request_id = %id,
-            "Updated gatherer request"
+            "Updated request"
         );
 
         return json_response(200, &row_to_write_response(&row));
@@ -309,15 +309,15 @@ fn normalize_optional_text(value: Option<&str>) -> Option<String> {
     })
 }
 
-async fn load_gatherer_geo_context(
+async fn load_requester_geo_context(
     client: &Client,
     user_id: Uuid,
-) -> Result<GathererGeoContext, lambda_http::Error> {
+) -> Result<RequesterGeoContext, lambda_http::Error> {
     let row = client
         .query_opt(
             "
             select geo_key, lat, lng
-            from gatherer_profiles
+            from grower_profiles
             where user_id = $1
             ",
             &[&user_id],
@@ -325,18 +325,18 @@ async fn load_gatherer_geo_context(
         .await
         .map_err(|error| db_error(&error))?;
 
-    if let Some(gatherer) = row {
-        let geo_key = gatherer.get::<_, Option<String>>("geo_key");
-        let lat = gatherer.get::<_, Option<f64>>("lat");
-        let lng = gatherer.get::<_, Option<f64>>("lng");
+    if let Some(grower) = row {
+        let geo_key = grower.get::<_, Option<String>>("geo_key");
+        let lat = grower.get::<_, Option<f64>>("lat");
+        let lng = grower.get::<_, Option<f64>>("lng");
 
         if let (Some(geo_key), Some(lat), Some(lng)) = (geo_key, lat, lng) {
-            return Ok(GathererGeoContext { geo_key, lat, lng });
+            return Ok(RequesterGeoContext { geo_key, lat, lng });
         }
     }
 
     Err(lambda_http::Error::from(
-        "Gatherer profile location is required before managing requests".to_string(),
+        "A grower profile location is required before managing requests".to_string(),
     ))
 }
 

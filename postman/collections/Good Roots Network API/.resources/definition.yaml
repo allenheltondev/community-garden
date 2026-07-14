@@ -4,7 +4,7 @@ description: |-
   REST API for the Community Garden platform.
   
   This Postman collection is aligned to the current backend handlers in this repository,
-  including authenticated profile management, grower crop CRUD, listings, gatherer requests,
+  including authenticated profile management, grower crop CRUD, listings, neighbor requests,
   claims, deterministic reminders, premium billing, analytics, agent tasks, and derived feeds.
   
   ## Authentication
@@ -12,7 +12,7 @@ description: |-
   
   ## User Types
   - **Grower**: Users who grow food and share surplus with the community
-  - **Gatherer**: Users who look for and collect available food
+  - **Neighbor**: Users who look for and collect available food
   
   ## Notes
   - Several flows depend on captured IDs from earlier requests.
@@ -54,7 +54,7 @@ variables:
     description: Captured listing ID for follow-up listing and claim requests
   - key: requestId
     value: ''
-    description: Captured gatherer request ID for follow-up request examples
+    description: Captured neighbor request ID for follow-up request examples
   - key: claimId
     value: ''
     description: Captured claim ID for claim transition examples

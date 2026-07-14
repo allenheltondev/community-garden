@@ -441,7 +441,6 @@ async fn get_user_type_from_db(database_url: &str, user_id: &Uuid) -> Option<Str
 fn normalize_user_type(value: &str) -> Option<String> {
     match value.to_lowercase().as_str() {
         "grower" => Some("grower".to_string()),
-        "gatherer" => Some("gatherer".to_string()),
         _ => None,
     }
 }
@@ -673,16 +672,14 @@ mod tests {
     fn normalize_user_type_accepts_supported_values_case_insensitive() {
         assert_eq!(normalize_user_type("grower"), Some("grower".to_string()));
         assert_eq!(normalize_user_type("Grower"), Some("grower".to_string()));
-        assert_eq!(
-            normalize_user_type("GATHERER"),
-            Some("gatherer".to_string())
-        );
+        assert_eq!(normalize_user_type("GROWER"), Some("grower".to_string()));
     }
 
     #[test]
     fn normalize_user_type_rejects_unsupported_values() {
         assert_eq!(normalize_user_type(""), None);
         assert_eq!(normalize_user_type("free"), None);
+        assert_eq!(normalize_user_type("gatherer"), None);
     }
 
     /// Regression guard: requests through the shared custom domain

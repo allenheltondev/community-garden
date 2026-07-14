@@ -97,7 +97,7 @@ When working on an issue:
 
 - Add tests for behavior changes, not just happy paths.
 - Prioritize tests for auth, validation, idempotency, and state transitions.
-- For frontend, cover critical grower/searcher paths with focused tests.
+- For frontend, cover critical grower paths with focused tests.
 
 ### API testing is mandatory for backward compatibility
 

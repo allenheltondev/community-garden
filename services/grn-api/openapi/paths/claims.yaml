@@ -46,7 +46,7 @@
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
   post:
-    tags: [Claims, Gatherer Only]
+    tags: [Claims]
     summary: Create a claim on a listing
     operationId: createClaim
     requestBody:

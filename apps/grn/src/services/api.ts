@@ -1,7 +1,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { getApiEndpoint } from '../config/amplify';
-import type { UserProfile, UserType, GrowerProfile, GathererProfile } from '../types/user';
+import type { UserProfile, UserType, GrowerProfile } from '../types/user';
 import type {
   AnnotationShape,
   BedPolygonPoint,
@@ -166,13 +166,6 @@ export interface UpdateUserProfileRequest {
     isOrganization?: boolean;
     organizationName?: string;
     units: GrowerProfile['units'];
-    locale: string;
-  };
-  gathererProfile?: {
-    address: string;
-    searchRadiusMiles: number;
-    organizationAffiliation?: string;
-    units: GathererProfile['units'];
     locale: string;
   };
 }

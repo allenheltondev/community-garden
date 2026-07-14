@@ -4,7 +4,7 @@ info:
   version: 2.0.0
   description: |
     REST API for the community food coordination platform. Covers user profiles,
-    crop libraries, surplus listings, gatherer requests, claims, reminders,
+    crop libraries, surplus listings, food requests, claims, reminders,
     AI-assisted guidance, pro analytics, and billing.
 servers:
   - url: https://api.example.com
@@ -26,9 +26,9 @@ tags:
   - name: Listings
     description: Surplus listing creation, discovery, and management
   - name: Requests
-    description: Gatherer food requests
+    description: Food requests from one grower to nearby growers
   - name: Claims
-    description: Claim lifecycle between gatherers and growers
+    description: Claim lifecycle between growers
   - name: Reminders
     description: Deterministic reminder scheduling
   - name: Feed
@@ -45,8 +45,6 @@ tags:
     description: Requires pro tier entitlement; free-tier callers receive 403 feature_locked
   - name: Grower Only
     description: Requires user_type grower; other types receive 403
-  - name: Gatherer Only
-    description: Requires user_type gatherer; other types receive 403
   - name: Public
     description: No authentication required
 paths:

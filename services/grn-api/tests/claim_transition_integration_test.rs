@@ -112,14 +112,16 @@ mod claim_transition_tests {
     }
 
     #[test]
-    fn test_claim_create_endpoint_gatherer_only_contract() {
+    fn test_claim_create_endpoint_requires_onboarded_grower_contract() {
+        // Claims are open to any onboarded grower; users without a userType
+        // (incomplete onboarding) are blocked.
         let expected_error = json!({
-            "error": "Forbidden: This feature requires user type Gatherer"
+            "error": "Forbidden: User type not set. Please complete onboarding."
         });
 
         assert!(expected_error["error"]
             .as_str()
             .unwrap()
-            .contains("requires user type Gatherer"));
+            .contains("User type not set"));
     }
 }

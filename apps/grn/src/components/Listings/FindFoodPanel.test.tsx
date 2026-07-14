@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SearcherRequestPanel } from './SearcherRequestPanel';
+import { FindFoodPanel } from './FindFoodPanel';
 import {
   createCheckoutSession,
   createRequest,
@@ -60,9 +60,9 @@ function renderPanel() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <SearcherRequestPanel
-        viewerUserId="gatherer-1"
-        gathererGeoKey="9v6kn"
+      <FindFoodPanel
+        viewerUserId="grower-2"
+        originGeoKey="9v6kn"
         defaultLat={30.2672}
         defaultLng={-97.7431}
         defaultRadiusMiles={10}
@@ -71,7 +71,7 @@ function renderPanel() {
   );
 }
 
-describe('SearcherRequestPanel', () => {
+describe('FindFoodPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
@@ -212,7 +212,7 @@ describe('SearcherRequestPanel', () => {
 
     mockCreateRequest.mockResolvedValue({
       id: 'request-1',
-      userId: 'gatherer-1',
+      userId: 'grower-2',
       cropId: 'crop-1',
       varietyId: null,
       unit: 'lb',
@@ -228,7 +228,7 @@ describe('SearcherRequestPanel', () => {
 
     mockUpdateRequest.mockResolvedValue({
       id: 'request-1',
-      userId: 'gatherer-1',
+      userId: 'grower-2',
       cropId: 'crop-1',
       varietyId: null,
       unit: 'lb',
@@ -246,7 +246,7 @@ describe('SearcherRequestPanel', () => {
       id: 'claim-1',
       listingId: 'listing-1',
       requestId: null,
-      claimerId: 'gatherer-1',
+      claimerId: 'grower-2',
       listingOwnerId: 'grower-1',
       quantityClaimed: '1',
       status: 'pending',
@@ -261,7 +261,7 @@ describe('SearcherRequestPanel', () => {
       id: 'claim-1',
       listingId: 'listing-1',
       requestId: null,
-      claimerId: 'gatherer-1',
+      claimerId: 'grower-2',
       listingOwnerId: 'grower-1',
       quantityClaimed: '1',
       status: 'cancelled',
@@ -273,7 +273,7 @@ describe('SearcherRequestPanel', () => {
     });
   });
 
-  it('lets a searcher discover a listing and submit a request in one session', async () => {
+  it('lets a grower discover a listing and submit a request in one session', async () => {
     const user = userEvent.setup();
 
     renderPanel();
@@ -431,7 +431,7 @@ describe('SearcherRequestPanel', () => {
     mockCreateRequest
       .mockResolvedValueOnce({
         id: 'request-1',
-        userId: 'gatherer-1',
+        userId: 'grower-2',
         cropId: 'crop-1',
         varietyId: null,
         unit: 'lb',
@@ -446,7 +446,7 @@ describe('SearcherRequestPanel', () => {
       })
       .mockResolvedValueOnce({
         id: 'request-2',
-        userId: 'gatherer-1',
+        userId: 'grower-2',
         cropId: 'crop-1',
         varietyId: null,
         unit: 'lb',

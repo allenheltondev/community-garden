@@ -6,7 +6,7 @@ description: |-
   Status values:
   - active: Available for claims
   - pending: Waiting on a follow-up action
-  - claimed: Reserved by a gatherer
+  - claimed: Reserved by a neighbor
   - expired: No longer available
   - completed: Successfully shared
 method: POST

@@ -425,7 +425,7 @@ export function CropForm({
                 <span>
                   <strong>Share surplus with neighbors</strong>
                   <span>
-                    When you have extra, you can list it for nearby gatherers without retyping crop info.
+                    When you have extra, you can list it for nearby neighbors without retyping crop info.
                   </span>
                 </span>
               </label>

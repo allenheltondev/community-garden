@@ -36,7 +36,7 @@ type NavSection = {
 };
 
 // Individual growing is the primary experience: everyone sees the same
-// "Your garden" tools, no grower/gatherer branching. "Connect" is a single
+// "Your garden" tools, no participation-mode branching. "Connect" is a single
 // optional door to the social surfaces (share surplus, find food, community
 // insights, share garden) that used to be scattered across the menu.
 const gardenNavItems: NavItem[] = [

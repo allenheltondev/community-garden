@@ -5,8 +5,8 @@ use crate::location;
 use crate::middleware::entitlements;
 use crate::models::crop::ErrorResponse;
 use crate::models::profile::{
-    GathererProfileInput, GrowerProfile, GrowerProfileInput, MeProfileResponse, PublicUserResponse,
-    PutMeRequest, SeasonalTimelineEntry, SubscriptionMetadata, UserRatingSummary, UserType,
+    GrowerProfile, GrowerProfileInput, MeProfileResponse, PublicUserResponse, PutMeRequest,
+    SeasonalTimelineEntry, SubscriptionMetadata, UserRatingSummary, UserType,
 };
 use crate::tips_framework::{
     recommend_curated_tips, season_from_month, ExperienceLevel, ExperienceSignals,
@@ -117,7 +117,6 @@ pub async fn upsert_current_user(
                 &display_name,
                 &payload.user_type.as_ref().map(|t| match t {
                     UserType::Grower => "grower",
-                    UserType::Gatherer => "gatherer",
                 }),
                 &should_complete_onboarding,
             ],
@@ -127,10 +126,6 @@ pub async fn upsert_current_user(
 
     if let Some(grower_profile) = payload.grower_profile {
         upsert_grower_profile(&client, user_id, grower_profile, correlation_id).await?;
-    }
-
-    if let Some(gatherer_profile) = payload.gatherer_profile {
-        upsert_gatherer_profile(&client, user_id, gatherer_profile, correlation_id).await?;
     }
 
     let user_id_text = user_id.to_string();
@@ -232,52 +227,6 @@ async fn upsert_grower_profile(
                 &share_radius_km,
                 &profile.is_organization,
                 &organization_name,
-                &profile.units,
-                &profile.locale,
-            ],
-        )
-        .await
-        .map_err(|error| db_error(&error))?;
-
-    Ok(())
-}
-
-async fn upsert_gatherer_profile(
-    client: &tokio_postgres::Client,
-    user_id: Uuid,
-    profile: GathererProfileInput,
-    correlation_id: &str,
-) -> Result<(), lambda_http::Error> {
-    let address = location::normalize_address(&profile.address);
-    let geocoded = location::geocode_address(&address, correlation_id).await?;
-    let search_radius_km = miles_to_km(profile.search_radius_miles);
-
-    client
-        .execute(
-            "
-            insert into gatherer_profiles
-                (user_id, address, geo_key, lat, lng, search_radius_km, organization_affiliation, units, locale)
-            values
-                ($1, $2, $3, $4, $5, $6, $7, coalesce($8::text::units_system, 'imperial'::units_system), $9)
-            on conflict (user_id) do update
-            set address = excluded.address,
-                geo_key = excluded.geo_key,
-                lat = excluded.lat,
-                lng = excluded.lng,
-                search_radius_km = excluded.search_radius_km,
-                organization_affiliation = excluded.organization_affiliation,
-                units = excluded.units,
-                locale = excluded.locale,
-                updated_at = now()
-            ",
-            &[
-                &user_id,
-                &address,
-                &geocoded.geo_key,
-                &geocoded.lat,
-                &geocoded.lng,
-                &search_radius_km,
-                &profile.organization_affiliation,
                 &profile.units,
                 &profile.locale,
             ],
@@ -409,31 +358,6 @@ async fn ensure_user_row(
 }
 
 fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Error> {
-    if payload.grower_profile.is_some() && payload.gatherer_profile.is_some() {
-        return Err(lambda_http::Error::from(
-            "Cannot provide both growerProfile and gathererProfile in the same request".to_string(),
-        ));
-    }
-
-    if let Some(user_type) = &payload.user_type {
-        match user_type {
-            UserType::Grower => {
-                if payload.gatherer_profile.is_some() {
-                    return Err(lambda_http::Error::from(
-                        "Cannot provide gathererProfile when userType is 'grower'".to_string(),
-                    ));
-                }
-            }
-            UserType::Gatherer => {
-                if payload.grower_profile.is_some() {
-                    return Err(lambda_http::Error::from(
-                        "Cannot provide growerProfile when userType is 'gatherer'".to_string(),
-                    ));
-                }
-            }
-        }
-    }
-
     if let Some(grower) = &payload.grower_profile {
         if grower.share_radius_miles <= 0.0 {
             return Err(lambda_http::Error::from(
@@ -471,44 +395,17 @@ fn validate_put_me_payload(payload: &PutMeRequest) -> Result<(), lambda_http::Er
         }
     }
 
-    if let Some(gatherer) = &payload.gatherer_profile {
-        if gatherer.search_radius_miles <= 0.0 {
-            return Err(lambda_http::Error::from(
-                "searchRadiusMiles must be greater than 0".to_string(),
-            ));
-        }
-
-        if gatherer.units != "imperial" && gatherer.units != "metric" {
-            return Err(lambda_http::Error::from(
-                "units must be one of: imperial, metric".to_string(),
-            ));
-        }
-
-        if gatherer.address.trim().is_empty() {
-            return Err(lambda_http::Error::from("address is required".to_string()));
-        }
-    }
-
     Ok(())
 }
 
 fn should_mark_onboarding_complete(payload: &PutMeRequest) -> bool {
-    if let Some(user_type) = &payload.user_type {
-        match user_type {
-            UserType::Grower => {
-                if let Some(grower) = &payload.grower_profile {
-                    return !grower.home_zone.trim().is_empty()
-                        && !grower.address.trim().is_empty()
-                        && grower.share_radius_miles > 0.0;
-                }
-            }
-            UserType::Gatherer => {
-                if let Some(gatherer) = &payload.gatherer_profile {
-                    return !gatherer.address.trim().is_empty()
-                        && gatherer.search_radius_miles > 0.0;
-                }
-            }
-        }
+    if !matches!(payload.user_type, Some(UserType::Grower)) {
+        return false;
+    }
+    if let Some(grower) = &payload.grower_profile {
+        return !grower.home_zone.trim().is_empty()
+            && !grower.address.trim().is_empty()
+            && grower.share_radius_miles > 0.0;
     }
     false
 }
@@ -523,7 +420,6 @@ async fn to_me_response(
         .get::<_, Option<String>>("user_type")
         .and_then(|s| match s.as_str() {
             "grower" => Some(crate::models::profile::UserType::Grower),
-            "gatherer" => Some(crate::models::profile::UserType::Gatherer),
             _ => None,
         });
 
@@ -614,7 +510,6 @@ async fn to_me_response(
         experience_signals,
         curated_tips,
         grower_profile,
-        gatherer_profile: load_gatherer_profile(client, user_id).await?,
         rating_summary: load_rating_summary(client, user_id).await?,
     })
 }
@@ -646,30 +541,6 @@ async fn load_grower_profile(
         organization_name: grower.get("organization_name"),
         units: grower.get("units"),
         locale: grower.get("locale"),
-    }))
-}
-
-async fn load_gatherer_profile(
-    client: &tokio_postgres::Client,
-    user_id: Uuid,
-) -> Result<Option<crate::models::profile::GathererProfile>, lambda_http::Error> {
-    let row = client
-        .query_opt(
-            "select coalesce(address, '') as address, geo_key, lat, lng, search_radius_km::text as search_radius_km, organization_affiliation, units::text as units, locale from gatherer_profiles where user_id = $1",
-            &[&user_id],
-        )
-        .await
-        .map_err(|error| db_error(&error))?;
-
-    Ok(row.map(|gatherer| crate::models::profile::GathererProfile {
-        address: gatherer.get("address"),
-        geo_key: gatherer.get("geo_key"),
-        lat: location::round_for_response(gatherer.get("lat")),
-        lng: location::round_for_response(gatherer.get("lng")),
-        search_radius_miles: km_text_to_miles_text(&gatherer.get::<_, String>("search_radius_km")),
-        organization_affiliation: gatherer.get("organization_affiliation"),
-        units: gatherer.get("units"),
-        locale: gatherer.get("locale"),
     }))
 }
 
@@ -803,38 +674,7 @@ fn json_response<T: Serialize>(
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::models::profile::{GathererProfileInput, GrowerProfileInput};
-
-    #[test]
-    fn test_validate_both_profiles_rejected() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: Some(GrowerProfileInput {
-                home_zone: "8a".to_string(),
-                address: "123 Main St".to_string(),
-                share_radius_miles: 5.0,
-                is_organization: false,
-                organization_name: None,
-                units: "imperial".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: Some(GathererProfileInput {
-                address: "456 Oak Ave".to_string(),
-                search_radius_miles: 10.0,
-                organization_affiliation: None,
-                units: "metric".to_string(),
-                locale: "en-US".to_string(),
-            }),
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Cannot provide both"));
-    }
+    use crate::models::profile::GrowerProfileInput;
 
     /// Regression guard for the onboarding 404: the lazy-provision SQL run on
     /// GET /me must reactivate a soft-deleted/hidden row so the caller always
@@ -887,29 +727,6 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_profile_mismatch_grower() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Grower),
-            grower_profile: None,
-            gatherer_profile: Some(GathererProfileInput {
-                address: "456 Oak Ave".to_string(),
-                search_radius_miles: 10.0,
-                organization_affiliation: None,
-                units: "metric".to_string(),
-                locale: "en-US".to_string(),
-            }),
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Cannot provide gathererProfile when userType is 'grower'"));
-    }
-
-    #[test]
     fn test_validate_grower_missing_address() {
         let payload = PutMeRequest {
             display_name: Some("Test User".to_string()),
@@ -921,30 +738,6 @@ mod tests {
                 is_organization: false,
                 organization_name: None,
                 units: "imperial".to_string(),
-                locale: "en-US".to_string(),
-            }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("address is required"));
-    }
-
-    #[test]
-    fn test_validate_gatherer_missing_address() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Gatherer),
-            grower_profile: None,
-            gatherer_profile: Some(GathererProfileInput {
-                address: String::new(),
-                search_radius_miles: 10.0,
-                organization_affiliation: None,
-                units: "metric".to_string(),
                 locale: "en-US".to_string(),
             }),
         };
@@ -971,26 +764,6 @@ mod tests {
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
-            gatherer_profile: None,
-        };
-
-        let result = validate_put_me_payload(&payload);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_valid_gatherer_profile() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Gatherer),
-            grower_profile: None,
-            gatherer_profile: Some(GathererProfileInput {
-                address: "456 Oak Ave".to_string(),
-                search_radius_miles: 10.0,
-                organization_affiliation: Some("SF Food Bank".to_string()),
-                units: "metric".to_string(),
-                locale: "en-US".to_string(),
-            }),
         };
 
         let result = validate_put_me_payload(&payload);
@@ -1011,7 +784,6 @@ mod tests {
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
-            gatherer_profile: None,
         };
 
         assert!(should_mark_onboarding_complete(&payload));
@@ -1031,7 +803,6 @@ mod tests {
                 units: "imperial".to_string(),
                 locale: "en-US".to_string(),
             }),
-            gatherer_profile: None,
         };
 
         let result = validate_put_me_payload(&payload);
@@ -1040,24 +811,6 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("organizationName is required"));
-    }
-
-    #[test]
-    fn test_should_mark_onboarding_complete_gatherer() {
-        let payload = PutMeRequest {
-            display_name: Some("Test User".to_string()),
-            user_type: Some(UserType::Gatherer),
-            grower_profile: None,
-            gatherer_profile: Some(GathererProfileInput {
-                address: "456 Oak Ave".to_string(),
-                search_radius_miles: 10.0,
-                organization_affiliation: None,
-                units: "metric".to_string(),
-                locale: "en-US".to_string(),
-            }),
-        };
-
-        assert!(should_mark_onboarding_complete(&payload));
     }
 
     /// Validates: Requirements 3.2

@@ -22,7 +22,7 @@ fileMatchPattern: "{apps/web/**,frontend/**,**/*.{ts,tsx,jsx,vue,svelte}}"
 
 * Lightweight component tests
 * A small number of end-to-end flows for critical user journeys
-* Focus on grower and searcher core workflows
+* Focus on grower core workflows
 
 ## Authentication
 

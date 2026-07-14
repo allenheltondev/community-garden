@@ -9,7 +9,7 @@ url: '{{baseUrl}}/claims'
 order: 4000
 headers:
   - key: Authorization
-    value: 'Bearer {{gathererAuthToken}}'
+    value: 'Bearer {{neighborAuthToken}}'
   - key: Content-Type
     value: application/json
 body:

@@ -24,7 +24,6 @@ const baseUser: UserProfile = {
   onboardingCompleted: false,
   subscription: { tier: 'free' },
   growerProfile: null,
-  gathererProfile: null,
 };
 
 function LocationDisplay() {
@@ -46,7 +45,7 @@ describe('OnboardingFlow', () => {
     });
   });
 
-  it('goes straight into the grower setup wizard — no grower/gatherer choice', () => {
+  it('goes straight into the grower setup wizard — grower-only', () => {
     render(
       <MemoryRouter>
         <OnboardingFlow user={baseUser} refreshUser={vi.fn()} />
@@ -70,18 +69,16 @@ describe('OnboardingFlow', () => {
     expect(screen.queryByRole('button', { name: /^Back$/i })).not.toBeInTheDocument();
   });
 
-  it('starts in the wizard even for a legacy gatherer resuming onboarding', () => {
-    const resumingGatherer: UserProfile = { ...baseUser, userType: 'gatherer' };
+  it('starts in the grower wizard for a user resuming onboarding', () => {
+    const resuming: UserProfile = { ...baseUser, userType: 'grower' };
 
     render(
       <MemoryRouter>
-        <OnboardingFlow user={resumingGatherer} refreshUser={vi.fn()} />
+        <OnboardingFlow user={resuming} refreshUser={vi.fn()} />
         <LocationDisplay />
       </MemoryRouter>
     );
 
-    // Everyone now onboards as a grower, so a resuming gatherer gets the
-    // grower wizard (and completing it will set userType to grower).
     expect(screen.getByText(/Where are you growing/i)).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/');
   });
