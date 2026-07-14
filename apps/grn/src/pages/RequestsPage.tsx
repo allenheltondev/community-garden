@@ -5,6 +5,10 @@ import { getMe } from '../services/api';
 import { SearcherRequestPanel } from '../components/Listings/SearcherRequestPanel';
 import { PlantLoader } from '../components/branding/PlantLoader';
 
+// Default search radius (miles) for a grower who is discovering food without a
+// gatherer profile of their own.
+const DEFAULT_SEARCH_RADIUS_MILES = 10;
+
 export function RequestsPage() {
   const { data: profile, isLoading } = useQuery({
     queryKey: ['userProfile'],
@@ -16,7 +20,7 @@ export function RequestsPage() {
   if (isLoading) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Request flow" title="Requests" />
+        <SectionHeading eyebrow="Connect" title="Find food nearby" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading…</p>
@@ -25,23 +29,32 @@ export function RequestsPage() {
     );
   }
 
-  if (!profile || profile.userType !== 'gatherer') {
+  if (!profile) {
     return <Navigate to="/" replace />;
   }
+
+  // Everyone can discover and request food. Gatherers use their search
+  // profile; growers fall back to their garden's location so the map still
+  // centers somewhere sensible.
+  const geoKey = profile.gathererProfile?.geoKey ?? profile.growerProfile?.geoKey;
+  const defaultLat = profile.gathererProfile?.lat ?? profile.growerProfile?.lat;
+  const defaultLng = profile.gathererProfile?.lng ?? profile.growerProfile?.lng;
+  const defaultRadiusMiles =
+    profile.gathererProfile?.searchRadiusMiles ?? DEFAULT_SEARCH_RADIUS_MILES;
 
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Request flow"
-        title="Requests"
-        body="Search nearby growers and coordinate pickup details."
+        eyebrow="Connect"
+        title="Find food nearby"
+        body="Search growers near you and coordinate pickup details."
       />
       <SearcherRequestPanel
         viewerUserId={profile.id}
-        gathererGeoKey={profile.gathererProfile?.geoKey}
-        defaultLat={profile.gathererProfile?.lat}
-        defaultLng={profile.gathererProfile?.lng}
-        defaultRadiusMiles={profile.gathererProfile?.searchRadiusMiles}
+        gathererGeoKey={geoKey}
+        defaultLat={defaultLat}
+        defaultLng={defaultLng}
+        defaultRadiusMiles={defaultRadiusMiles}
       />
     </section>
   );

@@ -26,6 +26,9 @@ const GardenDesignerPage = lazy(() =>
 const ListingsPage = lazy(() =>
   import('../pages/ListingsPage').then((m) => ({ default: m.ListingsPage }))
 );
+const ConnectPage = lazy(() =>
+  import('../pages/ConnectPage').then((m) => ({ default: m.ConnectPage }))
+);
 const RequestsPage = lazy(() =>
   import('../pages/RequestsPage').then((m) => ({ default: m.RequestsPage }))
 );
@@ -70,6 +73,7 @@ export function AuthenticatedRoot() {
               <Route path="/recommendations" element={<RecommendationsPage />} />
               <Route path="/garden" element={<GardenDesignerPage />} />
               <Route path="/listings" element={<ListingsPage />} />
+              <Route path="/connect" element={<ConnectPage />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
