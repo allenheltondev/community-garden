@@ -1,6 +1,22 @@
 import apiFetch from './api';
 import type { Claim, CreateClaimPayload, TransitionClaimPayload } from '../types/claim';
 
+export interface ListClaimsQuery {
+  listingId?: string;
+  requestId?: string;
+  status?: Claim['status'];
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListClaimsResponse {
+  items: Claim[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
 interface RawClaimResponse {
   id: string;
   listingId?: string;
@@ -39,6 +55,38 @@ function mapClaim(raw: RawClaimResponse): Claim {
     confirmedAt: raw.confirmedAt ?? raw.confirmed_at ?? null,
     completedAt: raw.completedAt ?? raw.completed_at ?? null,
     cancelledAt: raw.cancelledAt ?? raw.cancelled_at ?? null,
+  };
+}
+
+interface RawListClaimsResponse {
+  items: RawClaimResponse[];
+  limit: number;
+  offset: number;
+  hasMore?: boolean;
+  has_more?: boolean;
+  nextOffset?: number | null;
+  next_offset?: number | null;
+}
+
+export async function listClaims({
+  listingId,
+  requestId,
+  status,
+  limit = 20,
+  offset = 0,
+}: ListClaimsQuery = {}): Promise<ListClaimsResponse> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (listingId) params.set('listingId', listingId);
+  if (requestId) params.set('requestId', requestId);
+  if (status) params.set('status', status);
+
+  const response = await apiFetch<RawListClaimsResponse>(`/claims?${params.toString()}`);
+  return {
+    items: response.items.map(mapClaim),
+    limit: response.limit,
+    offset: response.offset,
+    hasMore: response.hasMore ?? response.has_more ?? false,
+    nextOffset: response.nextOffset ?? response.next_offset ?? null,
   };
 }
 

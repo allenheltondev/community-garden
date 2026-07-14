@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { Claim, ClaimStatus } from '../../types/claim';
 import { Button } from '@olivias/ui';
 
@@ -11,6 +12,7 @@ interface ClaimStatusListProps {
   emptyMessage: string;
   getActions: (claim: Claim) => ClaimStatus[];
   onTransition: (claimId: string, status: ClaimStatus) => Promise<void>;
+  highlightedClaimId?: string | null;
 }
 
 const actionLabels: Record<ClaimStatus, string> = {
@@ -35,7 +37,15 @@ export function ClaimStatusList({
   emptyMessage,
   getActions,
   onTransition,
+  highlightedClaimId,
 }: ClaimStatusListProps) {
+  useEffect(() => {
+    if (!highlightedClaimId || claims.length === 0) return;
+    const element = document.getElementById(`claim-${highlightedClaimId}`);
+    element?.focus();
+    element?.scrollIntoView?.({ block: 'center' });
+  }, [claims, highlightedClaimId]);
+
   return (
     <div className="rounded-base border border-neutral-200 bg-white px-4 py-4 space-y-3">
       <div className="space-y-1">
@@ -61,7 +71,17 @@ export function ClaimStatusList({
         const actions = getActions(claim);
 
         return (
-          <div key={claim.id} className="rounded-base border border-neutral-200 bg-neutral-50 px-3 py-3">
+          <div
+            key={claim.id}
+            id={`claim-${claim.id}`}
+            tabIndex={-1}
+            aria-current={highlightedClaimId === claim.id ? 'true' : undefined}
+            className={`rounded-base border px-3 py-3 ${
+              highlightedClaimId === claim.id
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-neutral-200 bg-neutral-50'
+            }`}
+          >
             <div className="space-y-2">
               <p className="text-sm text-neutral-800">
                 Claim <span className="font-medium">{claim.id}</span>

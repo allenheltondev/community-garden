@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { FindFoodPanel } from './FindFoodPanel';
 import {
   createCheckoutSession,
@@ -13,7 +14,7 @@ import {
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
-import { createClaim, updateClaimStatus } from '../../services/claims';
+import { createClaim, listClaims, updateClaimStatus } from '../../services/claims';
 
 vi.mock('../../services/api', () => ({
   createCheckoutSession: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../../services/api', () => ({
 
 vi.mock('../../services/claims', () => ({
   createClaim: vi.fn(),
+  listClaims: vi.fn(),
   updateClaimStatus: vi.fn(),
 }));
 
@@ -41,6 +43,7 @@ const mockListCatalogCrops = vi.mocked(listCatalogCrops);
 const mockUpdateRequest = vi.mocked(updateRequest);
 const mockCreateClaim = vi.mocked(createClaim);
 const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
+const mockListClaims = vi.mocked(listClaims);
 
 function setOnlineStatus(isOnline: boolean) {
   Object.defineProperty(window.navigator, 'onLine', {
@@ -49,7 +52,7 @@ function setOnlineStatus(isOnline: boolean) {
   });
 }
 
-function renderPanel() {
+function renderPanel(initialEntry = '/') {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -60,13 +63,15 @@ function renderPanel() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <FindFoodPanel
-        viewerUserId="grower-2"
-        originGeoKey="9v6kn"
-        defaultLat={30.2672}
-        defaultLng={-97.7431}
-        defaultRadiusMiles={10}
-      />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <FindFoodPanel
+          viewerUserId="grower-2"
+          originGeoKey="9v6kn"
+          defaultLat={30.2672}
+          defaultLng={-97.7431}
+          defaultRadiusMiles={10}
+        />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -77,6 +82,14 @@ describe('FindFoodPanel', () => {
     window.localStorage.clear();
 
     setOnlineStatus(true);
+
+    mockListClaims.mockResolvedValue({
+      items: [],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
 
     mockListCatalogCrops.mockResolvedValue([
       {
@@ -540,5 +553,36 @@ describe('FindFoodPanel', () => {
     await waitFor(() => {
       expect(mockCreateRequest).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('loads and highlights the exact pickup claim from a Today deep link', async () => {
+    mockListClaims.mockResolvedValue({
+      items: [
+        {
+          id: 'claim-server',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'grower-2',
+          listingOwnerId: 'grower-1',
+          quantityClaimed: '1',
+          status: 'confirmed',
+          notes: null,
+          claimedAt: '2026-07-14T09:00:00Z',
+          confirmedAt: '2026-07-14T10:00:00Z',
+          completedAt: null,
+          cancelledAt: null,
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    renderPanel('/share/find?claim=claim-server');
+
+    const claimId = await screen.findByText('claim-server');
+    expect(claimId.closest('[aria-current="true"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /^complete$/i })).toBeInTheDocument();
   });
 });

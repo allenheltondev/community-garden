@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   createCheckoutSession,
   createRequest,
@@ -10,11 +11,12 @@ import {
   listCatalogCrops,
   updateRequest,
 } from '../../services/api';
-import { createClaim, updateClaimStatus } from '../../services/claims';
+import { createClaim, listClaims, updateClaimStatus } from '../../services/claims';
 import type { Listing } from '../../types/listing';
 import type { RequestItem, UpsertRequestPayload } from '../../types/request';
 import type { Claim, ClaimStatus } from '../../types/claim';
 import { createLogger } from '../../utils/logging';
+import { completeTodayAction } from '../../utils/todayActionTracking';
 import { Button, Card, Input } from '@olivias/ui';
 import { ClaimStatusList } from './ClaimStatusList';
 import {
@@ -242,6 +244,9 @@ export function FindFoodPanel({
   defaultLng,
   defaultRadiusMiles = 15,
 }: FindFoodPanelProps) {
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const linkedClaimId = searchParams.get('claim');
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const [radiusMiles, setRadiusMiles] = useState<number>(defaultRadiusMiles);
   const [selectedCropId, setSelectedCropId] = useState<string>('all');
@@ -343,6 +348,12 @@ export function FindFoodPanel({
     queryKey: ['catalogCrops'],
     queryFn: listCatalogCrops,
     staleTime: 10 * 60 * 1000,
+  });
+
+  const claimsQuery = useQuery({
+    queryKey: ['claims', 'claimer'],
+    queryFn: () => listClaims({ limit: 50 }),
+    staleTime: 30 * 1000,
   });
 
   const discoveryQuery = useQuery({
@@ -474,10 +485,17 @@ export function FindFoodPanel({
     });
   }, [defaultLat, defaultLng, filteredListings]);
 
-  const visibleClaims = useMemo(
-    () => sessionClaims.filter((claim) => (viewerUserId ? claim.claimerId === viewerUserId : true)),
-    [sessionClaims, viewerUserId]
-  );
+  const visibleClaims = useMemo(() => {
+    const combinedClaims = new Map(
+      (claimsQuery.data?.items ?? []).map((claim) => [claim.id, claim])
+    );
+    for (const claim of sessionClaims) {
+      combinedClaims.set(claim.id, claim);
+    }
+    return [...combinedClaims.values()].filter((claim) =>
+      viewerUserId ? claim.claimerId === viewerUserId : true
+    );
+  }, [claimsQuery.data?.items, sessionClaims, viewerUserId]);
 
   const handleSelectListing = (listing: Listing) => {
     setSelectedListingId(listing.id);
@@ -642,6 +660,7 @@ export function FindFoodPanel({
       const createdClaim = await createClaimMutation.mutateAsync(payload);
 
       setSessionClaims((previous) => upsertSessionClaim(previous, createdClaim));
+      void queryClient.invalidateQueries({ queryKey: ['claims'] });
       setClaimSuccessMessage('Claim submitted.');
       logger.info('Claim created', { claimId: createdClaim.id, listingId: createdClaim.listingId });
     } catch (error) {
@@ -669,11 +688,10 @@ export function FindFoodPanel({
       return;
     }
 
-    const previousClaim = sessionClaims.find((claim) => claim.id === claimId) ?? null;
-
-    setSessionClaims((current) =>
-      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
-    );
+    const previousClaim = visibleClaims.find((claim) => claim.id === claimId) ?? null;
+    if (previousClaim) {
+      setSessionClaims((current) => upsertSessionClaim(current, { ...previousClaim, status }));
+    }
 
     try {
       if (isOffline) {
@@ -689,13 +707,13 @@ export function FindFoodPanel({
 
       const updated = await transitionClaimMutation.mutateAsync({ claimId: resolvedClaimId, status });
       setSessionClaims((current) => upsertSessionClaim(current, updated));
+      void queryClient.invalidateQueries({ queryKey: ['claims'] });
+      completeTodayAction('pickup');
       setClaimSuccessMessage('Claim updated.');
       logger.info('Claim updated', { claimId: updated.id, status: updated.status });
     } catch (error) {
       if (previousClaim) {
-        setSessionClaims((current) =>
-          current.map((claim) => (claim.id === claimId ? previousClaim : claim))
-        );
+        setSessionClaims((current) => upsertSessionClaim(current, previousClaim));
       }
 
       const message = error instanceof Error ? error.message : 'Failed to update claim';
@@ -1092,9 +1110,10 @@ export function FindFoodPanel({
         pendingClaimIds={pendingClaimIds}
         successMessage={claimSuccessMessage}
         errorMessage={claimError}
-        emptyMessage="No claims tracked in this session yet."
+        emptyMessage={claimsQuery.isLoading ? 'Loading your claims...' : 'No claims yet.'}
         getActions={(claim) => getClaimActions(claim.status)}
         onTransition={handleClaimTransition}
+        highlightedClaimId={linkedClaimId}
       />
 
       <Card className="space-y-3" padding="6">

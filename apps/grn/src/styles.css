@@ -5111,6 +5111,99 @@ body {
   gap: 1.25rem;
 }
 
+.grn-today-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(66, 107, 63, 0.28);
+  border-radius: var(--og-radius-base);
+  background: rgba(66, 107, 63, 0.08);
+  color: var(--og-color-soil);
+  font-size: 0.9rem;
+}
+
+.grn-today-notice--warning {
+  border-color: rgba(168, 104, 31, 0.35);
+  background: rgba(244, 197, 112, 0.16);
+}
+
+.grn-today-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grn-today-actions > li,
+.grn-today-action,
+.grn-today-action > .og-card-body {
+  height: 100%;
+}
+
+.grn-today-action > .og-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.grn-today-action__topline {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.grn-today-action__rank {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--og-color-moss);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.grn-today-action__label {
+  color: var(--og-color-moss);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.grn-today-action h2 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+  line-height: 1.25;
+  letter-spacing: normal;
+}
+
+.grn-today-action p {
+  flex: 1;
+  margin: 0;
+  color: rgba(79, 56, 37, 0.78);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.grn-today-action button {
+  min-height: 2.75rem;
+}
+
+.grn-dashboard__glance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .grn-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5165,9 +5258,11 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.grn-dashboard__panel-head h2,
 .grn-dashboard__panel-head h3 {
   margin: 0;
   font-size: 1.05rem;
+  letter-spacing: normal;
 }
 
 .grn-dashboard__list {
@@ -5260,8 +5355,11 @@ body {
   flex-wrap: wrap;
 }
 
+.grn-dashboard__connect-copy h2,
 .grn-dashboard__connect-copy h3 {
   margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  letter-spacing: normal;
 }
 
 .grn-dashboard__connect-copy p {
@@ -5271,6 +5369,15 @@ body {
 }
 
 @media (max-width: 720px) {
+  .grn-today-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .grn-today-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .grn-stat-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.5rem;
