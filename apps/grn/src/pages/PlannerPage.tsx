@@ -8,6 +8,7 @@ import { GardenPyramid, type PyramidCropVisual } from '../components/Planner/Gar
 import { PlanScore } from '../components/Planner/PlanScore';
 import { CropIcon } from '../components/CropPlanner/cropIcons';
 import { visualForCrop } from '../components/CropPlanner/cropVisuals';
+import { shade } from '../components/GardenMasterplan/palette';
 import {
   bucketCropsByTier,
   evaluatePlan,
@@ -145,6 +146,7 @@ export function PlannerPage() {
             <GardenPyramid
               cropsByTier={cropsByTier}
               activeTier={activeTier}
+              nextTier={evaluation.nextFocusTier}
               onSelectTier={setActiveTier}
             />
           </section>
@@ -182,6 +184,14 @@ export function PlannerPage() {
   );
 }
 
+// Ties each layer back to the "build from the base up" philosophy, so the
+// order of the pyramid reads as intentional rather than decorative.
+function positionNote(level: PyramidTier): string {
+  if (level === 1) return 'The base of the pyramid — everything else builds on this layer.';
+  if (level === 5) return 'The top of the pyramid — pure upside once the layers below are growing.';
+  return 'Grow this once the layers beneath it are underway — each layer rests on the one below.';
+}
+
 function toCropVisual(crop: GrowerCropItem): PyramidCropVisual {
   const visual = visualForCrop(crop.cropName, null);
   return {
@@ -212,21 +222,40 @@ function TierDetail({ tier, crops, isLoading, hasError, onRetry, onAddCrop }: Ti
   );
 
   return (
-    <div className="grn-planner__detail">
-      <header
-        className="grn-planner__detail-head"
-        style={{ ['--tier-accent' as string]: meta.accent }}
-      >
+    <div
+      className="grn-planner__detail"
+      style={{
+        ['--tier-accent' as string]: meta.accent,
+        // A darker shade of the same accent, used for small label text so it
+        // stays legible on the pale card even for the light gold/sage tiers.
+        ['--tier-ink' as string]: shade(meta.accent, 0.4),
+      }}
+    >
+      <header className="grn-planner__detail-head">
         <span className="grn-planner__detail-level" aria-hidden="true">
           {meta.level}
         </span>
         <div>
+          <p className="grn-planner__detail-position">Layer {meta.level} of 5</p>
           <h3 className="grn-planner__detail-name">{meta.name}</h3>
-          <p className="grn-planner__detail-tagline">{meta.tagline}</p>
+          <p className="grn-planner__detail-tagline">{meta.descriptor}</p>
         </div>
       </header>
 
+      <dl className="grn-planner__detail-facts">
+        <div className="grn-planner__fact">
+          <dt>Gives you</dt>
+          <dd>{meta.contribution}</dd>
+        </div>
+        <div className="grn-planner__fact">
+          <dt>Effort</dt>
+          <dd>{meta.effort}</dd>
+        </div>
+      </dl>
+
       <p className="grn-planner__detail-desc">{meta.description}</p>
+
+      <p className="grn-planner__detail-note">{positionNote(meta.level)}</p>
 
       <div className="grn-planner__detail-section">
         <h4 className="grn-planner__detail-subhead">

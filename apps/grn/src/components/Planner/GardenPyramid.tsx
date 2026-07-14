@@ -31,6 +31,9 @@ interface GardenPyramidProps {
   cropsByTier: Record<PyramidTier, PyramidCropVisual[]>;
   /** Currently focused layer. */
   activeTier: PyramidTier;
+  /** The layer the plan recommends growing next — gently highlighted so the
+   * pyramid itself points the way. */
+  nextTier?: PyramidTier | null;
   onSelectTier: (tier: PyramidTier) => void;
 }
 
@@ -102,7 +105,12 @@ function StandingCropRow({
  * hovering or selecting a band steps its full planting forward across
  * the band's width. Empty bands preview faded suggestions.
  */
-export function GardenPyramid({ cropsByTier, activeTier, onSelectTier }: GardenPyramidProps) {
+export function GardenPyramid({
+  cropsByTier,
+  activeTier,
+  nextTier,
+  onSelectTier,
+}: GardenPyramidProps) {
   const metrics = pyramidMetrics();
   const [hoverTier, setHoverTier] = useState<PyramidTier | null>(null);
   const lawn = lawnRing();
@@ -162,6 +170,7 @@ export function GardenPyramid({ cropsByTier, activeTier, onSelectTier }: GardenP
             tier={tier}
             crops={cropsByTier[tier.level] ?? []}
             isActive={activeTier === tier.level}
+            isNext={nextTier === tier.level && activeTier !== tier.level}
             isShowcased={showcaseTier === tier.level}
             // The showcased planting below stands in front of this band's
             // lower edge; quiet the tagline there so the two never fight.
@@ -197,6 +206,7 @@ interface PyramidBandProps {
   tier: PyramidTierMeta;
   crops: PyramidCropVisual[];
   isActive: boolean;
+  isNext: boolean;
   isShowcased: boolean;
   taglineQuieted: boolean;
   onSelect: () => void;
@@ -207,6 +217,7 @@ function PyramidBand({
   tier,
   crops,
   isActive,
+  isNext,
   isShowcased,
   taglineQuieted,
   onSelect,
@@ -245,9 +256,11 @@ function PyramidBand({
   const restingOverflow = covered ? count - resting.length : 0;
   const hideResting = isShowcased && covered;
 
-  // Copy layout inside the band: the two widest bands fit a tagline.
-  const showTagline = tier.level <= 3;
-  const nameY = band.y + (showTagline ? 27 : band.h / 2 + 5);
+  // Copy layout inside the band: every band except the narrow apex fits a
+  // concrete descriptor beneath its name, so the context reads straight off
+  // the pyramid rather than only in the side panel.
+  const showDescriptor = tier.level <= 4;
+  const nameY = band.y + (showDescriptor ? 26 : band.h / 2 + 5);
   const badgeCx = band.x + band.w - 24;
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -279,7 +292,11 @@ function PyramidBand({
       {ledges.map((quad, idx) => (
         <path key={idx} d={toPath(quad)} fill={tint(body, 0.28)} />
       ))}
-      {!covered && (
+      {/* Empty-state dashed frame — only on the narrow apex, where there is
+          no descriptor line for it to cut through. The wider empty bands
+          already read as empty from their paper fill, ghost suggestions and
+          "+" badge. */}
+      {!covered && !showDescriptor && (
         <rect
           x={band.x + 7}
           y={band.y + 7}
@@ -301,14 +318,14 @@ function PyramidBand({
       >
         {tier.name}
       </text>
-      {showTagline && (
+      {showDescriptor && (
         <text
           className={`grn-iso-pyramid__tagline ${taglineQuieted ? 'is-quiet' : ''}`.trim()}
           x={band.x + 18}
-          y={band.y + 45}
+          y={band.y + 44}
           fill={ink.subtitle}
         >
-          {tier.tagline}
+          {tier.descriptor}
         </text>
       )}
 
@@ -347,6 +364,21 @@ function PyramidBand({
           {covered ? count : '+'}
         </text>
       </g>
+
+      {isNext && (
+        <rect
+          className="grn-iso-pyramid__next-halo"
+          x={band.x - 4}
+          y={band.y - RELIEF.dy - 4}
+          width={band.w + RELIEF.dx + 8}
+          height={band.h + RELIEF.dy + 8}
+          rx={7}
+          fill="none"
+          stroke={tier.accent}
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+      )}
 
       {isActive && (
         <rect
