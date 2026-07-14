@@ -61,100 +61,6 @@ body {
   align-content: start;
 }
 
-/* ── Mobile drawer trigger + backdrop (hidden on desktop) ─────────── */
-
-.grn-mobile-nav-trigger {
-  display: none;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.85rem;
-  border: 1px solid rgba(79, 56, 37, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 252, 246, 0.95);
-  color: var(--og-color-soil);
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(38, 23, 15, 0.08);
-  touch-action: manipulation;
-}
-
-.grn-mobile-nav-trigger:hover,
-.grn-mobile-nav-trigger:focus-visible {
-  background: var(--og-color-paper);
-  border-color: var(--og-color-moss);
-  color: var(--og-color-moss);
-  outline: none;
-}
-
-.grn-mobile-nav-trigger svg {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.grn-mobile-nav-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-  padding: 0;
-  background: rgba(38, 23, 15, 0.45);
-  cursor: pointer;
-  z-index: 40;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--duration-base, 200ms) var(--easing-out, ease);
-}
-
-.grn-shell-body.is-mobile-nav-open .grn-mobile-nav-backdrop {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.grn-vertical-nav__mobile-header {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0.35rem 0.85rem;
-  border-bottom: 1px solid rgba(79, 56, 37, 0.08);
-  margin-bottom: 0.5rem;
-}
-
-.grn-vertical-nav__mobile-title {
-  font-family: var(--og-font-display);
-  font-size: 1.1rem;
-  color: var(--og-color-soil);
-}
-
-.grn-vertical-nav__mobile-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--og-color-soil);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.grn-vertical-nav__mobile-close:hover,
-.grn-vertical-nav__mobile-close:focus-visible {
-  background: rgba(79, 56, 37, 0.08);
-  outline: none;
-}
-
-.grn-vertical-nav__mobile-close svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
 /* ── Left-docked vertical nav ─────────────────────────────────────── */
 
 .grn-vertical-nav {
@@ -176,50 +82,6 @@ body {
 
 .grn-vertical-nav.is-expanded {
   width: var(--grn-nav-width-expanded);
-}
-
-.grn-vertical-nav__scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.grn-vertical-nav__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-/* Pin the account/settings group to the bottom of the rail. */
-.grn-vertical-nav__section--pinned {
-  margin-top: auto;
-  padding-top: 0.35rem;
-}
-
-.grn-vertical-nav__section-title {
-  margin: 0;
-  padding: 0.5rem 0.85rem 0.15rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: rgba(79, 56, 37, 0.55);
-  white-space: nowrap;
-}
-
-/* When collapsed there's no room for the heading text; render it as a thin
-   divider so the groups stay visually separated behind the icon rail. */
-.grn-vertical-nav.is-collapsed .grn-vertical-nav__section-title {
-  height: 1px;
-  margin: 0.4rem 0.55rem;
-  padding: 0;
-  overflow: hidden;
-  text-indent: -999px;
-  background: rgba(79, 56, 37, 0.14);
 }
 
 .grn-vertical-nav__list {
@@ -352,7 +214,13 @@ body {
   height: 0.8rem;
 }
 
-/* ── Mobile: off-canvas drawer (matches admin's 799px breakpoint) ─── */
+/* Mobile primary navigation is rendered alongside the rail so both surfaces
+   share the same destinations and active-state logic. */
+.grn-bottom-nav {
+  display: none;
+}
+
+/* ── Mobile: persistent three-destination bottom navigation ───────── */
 
 @media (max-width: 799px) {
   /* Drop the desktop body-level-scroll model on mobile. With it, the
@@ -366,6 +234,7 @@ body {
     min-height: 100vh;
     min-height: 100dvh;
     overflow: visible;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .grn-shell-body {
@@ -377,99 +246,77 @@ body {
     overflow: visible;
   }
 
-  .grn-mobile-nav-trigger {
-    display: inline-flex;
-    align-self: flex-start;
-    margin: 0.85rem 0 0 clamp(0.75rem, 3vw, 1.25rem);
-    z-index: 30;
-  }
-
-  .grn-mobile-nav-backdrop {
-    display: block;
-  }
-
   .grn-vertical-nav,
   .grn-vertical-nav.is-expanded,
   .grn-vertical-nav.is-collapsed {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    height: 100dvh;
-    width: min(18rem, 84vw);
-    flex-direction: column;
-    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 0.85rem
-             calc(env(safe-area-inset-bottom, 0px) + 1rem);
-    border-right: 1px solid rgba(79, 56, 37, 0.12);
-    border-bottom: none;
-    box-shadow: 6px 0 24px rgba(38, 23, 15, 0.18);
-    transform: translateX(-100%);
-    transition: transform var(--duration-base, 200ms) var(--easing-out, ease);
-    z-index: 50;
-    overflow-y: auto;
-  }
-
-  .grn-vertical-nav.is-mobile-open {
-    transform: translateX(0);
-  }
-
-  .grn-vertical-nav__mobile-header {
-    display: flex;
-  }
-
-  .grn-vertical-nav__toggle {
     display: none;
   }
 
-  .grn-vertical-nav__scroll {
-    flex: 0 0 auto;
-    overflow: visible;
+  .grn-shell-main__inner {
+    padding: 1rem clamp(0.75rem, 3vw, 1.5rem) 2rem;
   }
 
-  .grn-vertical-nav__section--pinned {
-    margin-top: 1rem;
+  .grn-bottom-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 4.5rem;
+    padding: 0.35rem max(0.5rem, env(safe-area-inset-right, 0px))
+      calc(0.35rem + env(safe-area-inset-bottom, 0px))
+      max(0.5rem, env(safe-area-inset-left, 0px));
+    border-top: 1px solid rgba(79, 56, 37, 0.14);
+    background: rgba(255, 252, 246, 0.97);
+    box-shadow: 0 -6px 24px rgba(38, 23, 15, 0.1);
+    backdrop-filter: blur(14px);
   }
 
-  /* The mobile drawer always shows labels, so restore the heading text even
-     when the desktop rail state is "collapsed". */
-  .grn-vertical-nav.is-collapsed .grn-vertical-nav__section-title,
-  .grn-vertical-nav__section-title {
-    height: auto;
-    margin: 0;
-    padding: 0.6rem 0.85rem 0.15rem;
-    overflow: visible;
-    text-indent: 0;
-    background: none;
-  }
-
-  .grn-vertical-nav__list {
-    flex: 0 0 auto;
-    gap: 0.25rem;
-    overflow: visible;
-  }
-
-  .grn-vertical-nav__link {
-    justify-content: flex-start;
-    gap: 0.85rem;
-    width: 100%;
-    min-height: 3rem;
-    padding: 0.65rem 0.85rem;
+  .grn-bottom-nav__link {
+    display: flex;
+    min-width: 0;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 0.75rem;
+    color: rgba(79, 56, 37, 0.78);
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
     touch-action: manipulation;
   }
 
-  .grn-vertical-nav__label {
-    display: inline;
-    opacity: 1;
-    transform: none;
+  .grn-bottom-nav__link:hover,
+  .grn-bottom-nav__link:focus-visible {
+    background: rgba(79, 56, 37, 0.08);
+    color: var(--og-color-soil);
+    outline: none;
   }
 
-  .grn-vertical-nav__icon {
-    width: 1.6rem;
-    height: 1.6rem;
+  .grn-bottom-nav__link:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--og-color-moss);
   }
 
-  .grn-shell-main__inner {
-    padding: 0.5rem clamp(0.75rem, 3vw, 1.5rem) 2rem;
+  .grn-bottom-nav__link.is-active {
+    background: rgba(66, 107, 63, 0.14);
+    color: var(--og-color-moss);
+  }
+
+  .grn-bottom-nav__icon {
+    display: inline-flex;
+    width: 1.35rem;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .grn-bottom-nav__icon svg {
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -500,6 +347,51 @@ body {
 .grn-stack {
   display: grid;
   gap: 1rem;
+}
+
+.grn-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.grn-settings-card {
+  scroll-margin-top: 1rem;
+}
+
+.grn-settings-card h2 {
+  margin: 0 0 0.75rem;
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  font-size: 1.2rem;
+}
+
+.grn-settings-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.grn-settings-details dt {
+  color: rgba(79, 56, 37, 0.7);
+  font-weight: 600;
+}
+
+.grn-settings-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+#api-keys {
+  scroll-margin-top: 1rem;
+}
+
+@media (max-width: 639px) {
+  .grn-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Profile overview card */

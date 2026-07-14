@@ -61,8 +61,8 @@ export function NewCropPage() {
       <CropForm
         lockedBed={lockedBed}
         initialBedId={requestedBedId}
-        onCancel={() => navigate('/crops')}
-        onSuccess={() => navigate('/crops', { replace: true })}
+        onCancel={() => navigate('/garden/plants')}
+        onSuccess={() => navigate('/garden/plants', { replace: true })}
       />
     </section>
   );
