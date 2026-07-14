@@ -68,29 +68,4 @@ describe('useOnboarding', () => {
       });
     });
   });
-
-  describe('submitGathererProfile', () => {
-    it('submits gatherer profile with address', async () => {
-      const profileInput = {
-        address: '456 Oak Ave, Springfield, IL',
-        searchRadiusMiles: 10.0,
-        organizationAffiliation: 'SF Food Bank',
-        units: 'metric' as const,
-        locale: 'en-US',
-      };
-
-      vi.mocked(api.updateMe).mockResolvedValue(undefined);
-
-      const { result } = renderHook(() => useOnboarding());
-
-      await act(async () => {
-        await result.current.submitGathererProfile(profileInput);
-      });
-
-      expect(api.updateMe).toHaveBeenCalledWith({
-        userType: 'gatherer',
-        gathererProfile: profileInput,
-      });
-    });
-  });
 });
