@@ -19,12 +19,14 @@ const EMPTY: Record<PyramidTier, PyramidCropVisual[]> = {
 function renderPyramid(args?: {
   cropsByTier?: Partial<Record<PyramidTier, PyramidCropVisual[]>>;
   activeTier?: PyramidTier;
+  nextTier?: PyramidTier | null;
   onSelectTier?: (tier: PyramidTier) => void;
 }) {
   return render(
     <GardenPyramid
       cropsByTier={{ ...EMPTY, ...args?.cropsByTier }}
       activeTier={args?.activeTier ?? 1}
+      nextTier={args?.nextTier}
       onSelectTier={args?.onSelectTier ?? (() => {})}
     />
   );
@@ -97,6 +99,27 @@ describe('GardenPyramid (isometric)', () => {
       'aria-pressed',
       'false'
     );
+  });
+
+  it('labels each band with its concrete descriptor for context', () => {
+    renderPyramid();
+    // The evocative name is paired with a plain-language descriptor so the
+    // pyramid reads without needing the side panel.
+    expect(screen.getByText('Staples & storage crops')).toBeInTheDocument();
+    expect(screen.getByText('Everyday vegetables')).toBeInTheDocument();
+    expect(screen.getByText('Kitchen herbs')).toBeInTheDocument();
+  });
+
+  it('gently highlights the recommended next tier', () => {
+    const { container } = renderPyramid({ activeTier: 1, nextTier: 3 });
+    const halos = container.querySelectorAll('.grn-iso-pyramid__next-halo');
+    // Exactly one halo, on the recommended (not the active) band.
+    expect(halos).toHaveLength(1);
+  });
+
+  it('does not highlight a next tier that is already active', () => {
+    const { container } = renderPyramid({ activeTier: 2, nextTier: 2 });
+    expect(container.querySelectorAll('.grn-iso-pyramid__next-halo')).toHaveLength(0);
   });
 
   it('previews ghost suggestions on empty tiers', () => {

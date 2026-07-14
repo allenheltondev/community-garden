@@ -28,8 +28,15 @@ export interface PyramidTierMeta {
   /** Stable key used for class names + test ids. */
   key: string;
   name: string;
-  /** One-line hook shown on the pyramid band. */
+  /** Plain-language "what actually lives here" — the concrete context that
+   * de-abstracts the evocative name. Shown as the pyramid band subtitle. */
+  descriptor: string;
+  /** One-line hook shown in guidance copy. */
   tagline: string;
+  /** The one concrete thing this layer gives you (the "why it matters"). */
+  contribution: string;
+  /** A quick read on how much work/space this layer asks for. */
+  effort: string;
   /** Longer explanation shown in the tier detail panel. */
   description: string;
   /** Accent color for the band + cards (harmonizes with the GRN palette). */
@@ -44,7 +51,10 @@ export const PYRAMID_TIERS: readonly PyramidTierMeta[] = [
     level: 1,
     key: 'foundation',
     name: 'Foundation',
+    descriptor: 'Staples & storage crops',
     tagline: 'Staples you can feed yourself with',
+    contribution: 'Calories that keep for months',
+    effort: 'Plant once, harvest big',
     description:
       'Calorie-dense crops that store for months and form the base of a self-reliant garden. If you grow nothing else, grow these.',
     accent: '#7a533c',
@@ -61,7 +71,10 @@ export const PYRAMID_TIERS: readonly PyramidTierMeta[] = [
     level: 2,
     key: 'workhorse',
     name: 'Workhorse',
+    descriptor: 'Everyday vegetables',
     tagline: 'Where the garden replaces the grocery store',
+    contribution: 'The crops that shrink your grocery bill',
+    effort: 'Steady pickings all season',
     description:
       'High-yield, everyday vegetables that show up in most meals. These are the crops that start shrinking your grocery bill.',
     accent: '#426b3f',
@@ -78,7 +91,10 @@ export const PYRAMID_TIERS: readonly PyramidTierMeta[] = [
     level: 3,
     key: 'fresh',
     name: 'Fresh',
+    descriptor: 'Fast-growing greens',
     tagline: 'Grab-something-fresh-from-the-garden greens',
+    contribution: 'Salad minutes after picking',
+    effort: 'Quick wins, sow often',
     description:
       'Fast-growing greens you pick minutes before eating. Quick wins that keep you visiting the garden all season.',
     accent: '#6f8f5f',
@@ -95,7 +111,10 @@ export const PYRAMID_TIERS: readonly PyramidTierMeta[] = [
     level: 4,
     key: 'flavor',
     name: 'Flavor',
+    descriptor: 'Kitchen herbs',
     tagline: 'Herbs that make every meal sing',
+    contribution: 'The seasoning that lifts every meal',
+    effort: 'A little space goes far',
     description:
       'A little space goes a long way. Fresh herbs add the flavor that turns homegrown produce into great cooking.',
     accent: '#d8a741',
@@ -111,7 +130,10 @@ export const PYRAMID_TIERS: readonly PyramidTierMeta[] = [
     level: 5,
     key: 'joy',
     name: 'Joy',
+    descriptor: 'Fruit, berries & treats',
     tagline: 'Berries, treats, and experiments',
+    contribution: 'The crops you grow just for happy',
+    effort: 'Pure upside',
     description:
       'The fun layer. Berries, novelties, and the crops you grow just because they make you happy. Pure upside once the rest is in place.',
     accent: '#a3527e',

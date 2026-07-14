@@ -1840,21 +1840,47 @@ body {
   }
 }
 
+/* Soft, breathing halo on the layer the plan recommends growing next, so
+   the pyramid itself points to where to go. */
+.grn-iso-pyramid__next-halo {
+  opacity: 0.9;
+  stroke-dasharray: 3 5;
+  stroke-linecap: round;
+  animation: grn-next-halo 2.4s var(--easing-in-out, ease-in-out) infinite;
+  pointer-events: none;
+}
+
+@keyframes grn-next-halo {
+  0%,
+  100% {
+    opacity: 0.85;
+    stroke-width: 2;
+  }
+  50% {
+    opacity: 0.35;
+    stroke-width: 3;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .grn-iso-pyramid__showcase .mp-crop {
     animation: none;
+  }
+  .grn-iso-pyramid__next-halo {
+    animation: none;
+    opacity: 0.6;
   }
 }
 
 /* ── Tier detail panel ───────────────────────────────────────────── */
 
 .grn-planner__detail {
+  --tier-accent: var(--og-color-moss);
   display: grid;
   gap: 0.85rem;
 }
 
 .grn-planner__detail-head {
-  --tier-accent: var(--og-color-moss);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1873,6 +1899,15 @@ body {
   font-size: 1.2rem;
 }
 
+.grn-planner__detail-position {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tier-ink, var(--tier-accent));
+}
+
 .grn-planner__detail-name {
   margin: 0;
   font-family: var(--og-font-display);
@@ -1886,10 +1921,53 @@ body {
   color: rgba(79, 56, 37, 0.75);
 }
 
+/* At-a-glance context: what the layer gives you and what it asks of you. */
+.grn-planner__detail-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.grn-planner__fact {
+  flex: 1 1 10rem;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  background: rgba(79, 56, 37, 0.045);
+  border: 1px solid rgba(79, 56, 37, 0.1);
+  border-left: 3px solid var(--tier-accent);
+}
+
+.grn-planner__fact dt {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tier-ink, var(--tier-accent));
+}
+
+.grn-planner__fact dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--og-color-soil);
+}
+
 .grn-planner__detail-desc {
   margin: 0;
   color: rgba(79, 56, 37, 0.85);
   max-width: 44rem;
+}
+
+.grn-planner__detail-note {
+  margin: 0;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--tier-accent, var(--og-color-moss));
+  font-size: 0.82rem;
+  font-style: italic;
+  color: rgba(79, 56, 37, 0.7);
 }
 
 .grn-planner__detail-section {
