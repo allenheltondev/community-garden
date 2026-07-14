@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,11 +22,25 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function reminderTypeFromQuery(value: string | null): ReminderType {
+  return REMINDER_TYPES.some((option) => option.value === value)
+    ? (value as ReminderType)
+    : 'watering';
+}
+
 export function ReminderPanel() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const [title, setTitle] = useState('');
-  const [reminderType, setReminderType] = useState<ReminderType>('watering');
+  const requestedNewReminder = searchParams.get('new') === 'true';
+  const requestedTitle = searchParams.get('title')?.trim() ?? '';
+  const requestedType = reminderTypeFromQuery(searchParams.get('type'));
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState(() =>
+    requestedNewReminder ? requestedTitle : ''
+  );
+  const [reminderType, setReminderType] = useState<ReminderType>(() =>
+    requestedNewReminder ? requestedType : 'watering'
+  );
   const [cadenceDays, setCadenceDays] = useState(7);
   const [startDate, setStartDate] = useState(todayIsoDate());
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,6 +82,12 @@ export function ReminderPanel() {
   const linkedReminderId = searchParams.get('reminder');
 
   useEffect(() => {
+    if (!requestedNewReminder) return;
+    titleInputRef.current?.focus();
+    titleInputRef.current?.scrollIntoView?.({ block: 'center' });
+  }, [requestedNewReminder]);
+
+  useEffect(() => {
     if (!linkedReminderId || sortedReminders.length === 0) return;
     const element = document.getElementById(`reminder-${linkedReminderId}`);
     element?.focus();
@@ -92,7 +112,7 @@ export function ReminderPanel() {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">Deterministic reminders</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Garden reminders</h3>
         <p className="text-sm text-gray-600 mt-1">
           Set recurring reminders for watering, harvest, fertilizer, and check-ins.
         </p>
@@ -102,6 +122,7 @@ export function ReminderPanel() {
         <label className="text-sm">
           <span className="block text-gray-600 mb-1">Reminder title</span>
           <input
+            ref={titleInputRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
