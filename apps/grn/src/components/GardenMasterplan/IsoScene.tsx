@@ -43,6 +43,7 @@ import {
   boundsOfWorld,
   resolveAlignment,
   type AlignGuide,
+  type WorldBounds,
 } from './alignment';
 import { chooseCritters } from './critters';
 import { IsoAnnotation } from './IsoAnnotation';
@@ -636,6 +637,21 @@ export const IsoScene = memo(function IsoScene({
   const vertexEditing =
     selectedBed && mode === 'editing-vertices' && selectedBed.shape === 'polygon';
 
+  // World bounds of every element except the selected one — the snap targets
+  // for resizing it against its neighbors.
+  const alignTargets: WorldBounds[] =
+    editable && selected
+      ? [
+          ...beds
+            .filter((b) => !(selected.kind === 'bed' && b.id === selected.id))
+            .map((b) => boundsOfWorld(bedFootprint(b))),
+          ...annotations
+            .filter((a) => !(selected.kind === 'annotation' && a.id === selected.id))
+            .map((a) => boundsOfWorld(annotationFootprint(a))),
+        ]
+      : [];
+  const handleAlign = { targets: alignTargets, onGuides: setAlignGuides };
+
   let editOverlay: ReactNode = null;
   if (vertexEditing && selectedBed && onUpdateBedPoints) {
     editOverlay = (
@@ -650,11 +666,13 @@ export const IsoScene = memo(function IsoScene({
       <IsoTransformHandles
         geometry={bedGeometry(bedWithDraft(selectedBed, transformDraft))}
         snapInches={snapInches}
+        align={handleAlign}
         onPreview={(geometry) =>
           setTransformDraft({ kind: 'bed', id: selectedBed.id, geometry })
         }
         onCommit={(geometry) => {
           setTransformDraft(null);
+          setAlignGuides(null);
           onResizeBed(selectedBed.id, geometry);
         }}
       />
@@ -664,11 +682,13 @@ export const IsoScene = memo(function IsoScene({
       <IsoTransformHandles
         geometry={annotationGeometryOf(annotationWithDraft(selectedAnnotation, transformDraft))}
         snapInches={snapInches}
+        align={handleAlign}
         onPreview={(geometry) =>
           setTransformDraft({ kind: 'annotation', id: selectedAnnotation.id, geometry })
         }
         onCommit={(geometry) => {
           setTransformDraft(null);
+          setAlignGuides(null);
           onResizeAnnotation(selectedAnnotation.id, geometry);
         }}
       />

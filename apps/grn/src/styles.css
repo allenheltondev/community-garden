@@ -3893,6 +3893,22 @@ body {
   fill: var(--og-color-leaf, #3a7e5a);
 }
 
+/* Invisible, finger-sized grab zones. `transparent` (not `none`) so they
+   still capture pointer events. touch-action:none keeps a handle drag from
+   being stolen by page scroll / pinch-zoom on touch devices. */
+.mp-transform__hit,
+.mp-vertex__hit {
+  fill: transparent;
+}
+
+.mp-transform__resize,
+.mp-transform__rotate,
+.mp-vertex__handle,
+.mp-vertex__midpoint,
+.mp-el--draggable {
+  touch-action: none;
+}
+
 .mp-transform__readout {
   fill: #fff;
   font-size: 12px;

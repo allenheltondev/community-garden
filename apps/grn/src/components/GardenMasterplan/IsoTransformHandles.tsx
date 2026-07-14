@@ -1,6 +1,11 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { formatInchesAsFeetInches } from '../GardenDesigner/measure';
 import {
+  resolveAlignment,
+  type AlignGuide,
+  type WorldBounds,
+} from './alignment';
+import {
   projectPoint,
   screenDeltaToWorld,
   unprojectGround,
@@ -21,6 +26,9 @@ const TOUCH_DEVICE =
   typeof window !== 'undefined' &&
   (window.matchMedia?.('(pointer: coarse)').matches || 'ontouchstart' in window);
 const HANDLE_RADIUS = TOUCH_DEVICE ? 11 : 7;
+// Invisible, finger-friendly hit target around each visible handle so the
+// grab zone approaches ~44px on touch without enlarging the drawn dot.
+const HIT_RADIUS = HANDLE_RADIUS + (TOUCH_DEVICE ? 12 : 6);
 // How far above the top edge the rotate knob floats, in screen px.
 const ROTATE_OFFSET = TOUCH_DEVICE ? 34 : 26;
 // Snap rotation to 15° while Shift is held, matching common design tools.
@@ -33,6 +41,16 @@ interface IsoTransformHandlesProps {
   onPreview: (geometry: ElementGeometry) => void;
   /** Final geometry on release — parent persists it once (undoable). */
   onCommit: (geometry: ElementGeometry) => void;
+  /**
+   * Snap-to-neighbor alignment for the dragged corner (only applied to
+   * unrotated elements, where the box edges are axis-aligned). `targets` are
+   * the world bounds of the other elements; `onGuides` publishes the guide
+   * lines to draw (and null to clear them).
+   */
+  align?: {
+    targets: WorldBounds[];
+    onGuides: (guides: AlignGuide[] | null) => void;
+  };
 }
 
 interface DragState {
@@ -74,6 +92,7 @@ export function IsoTransformHandles({
   snapInches,
   onPreview,
   onCommit,
+  align,
 }: IsoTransformHandlesProps) {
   const dragRef = useRef<DragState | null>(null);
   // Which gesture is live, so we can show the matching readout (size vs
@@ -162,7 +181,28 @@ export function IsoTransformHandles({
         sceneDy = event.clientY - state.startClientY;
       }
       const worldDelta = screenDeltaToWorld(sceneDx, sceneDy);
-      const next = resizeFromCornerDrag(state.g0, state.cornerIndex, worldDelta, snapInches);
+      let next = resizeFromCornerDrag(state.g0, state.cornerIndex, worldDelta, snapInches);
+      // Snap the dragged corner to neighboring edges (unrotated boxes only,
+      // where corner coordinates map cleanly onto the axis-aligned bounds).
+      if (align && state.g0.rotationDeg === 0) {
+        const dragged = boxCornersWorld(next)[state.cornerIndex];
+        const point: WorldBounds = {
+          minX: dragged.x,
+          maxX: dragged.x,
+          minY: dragged.y,
+          maxY: dragged.y,
+        };
+        const { dx, dy, guides } = resolveAlignment(point, align.targets);
+        if (dx !== 0 || dy !== 0) {
+          next = resizeFromCornerDrag(
+            state.g0,
+            state.cornerIndex,
+            { x: worldDelta.x + dx, y: worldDelta.y + dy },
+            snapInches
+          );
+        }
+        align.onGuides(guides.length > 0 ? guides : null);
+      }
       state.latest = next;
       onPreview(next);
       return;
@@ -189,6 +229,7 @@ export function IsoTransformHandles({
     }
     dragRef.current = null;
     setGesture(null);
+    align?.onGuides(null);
     onCommit(state.latest);
   }
 
@@ -219,6 +260,12 @@ export function IsoTransformHandles({
         onPointerDown={(event) => grab(event, 'rotate', 0)}
         {...dragHandlers}
       >
+        <circle
+          className="mp-transform__hit"
+          cx={rotateKnob.x}
+          cy={rotateKnob.y}
+          r={HIT_RADIUS}
+        />
         <circle cx={rotateKnob.x} cy={rotateKnob.y} r={HANDLE_RADIUS} />
       </g>
       {cornersScreen.map((p, index) => (
@@ -228,6 +275,7 @@ export function IsoTransformHandles({
           onPointerDown={(event) => grab(event, 'resize', index)}
           {...dragHandlers}
         >
+          <circle className="mp-transform__hit" cx={p.x} cy={p.y} r={HIT_RADIUS} />
           <rect
             x={p.x - HANDLE_RADIUS}
             y={p.y - HANDLE_RADIUS}

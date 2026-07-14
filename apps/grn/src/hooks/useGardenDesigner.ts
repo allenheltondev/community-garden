@@ -50,6 +50,11 @@ import {
 } from '../components/GardenDesigner/annotationPresets';
 import { templateById } from '../components/GardenDesigner/gardenTemplates';
 import type { DesignerMode, GridSnap } from '../components/GardenDesigner/designerTypes';
+import {
+  MIN_SIDE_INCHES,
+  rotateGeometry,
+  type ElementGeometry,
+} from '../components/GardenMasterplan/isoTransform';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
@@ -1229,10 +1234,101 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     ]
   );
 
+  // Keyboard resize/rotate for the selected element, so on-canvas editing
+  // isn't mouse-only. Rapid presses coalesce into one undo step.
+  const resizeSelectedBy = useCallback(
+    (dLength: number, dWidth: number) => {
+      if (!isEditable) return;
+      if (selected?.kind === 'bed' && selectedBed) {
+        const length = Math.max(MIN_SIDE_INCHES, (selectedBed.lengthInches ?? 96) + dLength);
+        const width = Math.max(MIN_SIDE_INCHES, (selectedBed.widthInches ?? 48) + dWidth);
+        let points = selectedBed.points;
+        if (selectedBed.shape === 'polygon' && points && points.length >= 3) {
+          const sx = length / (selectedBed.lengthInches ?? length);
+          const sy = width / (selectedBed.widthInches ?? width);
+          points = points.map((p) => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy) }));
+        }
+        const payload = bedToUpsertPayload({
+          ...selectedBed,
+          lengthInches: length,
+          widthInches: width,
+          points,
+        });
+        commitBedUpdate(selectedBed, payload, 'resize');
+      } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+        const isCircle = selectedAnnotation.shape === 'circle';
+        if (isCircle) {
+          const delta = dLength !== 0 ? dLength : dWidth;
+          const size = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.lengthInches ?? 48) + delta);
+          const payload = annotationToUpsertPayload({
+            ...selectedAnnotation,
+            lengthInches: size,
+            widthInches: size,
+          });
+          commitAnnotationUpdate(selectedAnnotation, payload, 'resize');
+          return;
+        }
+        const length = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.lengthInches ?? 48) + dLength);
+        const width = Math.max(MIN_SIDE_INCHES, (selectedAnnotation.widthInches ?? 48) + dWidth);
+        const payload = annotationToUpsertPayload({
+          ...selectedAnnotation,
+          lengthInches: length,
+          widthInches: width,
+        });
+        commitAnnotationUpdate(selectedAnnotation, payload, 'resize');
+      }
+    },
+    [commitAnnotationUpdate, commitBedUpdate, isEditable, selected, selectedAnnotation, selectedBed]
+  );
+
+  const rotateSelectedBy = useCallback(
+    (dDeg: number) => {
+      if (!isEditable) return;
+      if (selected?.kind === 'bed' && selectedBed) {
+        const geometry: ElementGeometry = {
+          positionX: selectedBed.positionX ?? 12,
+          positionY: selectedBed.positionY ?? 12,
+          lengthInches: selectedBed.lengthInches ?? 96,
+          widthInches: selectedBed.widthInches ?? 48,
+          rotationDeg: selectedBed.rotationDeg,
+          points: selectedBed.points,
+        };
+        const next = rotateGeometry(geometry, dDeg);
+        const payload = bedToUpsertPayload({
+          ...selectedBed,
+          positionX: next.positionX,
+          positionY: next.positionY,
+          rotationDeg: next.rotationDeg,
+        });
+        commitBedUpdate(selectedBed, payload, 'rotate');
+      } else if (selected?.kind === 'annotation' && selectedAnnotation) {
+        const geometry: ElementGeometry = {
+          positionX: selectedAnnotation.positionX ?? 12,
+          positionY: selectedAnnotation.positionY ?? 12,
+          lengthInches: selectedAnnotation.lengthInches ?? 48,
+          widthInches: selectedAnnotation.widthInches ?? 48,
+          rotationDeg: selectedAnnotation.rotationDeg,
+          points: selectedAnnotation.points,
+        };
+        const next = rotateGeometry(geometry, dDeg);
+        const payload = annotationToUpsertPayload({
+          ...selectedAnnotation,
+          positionX: next.positionX,
+          positionY: next.positionY,
+          rotationDeg: next.rotationDeg,
+        });
+        commitAnnotationUpdate(selectedAnnotation, payload, 'rotate');
+      }
+    },
+    [commitAnnotationUpdate, commitBedUpdate, isEditable, selected, selectedAnnotation, selectedBed]
+  );
+
   // Keyboard shortcuts:
   //   Esc           - step out of vertex editing, else deselect
   //   Cmd/Ctrl+Z    - undo; with Shift (or Ctrl+Y) - redo
   //   Arrow keys    - nudge the selected element 1 inch (Shift = 12)
+  //   Alt+Arrows    - resize the selected element 1 inch (Shift = 12)
+  //   [ / ]         - rotate the selected element 15° (Shift = 1°)
   //   Delete /
   //   Backspace     - prompt for confirmation, then delete the selected
   //                   bed or annotation. Skipped when focus is in a text
@@ -1271,13 +1367,25 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         return;
       }
 
-      if (
-        selected &&
-        (event.key === 'ArrowUp' ||
-          event.key === 'ArrowDown' ||
-          event.key === 'ArrowLeft' ||
-          event.key === 'ArrowRight')
-      ) {
+      const isArrow =
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowRight';
+
+      // Alt+Arrow resizes: left/right change length, up/down change width.
+      if (selected && isArrow && event.altKey) {
+        event.preventDefault();
+        const step = event.shiftKey ? 12 : 1;
+        const dLength =
+          event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const dWidth =
+          event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+        resizeSelectedBy(dLength, dWidth);
+        return;
+      }
+
+      if (selected && isArrow) {
         event.preventDefault();
         const step = event.shiftKey ? 12 : 1;
         const dx =
@@ -1285,6 +1393,14 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         const dy =
           event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
         nudgeSelected(dx, dy);
+        return;
+      }
+
+      // [ / ] rotate the selected element (Shift = fine 1° steps).
+      if (selected && (event.key === '[' || event.key === ']')) {
+        event.preventDefault();
+        const step = event.shiftKey ? 1 : 15;
+        rotateSelectedBy(event.key === ']' ? step : -step);
         return;
       }
 
@@ -1349,6 +1465,8 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     undo,
     redo,
     nudgeSelected,
+    resizeSelectedBy,
+    rotateSelectedBy,
     duplicateSelected,
   ]);
 

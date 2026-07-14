@@ -19,6 +19,8 @@ const TOUCH_DEVICE =
   (window.matchMedia?.('(pointer: coarse)').matches || 'ontouchstart' in window);
 const HANDLE_RADIUS = TOUCH_DEVICE ? 11 : 7;
 const MIDPOINT_RADIUS = TOUCH_DEVICE ? 8 : 5;
+// Finger-friendly invisible grab zone around each drawn handle.
+const HIT_RADIUS = HANDLE_RADIUS + (TOUCH_DEVICE ? 12 : 6);
 
 interface IsoVertexEditorProps {
   bed: GardenBed;
@@ -184,6 +186,16 @@ export function IsoVertexEditor({ bed, snapInches, onCommit }: IsoVertexEditorPr
         return (
           <g key={`edge-${idx}`}>
             <circle
+              className="mp-vertex__hit"
+              cx={mid.x}
+              cy={mid.y}
+              r={HIT_RADIUS}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                insertAfter(idx);
+              }}
+            />
+            <circle
               className="mp-vertex__midpoint"
               cx={mid.x}
               cy={mid.y}
@@ -212,6 +224,7 @@ export function IsoVertexEditor({ bed, snapInches, onCommit }: IsoVertexEditorPr
           }}
           {...dragHandlers}
         >
+          <circle className="mp-vertex__hit" cx={p.x} cy={p.y} r={HIT_RADIUS} />
           <circle cx={p.x} cy={p.y} r={HANDLE_RADIUS} />
         </g>
       ))}
