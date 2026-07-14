@@ -62,12 +62,16 @@ export interface MasterplanEditing {
   onAddCrop: (input: QuickAddCropInput) => Promise<void>;
   onDuplicate: () => void;
   /** Edit garden-level scale from the masterplan design bar. */
-  onPatchCanvas: (patch: { widthInches?: number; heightInches?: number }) => void;
+  onPatchCanvas: (patch: {
+    widthInches?: number;
+    heightInches?: number;
+  }) => void | Promise<boolean>;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   isSaving: boolean;
+  saveError: string | null;
 }
 
 interface GardenMasterplanProps {
@@ -79,8 +83,14 @@ interface GardenMasterplanProps {
   selectedBed: GardenBed | undefined;
   selectedAnnotation: GardenAnnotation | undefined;
   onSelect: (next: SelectedItem) => void;
-  onPatchBed: (bedId: string, patch: Partial<GardenBed>) => void;
-  onPatchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
+  onPatchBed: (
+    bedId: string,
+    patch: Partial<GardenBed>
+  ) => void | Promise<boolean>;
+  onPatchAnnotation: (
+    annotationId: string,
+    patch: Partial<GardenAnnotation>
+  ) => void | Promise<boolean>;
   onApplyTemplate: (templateId: string) => Promise<void>;
   /** Present when the plan is an editable design surface. */
   editing?: MasterplanEditing;
@@ -169,7 +179,12 @@ export function GardenMasterplan({
     zoomOut,
     fitToScreen,
     shouldIgnoreClick,
-  } = useMapViewport(metrics.width, metrics.height);
+  } = useMapViewport(
+    metrics.width,
+    metrics.height,
+    metrics.originX,
+    metrics.originY
+  );
   const isEmpty = beds.length === 0 && annotations.length === 0;
   const plantedBedCount = useMemo(
     () => beds.filter((bed) => (cropsByBedId.get(bed.id)?.length ?? 0) > 0).length,
@@ -252,6 +267,7 @@ export function GardenMasterplan({
             onUndo={editing.onUndo}
             onRedo={editing.onRedo}
             isSaving={editing.isSaving}
+            saveError={editing.saveError}
             widthInches={canvas.widthInches}
             heightInches={canvas.heightInches}
             onPatchCanvas={editing.onPatchCanvas}
@@ -495,17 +511,19 @@ export function GardenMasterplan({
             editing
               ? {
                   isSaving: editing.isSaving,
+                  saveError: editing.saveError,
                   isVertexEditing: editing.mode === 'editing-vertices',
                   onToggleVertexEditing: () =>
                     editing.onSetMode(
                       editing.mode === 'editing-vertices' ? 'idle' : 'editing-vertices'
                     ),
                   onPatchBed: (patch) => {
-                    if (selectedBed) onPatchBed(selectedBed.id, patch);
+                    if (!selectedBed) return Promise.resolve(false);
+                    return onPatchBed(selectedBed.id, patch);
                   },
                   onPatchAnnotation: (patch) => {
-                    if (selectedAnnotation)
-                      onPatchAnnotation(selectedAnnotation.id, patch);
+                    if (!selectedAnnotation) return Promise.resolve(false);
+                    return onPatchAnnotation(selectedAnnotation.id, patch);
                   },
                   onDuplicate: editing.onDuplicate,
                   onDelete: () => {

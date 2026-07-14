@@ -98,6 +98,7 @@ export function GardenDesignerPage() {
                 onUndo: designer.undo,
                 onRedo: designer.redo,
                 isSaving: designer.isSaving,
+                saveError: designer.saveError,
               }
             : undefined
         }

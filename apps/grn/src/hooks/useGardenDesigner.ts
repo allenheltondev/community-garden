@@ -55,6 +55,7 @@ import {
   rotateGeometry,
   type ElementGeometry,
 } from '../components/GardenMasterplan/isoTransform';
+import { createSerialMutationQueue } from './serialMutationQueue';
 
 const CANVAS_QUERY_KEY = ['my-garden-canvas'];
 const BEDS_QUERY_KEY = ['my-garden-beds'];
@@ -102,6 +103,7 @@ export interface UseGardenDesignerResult {
   isMobile: boolean;
   isEditable: boolean;
   isSaving: boolean;
+  saveError: string | null;
   addBed: (shape: BedShape) => Promise<void>;
   addCrop: (input: QuickAddCropPayload) => Promise<void>;
   duplicateSelected: () => Promise<void>;
@@ -118,7 +120,7 @@ export interface UseGardenDesignerResult {
       points: BedPolygonPoint[] | null;
     }
   ) => void;
-  patchBed: (bedId: string, patch: Partial<GardenBed>) => void;
+  patchBed: (bedId: string, patch: Partial<GardenBed>) => Promise<boolean>;
   updateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
   deleteBed: (bedId: string) => Promise<void>;
   addAnnotation: (presetId: string) => Promise<void>;
@@ -134,9 +136,12 @@ export interface UseGardenDesignerResult {
       points: BedPolygonPoint[] | null;
     }
   ) => void;
-  patchAnnotation: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
+  patchAnnotation: (
+    annotationId: string,
+    patch: Partial<GardenAnnotation>
+  ) => Promise<boolean>;
   deleteAnnotation: (annotationId: string) => Promise<void>;
-  patchCanvas: (patch: UpsertGardenCanvasRequest) => void;
+  patchCanvas: (patch: UpsertGardenCanvasRequest) => Promise<boolean>;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -284,12 +289,32 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   // count in state (rather than a ref) so React schedules a re-render
   // each time it changes.
   const [pendingMutations, setPendingMutations] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const startMutation = useCallback(() => {
     setPendingMutations((count) => count + 1);
   }, []);
   const endMutation = useCallback(() => {
     setPendingMutations((count) => Math.max(0, count - 1));
   }, []);
+
+  // Updates for one entity must reach the API in the same order the grower
+  // made them. Separate queues still let different beds save concurrently.
+  const [bedUpdateQueue] = useState(() =>
+    createSerialMutationQueue(
+      (bedId: string, payload: UpsertGardenBedRequest) => updateMyBed(bedId, payload)
+    )
+  );
+  const [annotationUpdateQueue] = useState(() =>
+    createSerialMutationQueue(
+      (annotationId: string, payload: UpsertGardenAnnotationRequest) =>
+        updateMyAnnotation(annotationId, payload)
+    )
+  );
+  const [canvasUpdateQueue] = useState(() =>
+    createSerialMutationQueue((_key: 'canvas', payload: UpsertGardenCanvasRequest) =>
+      updateMyGardenCanvas(payload)
+    )
+  );
 
   const createBedMutation = useMutation({
     mutationFn: createMyBed,
@@ -302,12 +327,13 @@ export function useGardenDesigner(): UseGardenDesignerResult {
 
   const updateBedMutation = useMutation({
     mutationFn: ({ bedId, payload }: { bedId: string; payload: UpsertGardenBedRequest }) =>
-      updateMyBed(bedId, payload),
+      bedUpdateQueue.enqueue(bedId, payload),
     onMutate: ({ bedId, payload }) => {
       startMutation();
-      const previous = queryClient.getQueryData<GardenBed[]>(BEDS_QUERY_KEY);
-      if (previous) {
-        const next = previous.map((bed) =>
+      setSaveError(null);
+      const current = queryClient.getQueryData<GardenBed[]>(BEDS_QUERY_KEY);
+      if (current) {
+        const next = current.map((bed) =>
           bed.id === bedId
             ? {
                 ...bed,
@@ -331,16 +357,18 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         );
         queryClient.setQueryData(BEDS_QUERY_KEY, next);
       }
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(BEDS_QUERY_KEY, context.previous);
-      }
+    onError: () => {
+      setSaveError('We couldn\u2019t save that change. Your edits are still available to retry.');
     },
-    onSettled: () => {
+    onSuccess: (_data, { bedId }) => {
+      if (!bedUpdateQueue.hasPending(bedId)) setSaveError(null);
+    },
+    onSettled: (_data, _error, { bedId }) => {
       endMutation();
-      void queryClient.invalidateQueries({ queryKey: BEDS_QUERY_KEY });
+      if (!bedUpdateQueue.hasPending(bedId)) {
+        void queryClient.invalidateQueries({ queryKey: BEDS_QUERY_KEY });
+      }
     },
   });
 
@@ -434,12 +462,13 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     }: {
       annotationId: string;
       payload: UpsertGardenAnnotationRequest;
-    }) => updateMyAnnotation(annotationId, payload),
+    }) => annotationUpdateQueue.enqueue(annotationId, payload),
     onMutate: ({ annotationId, payload }) => {
       startMutation();
-      const previous = queryClient.getQueryData<GardenAnnotation[]>(ANNOTATIONS_QUERY_KEY);
-      if (previous) {
-        const next = previous.map((a) =>
+      setSaveError(null);
+      const current = queryClient.getQueryData<GardenAnnotation[]>(ANNOTATIONS_QUERY_KEY);
+      if (current) {
+        const next = current.map((a) =>
           a.id === annotationId
             ? {
                 ...a,
@@ -459,16 +488,18 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         );
         queryClient.setQueryData(ANNOTATIONS_QUERY_KEY, next);
       }
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(ANNOTATIONS_QUERY_KEY, context.previous);
-      }
+    onError: () => {
+      setSaveError('We couldn\u2019t save that change. Your edits are still available to retry.');
     },
-    onSettled: () => {
+    onSuccess: (_data, { annotationId }) => {
+      if (!annotationUpdateQueue.hasPending(annotationId)) setSaveError(null);
+    },
+    onSettled: (_data, _error, { annotationId }) => {
       endMutation();
-      void queryClient.invalidateQueries({ queryKey: ANNOTATIONS_QUERY_KEY });
+      if (!annotationUpdateQueue.hasPending(annotationId)) {
+        void queryClient.invalidateQueries({ queryKey: ANNOTATIONS_QUERY_KEY });
+      }
     },
   });
 
@@ -497,9 +528,11 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   });
 
   const updateCanvasMutation = useMutation({
-    mutationFn: updateMyGardenCanvas,
+    mutationFn: (payload: UpsertGardenCanvasRequest) =>
+      canvasUpdateQueue.enqueue('canvas', payload),
     onMutate: (payload) => {
       startMutation();
+      setSaveError(null);
       const previous = queryClient.getQueryData<GardenCanvas>(CANVAS_QUERY_KEY);
       if (previous) {
         queryClient.setQueryData<GardenCanvas>(CANVAS_QUERY_KEY, {
@@ -514,16 +547,18 @@ export function useGardenDesigner(): UseGardenDesignerResult {
           northOffsetDeg: payload.northOffsetDeg ?? previous.northOffsetDeg,
         });
       }
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(CANVAS_QUERY_KEY, context.previous);
-      }
+    onError: () => {
+      setSaveError('We couldn\u2019t save that change. Your edits are still available to retry.');
+    },
+    onSuccess: () => {
+      if (!canvasUpdateQueue.hasPending('canvas')) setSaveError(null);
     },
     onSettled: () => {
       endMutation();
-      void queryClient.invalidateQueries({ queryKey: CANVAS_QUERY_KEY });
+      if (!canvasUpdateQueue.hasPending('canvas')) {
+        void queryClient.invalidateQueries({ queryKey: CANVAS_QUERY_KEY });
+      }
     },
   });
 
@@ -542,7 +577,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const commitBedUpdate = useCallback(
     (bed: GardenBed, payload: UpsertGardenBedRequest, coalesceKey?: string) => {
       const before = bedToUpsertPayload(bed);
-      if (JSON.stringify(before) === JSON.stringify(payload)) return;
+      if (JSON.stringify(before) === JSON.stringify(payload)) return Promise.resolve(true);
       record({
         kind: 'bed-update',
         id: bed.id,
@@ -551,7 +586,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         at: Date.now(),
         coalesceKey,
       });
-      updateBedMutation.mutate({ bedId: bed.id, payload });
+      return updateBedMutation
+        .mutateAsync({ bedId: bed.id, payload })
+        .then(() => true, () => false);
     },
     [record, updateBedMutation]
   );
@@ -563,7 +600,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
       coalesceKey?: string
     ) => {
       const before = annotationToUpsertPayload(annotation);
-      if (JSON.stringify(before) === JSON.stringify(payload)) return;
+      if (JSON.stringify(before) === JSON.stringify(payload)) return Promise.resolve(true);
       record({
         kind: 'annotation-update',
         id: annotation.id,
@@ -572,7 +609,9 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         at: Date.now(),
         coalesceKey,
       });
-      updateAnnotationMutation.mutate({ annotationId: annotation.id, payload });
+      return updateAnnotationMutation
+        .mutateAsync({ annotationId: annotation.id, payload })
+        .then(() => true, () => false);
     },
     [record, updateAnnotationMutation]
   );
@@ -758,12 +797,13 @@ export function useGardenDesigner(): UseGardenDesignerResult {
 
   const patchBed = useCallback(
     (bedId: string, patch: Partial<GardenBed>) => {
-      const bed = beds.find((b) => b.id === bedId);
-      if (!bed) return;
+      const current = queryClient.getQueryData<GardenBed[]>(BEDS_QUERY_KEY) ?? beds;
+      const bed = current.find((b) => b.id === bedId);
+      if (!bed) return Promise.resolve(false);
       const payload = bedToUpsertPayload({ ...bed, ...patch });
-      commitBedUpdate(bed, payload);
+      return commitBedUpdate(bed, payload);
     },
-    [beds, commitBedUpdate]
+    [beds, commitBedUpdate, queryClient]
   );
 
   // Vertex edits arrive as the full reshaped point list (in the bed's
@@ -886,12 +926,14 @@ export function useGardenDesigner(): UseGardenDesignerResult {
 
   const patchAnnotation = useCallback(
     (annotationId: string, patch: Partial<GardenAnnotation>) => {
-      const annotation = annotations.find((a) => a.id === annotationId);
-      if (!annotation) return;
+      const current =
+        queryClient.getQueryData<GardenAnnotation[]>(ANNOTATIONS_QUERY_KEY) ?? annotations;
+      const annotation = current.find((a) => a.id === annotationId);
+      if (!annotation) return Promise.resolve(false);
       const payload = annotationToUpsertPayload({ ...annotation, ...patch });
-      commitAnnotationUpdate(annotation, payload);
+      return commitAnnotationUpdate(annotation, payload);
     },
-    [annotations, commitAnnotationUpdate]
+    [annotations, commitAnnotationUpdate, queryClient]
   );
 
   const deleteAnnotation = useCallback(
@@ -916,7 +958,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
 
   const patchCanvas = useCallback(
     (patch: UpsertGardenCanvasRequest) => {
-      updateCanvasMutation.mutate(patch);
+      return updateCanvasMutation.mutateAsync(patch).then(() => true, () => false);
     },
     [updateCanvasMutation]
   );
@@ -1500,6 +1542,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     isMobile,
     isEditable,
     isSaving,
+    saveError,
     addBed,
     addCrop,
     duplicateSelected,

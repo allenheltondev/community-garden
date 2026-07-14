@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -27,10 +28,22 @@ const DRAG_THRESHOLD_PX = 6;
 // entirely off screen.
 const MIN_VISIBLE_PX = 90;
 
-interface Transform {
+export interface ViewportTransform {
   scale: number;
   x: number;
   y: number;
+}
+
+export function preserveWorldPointAfterOriginChange(
+  transform: ViewportTransform,
+  previousOrigin: { x: number; y: number },
+  nextOrigin: { x: number; y: number }
+): ViewportTransform {
+  return {
+    ...transform,
+    x: transform.x + (nextOrigin.x - previousOrigin.x) * transform.scale,
+    y: transform.y + (nextOrigin.y - previousOrigin.y) * transform.scale,
+  };
 }
 
 export interface MapViewport {
@@ -49,8 +62,13 @@ export interface MapViewport {
   shouldIgnoreClick: () => boolean;
 }
 
-export function useMapViewport(contentWidth: number, contentHeight: number): MapViewport {
-  const [transform, setTransform] = useState<Transform>({ scale: 1, x: 0, y: 0 });
+export function useMapViewport(
+  contentWidth: number,
+  contentHeight: number,
+  contentOriginX = 0,
+  contentOriginY = 0
+): MapViewport {
+  const [transform, setTransform] = useState<ViewportTransform>({ scale: 1, x: 0, y: 0 });
   // Latest-value mirror for gesture handlers. Synced in an effect (not
   // during render) per the react-hooks/refs rule; every consumer is an
   // event handler, which always fires after the commit that updates it.
@@ -64,6 +82,7 @@ export function useMapViewport(contentWidth: number, contentHeight: number): Map
   const sizeRef = useRef({ width: 0, height: 0 });
   const observerRef = useRef<ResizeObserver | null>(null);
   const fittedRef = useRef(false);
+  const originRef = useRef({ x: contentOriginX, y: contentOriginY });
 
   // Active pointers for pan/pinch. Pinch state snapshots the transform at
   // gesture start so each move is computed absolutely (no drift).
@@ -73,11 +92,11 @@ export function useMapViewport(contentWidth: number, contentHeight: number): Map
   const pinchRef = useRef<{
     startDistance: number;
     startMid: { x: number; y: number };
-    start: Transform;
+    start: ViewportTransform;
   } | null>(null);
 
   const clampTransform = useCallback(
-    (next: Transform): Transform => {
+    (next: ViewportTransform): ViewportTransform => {
       const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next.scale));
       const { width, height } = sizeRef.current;
       if (width === 0 || height === 0) return { ...next, scale };
@@ -113,6 +132,24 @@ export function useMapViewport(contentWidth: number, contentHeight: number): Map
       y: (height - contentHeight * scale) / 2,
     });
   }, [contentWidth, contentHeight]);
+
+  // A changed garden size shifts the SVG viewBox origin. Compensate for that
+  // coordinate shift before paint so the same world point stays under the
+  // viewport center. Fitting remains an initial or explicit user action.
+  useLayoutEffect(() => {
+    const previousOrigin = originRef.current;
+    const nextOrigin = { x: contentOriginX, y: contentOriginY };
+    originRef.current = nextOrigin;
+    if (
+      !fittedRef.current ||
+      (previousOrigin.x === nextOrigin.x && previousOrigin.y === nextOrigin.y)
+    ) {
+      return;
+    }
+    setTransform((current) =>
+      preserveWorldPointAfterOriginChange(current, previousOrigin, nextOrigin)
+    );
+  }, [contentOriginX, contentOriginY]);
 
   const zoomAt = useCallback(
     (cx: number, cy: number, factor: number) => {
