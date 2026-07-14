@@ -40,7 +40,7 @@ scripts:
               const request = pm.response.json();
               pm.expect(request).to.have.property("id", requestId);
               pm.expect(request).to.have.property("cropId", pm.collectionVariables.get("catalogCropId"));
-              pm.expect(request).to.have.property("quantity", "8");
+              pm.expect(request).to.have.property("quantity", "8.000");
               pm.expect(request).to.have.property("status", "matched");
           });
       }

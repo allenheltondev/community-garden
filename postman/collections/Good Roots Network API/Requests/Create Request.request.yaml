@@ -38,7 +38,7 @@ scripts:
               const request = pm.response.json();
               pm.expect(request).to.have.property("id");
               pm.expect(request).to.have.property("cropId", pm.collectionVariables.get("catalogCropId"));
-              pm.expect(request).to.have.property("quantity", "5");
+              pm.expect(request).to.have.property("quantity", "5.000");
               pm.expect(request).to.have.property("status", "open");
 
               if (!request.id) {
