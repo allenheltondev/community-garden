@@ -126,8 +126,14 @@ function renderMasterplan(args?: {
   crops?: GrowerCropItem[];
   selected?: { kind: 'bed' | 'annotation'; id: string } | null;
   onSelect?: (next: unknown) => void;
-  onPatchBed?: (bedId: string, patch: Partial<GardenBed>) => void;
-  onPatchAnnotation?: (annotationId: string, patch: Partial<GardenAnnotation>) => void;
+  onPatchBed?: (
+    bedId: string,
+    patch: Partial<GardenBed>
+  ) => void | Promise<boolean>;
+  onPatchAnnotation?: (
+    annotationId: string,
+    patch: Partial<GardenAnnotation>
+  ) => void | Promise<boolean>;
   onApplyTemplate?: (templateId: string) => Promise<void>;
   editing?: Partial<MasterplanEditing>;
 }) {
@@ -163,6 +169,7 @@ function renderMasterplan(args?: {
         onUndo: () => {},
         onRedo: () => {},
         isSaving: false,
+        saveError: null,
         ...args.editing,
       }
     : undefined;
@@ -263,18 +270,96 @@ describe('GardenMasterplan', () => {
     expect(panel).not.toHaveTextContent(/of this bed/);
   });
 
-  it('edits a bed dimension inline from the detail panel', async () => {
-    const onPatchBed = vi.fn();
+  it('keeps tabbed dimension edits together and applies one complete payload', async () => {
+    const user = userEvent.setup();
+    const onPatchBed = vi.fn().mockResolvedValue(true);
     renderMasterplan({
       selected: { kind: 'bed', id: 'bed-1' },
       onPatchBed,
       editing: {},
     });
     const lengthField = screen.getByLabelText(/length \(in\)/i);
-    await userEvent.clear(lengthField);
-    await userEvent.type(lengthField, '120');
-    fireEvent.blur(lengthField);
-    expect(onPatchBed).toHaveBeenCalledWith('bed-1', { lengthInches: 120 });
+    await user.clear(lengthField);
+    await user.type(lengthField, '120');
+    await user.tab();
+
+    expect(screen.getByLabelText(/length \(in\)/i)).toHaveValue(120);
+    expect(screen.getByLabelText(/width \(in\)/i)).toHaveFocus();
+    expect(onPatchBed).not.toHaveBeenCalled();
+
+    const widthField = screen.getByLabelText(/width \(in\)/i);
+    await user.clear(widthField);
+    await user.type(widthField, '72');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(onPatchBed).toHaveBeenCalledWith('bed-1', {
+        lengthInches: 120,
+        widthInches: 72,
+        rotationDeg: 0,
+      })
+    );
+  });
+
+  it('keeps an invalid dimension editable with an actionable error', async () => {
+    const user = userEvent.setup();
+    const onPatchBed = vi.fn().mockResolvedValue(true);
+    renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      onPatchBed,
+      editing: {},
+    });
+
+    const lengthField = screen.getByLabelText(/length \(in\)/i);
+    await user.clear(lengthField);
+    await user.click(screen.getByRole('button', { name: /apply dimensions/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/valid length/i);
+    expect(lengthField).toHaveValue(null);
+    expect(onPatchBed).not.toHaveBeenCalled();
+  });
+
+  it('retains the complete dimension draft when saving fails', async () => {
+    const user = userEvent.setup();
+    const onPatchBed = vi.fn().mockResolvedValue(false);
+    renderMasterplan({
+      selected: { kind: 'bed', id: 'bed-1' },
+      onPatchBed,
+      editing: {},
+    });
+
+    const lengthField = screen.getByLabelText(/length \(in\)/i);
+    await user.clear(lengthField);
+    await user.type(lengthField, '120');
+    await user.click(screen.getByRole('button', { name: /apply dimensions/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t save/i);
+    expect(lengthField).toHaveValue(120);
+    expect(screen.getByRole('button', { name: /apply dimensions/i })).toBeEnabled();
+  });
+
+  it('applies overall garden width and height as one mobile-friendly action', async () => {
+    const user = userEvent.setup();
+    const onPatchCanvas = vi.fn().mockResolvedValue(true);
+    renderMasterplan({ editing: { onPatchCanvas } });
+
+    const widthField = screen.getByLabelText(/garden width/i);
+    await user.clear(widthField);
+    await user.type(widthField, '40 ft');
+    await user.tab();
+    expect(onPatchCanvas).not.toHaveBeenCalled();
+
+    const heightField = screen.getByLabelText(/garden height/i);
+    await user.clear(heightField);
+    await user.type(heightField, '30 ft');
+    await user.click(screen.getByRole('button', { name: /apply size/i }));
+
+    await waitFor(() =>
+      expect(onPatchCanvas).toHaveBeenCalledWith({
+        widthInches: 480,
+        heightInches: 360,
+      })
+    );
   });
 
   it('offers precise resize/rotate handles only for an editable selection', () => {

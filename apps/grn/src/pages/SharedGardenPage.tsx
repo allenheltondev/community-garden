@@ -181,7 +181,12 @@ function SharedGardenView({ snapshot }: { snapshot: SharedGardenSnapshot }) {
     zoomOut,
     fitToScreen,
     shouldIgnoreClick,
-  } = useMapViewport(metrics.width, metrics.height);
+  } = useMapViewport(
+    metrics.width,
+    metrics.height,
+    metrics.originX,
+    metrics.originY
+  );
 
   return (
     <div className="grn-shared-page">

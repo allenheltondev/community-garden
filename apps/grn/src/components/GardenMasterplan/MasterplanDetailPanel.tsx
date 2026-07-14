@@ -55,13 +55,20 @@ function formatFeet(inches: number | null): string {
  */
 export interface MasterplanPanelEditing {
   isSaving: boolean;
+  saveError: string | null;
   isVertexEditing: boolean;
   onToggleVertexEditing: () => void;
-  onPatchBed: (patch: Partial<GardenBed>) => void;
-  onPatchAnnotation: (patch: Partial<GardenAnnotation>) => void;
+  onPatchBed: (patch: Partial<GardenBed>) => void | Promise<boolean>;
+  onPatchAnnotation: (patch: Partial<GardenAnnotation>) => void | Promise<boolean>;
   onDuplicate: () => void;
   onDelete: () => void;
   onAddCrop: (input: QuickAddCropInput) => Promise<void>;
+}
+
+interface DimensionDraft {
+  length: string;
+  width: string;
+  rotation: string;
 }
 
 interface MasterplanDetailPanelProps {
@@ -99,16 +106,15 @@ export function MasterplanDetailPanel({
   editing,
 }: MasterplanDetailPanelProps) {
   // The parent re-keys this panel on the selected element's id, so initial
-  // state is the right snapshot without a syncing effect. Length/width/
-  // rotation use draft-on-focus: while the field is focused the local draft
-  // wins; otherwise the input reads straight from the element, so
-  // handle-driven resizes show up live in the numbers.
+  // state is the right snapshot without a syncing effect. Length, width, and
+  // rotation become one local draft on focus; outside an active draft the
+  // inputs keep reflecting handle-driven changes from the scene.
   const [name, setName] = useState(bed?.name ?? annotation?.label ?? '');
   const [icon, setIcon] = useState(annotation?.icon ?? '');
   const [notes, setNotes] = useState(bed?.locationNotes ?? '');
-  const [draftLength, setDraftLength] = useState<string | null>(null);
-  const [draftWidth, setDraftWidth] = useState<string | null>(null);
-  const [draftRotation, setDraftRotation] = useState<string | null>(null);
+  const [dimensionDraft, setDimensionDraft] = useState<DimensionDraft | null>(null);
+  const [dimensionError, setDimensionError] = useState<string | null>(null);
+  const [isApplyingDimensions, setIsApplyingDimensions] = useState(false);
   const [soils, setSoils] = useState<string[]>(parseSoilField(bed?.soilType));
 
   if (!bed && !annotation) return null;
@@ -135,44 +141,102 @@ export function MasterplanDetailPanel({
   const capacity = bed ? bedCapacitySummary(bed, crops) : null;
 
   const lengthValue =
-    draftLength !== null
-      ? draftLength
+    dimensionDraft !== null
+      ? dimensionDraft.length
       : el.lengthInches !== null
         ? String(el.lengthInches)
         : '';
   const widthValue =
-    draftWidth !== null
-      ? draftWidth
+    dimensionDraft !== null
+      ? dimensionDraft.width
       : el.widthInches !== null
         ? String(el.widthInches)
         : '';
   const rotationValue =
-    draftRotation !== null ? draftRotation : String(Math.round(el.rotationDeg));
+    dimensionDraft !== null
+      ? dimensionDraft.rotation
+      : String(Math.round(el.rotationDeg));
 
-  function patch(next: Partial<GardenBed> & Partial<GardenAnnotation>) {
-    if (!editing) return;
-    if (bed) editing.onPatchBed(next);
-    else if (annotation) editing.onPatchAnnotation(next);
-  }
-
-  function commitDimension(field: 'lengthInches' | 'widthInches', raw: string) {
-    const trimmed = raw.trim();
-    if (trimmed === '') return;
-    const value = Number(trimmed);
-    if (!Number.isFinite(value) || value < 0) return;
-    if (isCircle) {
-      // Circles stay round: a single diameter drives both axes.
-      patch({ lengthInches: value, widthInches: value });
-    } else {
-      patch({ [field]: value });
+  async function patch(
+    next: Partial<GardenBed> & Partial<GardenAnnotation>
+  ): Promise<boolean> {
+    if (!editing) return false;
+    try {
+      const saved = bed
+        ? await editing.onPatchBed(next)
+        : annotation
+          ? await editing.onPatchAnnotation(next)
+          : false;
+      return saved !== false;
+    } catch {
+      return false;
     }
   }
 
-  function commitRotation(raw: string) {
-    const value = Number(raw.trim());
-    if (!Number.isFinite(value)) return;
-    const normalized = ((Math.round(value) % 360) + 360) % 360;
-    patch({ rotationDeg: normalized });
+  function currentDimensionDraft(): DimensionDraft {
+    return {
+      length: el.lengthInches !== null ? String(el.lengthInches) : '',
+      width: el.widthInches !== null ? String(el.widthInches) : '',
+      rotation: String(Math.round(el.rotationDeg)),
+    };
+  }
+
+  function beginDimensionEdit() {
+    setDimensionDraft((current) => current ?? currentDimensionDraft());
+  }
+
+  function updateDimensionDraft(field: keyof DimensionDraft, value: string) {
+    setDimensionError(null);
+    setDimensionDraft((current) => ({
+      ...(current ?? currentDimensionDraft()),
+      [field]: value,
+    }));
+  }
+
+  function cancelDimensionEdit() {
+    setDimensionDraft(null);
+    setDimensionError(null);
+  }
+
+  async function applyDimensions() {
+    if (!dimensionDraft || isApplyingDimensions) return;
+
+    const rotationRaw = dimensionDraft.rotation.trim();
+    const rotation = Number(rotationRaw);
+    if (rotationRaw === '' || !Number.isFinite(rotation)) {
+      setDimensionError('Enter a valid rotation in degrees.');
+      return;
+    }
+
+    const next: Partial<GardenBed> & Partial<GardenAnnotation> = {
+      rotationDeg: ((Math.round(rotation) % 360) + 360) % 360,
+    };
+    if (annotation?.shape !== 'line') {
+      const lengthRaw = dimensionDraft.length.trim();
+      const widthRaw = dimensionDraft.width.trim();
+      const length = Number(lengthRaw);
+      const width = Number(widthRaw);
+      if (lengthRaw === '' || !Number.isFinite(length) || length < 0) {
+        setDimensionError(`Enter a valid ${isCircle ? 'diameter' : 'length'} in inches.`);
+        return;
+      }
+      if (!isCircle && (widthRaw === '' || !Number.isFinite(width) || width < 0)) {
+        setDimensionError('Enter a valid width in inches.');
+        return;
+      }
+      next.lengthInches = length;
+      next.widthInches = isCircle ? length : width;
+    }
+
+    setIsApplyingDimensions(true);
+    const saved = await patch(next);
+    setIsApplyingDimensions(false);
+    if (saved) {
+      setDimensionDraft(null);
+      setDimensionError(null);
+    } else {
+      setDimensionError('We couldn\u2019t save these dimensions. Check your connection and retry.');
+    }
   }
 
   function convertToPolygon() {
@@ -276,73 +340,102 @@ export function MasterplanDetailPanel({
               </label>
             )}
 
-            {annotation?.shape === 'line' ? null : isCircle ? (
-              <label className="grn-designer-inspector__field">
-                <span>Diameter (in)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={lengthValue}
-                  onFocus={() =>
-                    setDraftLength(el.lengthInches !== null ? String(el.lengthInches) : '')
-                  }
-                  onChange={(e) => setDraftLength(e.target.value)}
-                  onBlur={(e) => {
-                    commitDimension('lengthInches', e.target.value);
-                    setDraftLength(null);
-                  }}
-                />
-              </label>
-            ) : (
-              <div className="grn-designer-inspector__row">
+            <div
+              className="mp-panel__dimension-editor"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void applyDimensions();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelDimensionEdit();
+                }
+              }}
+            >
+              {annotation?.shape === 'line' ? null : isCircle ? (
                 <label className="grn-designer-inspector__field">
-                  <span>Length (in)</span>
+                  <span>Diameter (in)</span>
                   <input
                     type="number"
                     min={0}
                     value={lengthValue}
-                    onFocus={() =>
-                      setDraftLength(el.lengthInches !== null ? String(el.lengthInches) : '')
+                    onFocus={beginDimensionEdit}
+                    onChange={(event) =>
+                      updateDimensionDraft('length', event.target.value)
                     }
-                    onChange={(e) => setDraftLength(e.target.value)}
-                    onBlur={(e) => {
-                      commitDimension('lengthInches', e.target.value);
-                      setDraftLength(null);
-                    }}
+                    aria-invalid={dimensionError !== null}
                   />
                 </label>
-                <label className="grn-designer-inspector__field">
-                  <span>Width (in)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={widthValue}
-                    onFocus={() =>
-                      setDraftWidth(el.widthInches !== null ? String(el.widthInches) : '')
-                    }
-                    onChange={(e) => setDraftWidth(e.target.value)}
-                    onBlur={(e) => {
-                      commitDimension('widthInches', e.target.value);
-                      setDraftWidth(null);
-                    }}
-                  />
-                </label>
-              </div>
-            )}
+              ) : (
+                <div className="grn-designer-inspector__row">
+                  <label className="grn-designer-inspector__field">
+                    <span>Length (in)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={lengthValue}
+                      onFocus={beginDimensionEdit}
+                      onChange={(event) =>
+                        updateDimensionDraft('length', event.target.value)
+                      }
+                      aria-invalid={dimensionError !== null}
+                    />
+                  </label>
+                  <label className="grn-designer-inspector__field">
+                    <span>Width (in)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={widthValue}
+                      onFocus={beginDimensionEdit}
+                      onChange={(event) =>
+                        updateDimensionDraft('width', event.target.value)
+                      }
+                      aria-invalid={dimensionError !== null}
+                    />
+                  </label>
+                </div>
+              )}
 
-            <label className="grn-designer-inspector__field">
-              <span>Rotation (°)</span>
-              <input
-                type="number"
-                value={rotationValue}
-                onFocus={() => setDraftRotation(String(Math.round(el.rotationDeg)))}
-                onChange={(e) => setDraftRotation(e.target.value)}
-                onBlur={(e) => {
-                  commitRotation(e.target.value);
-                  setDraftRotation(null);
-                }}
-              />
-            </label>
+              <label className="grn-designer-inspector__field">
+                <span>Rotation (°)</span>
+                <input
+                  type="number"
+                  value={rotationValue}
+                  onFocus={beginDimensionEdit}
+                  onChange={(event) =>
+                    updateDimensionDraft('rotation', event.target.value)
+                  }
+                  aria-invalid={dimensionError !== null}
+                />
+              </label>
+
+              {dimensionError && (
+                <p className="mp-panel__field-error" role="alert">
+                  {dimensionError}
+                </p>
+              )}
+              {dimensionDraft && (
+                <div className="mp-panel__dimension-actions">
+                  <button
+                    type="button"
+                    className="mp-panel__dimension-cancel"
+                    onClick={cancelDimensionEdit}
+                    disabled={isApplyingDimensions}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="mp-panel__dimension-apply"
+                    onClick={() => void applyDimensions()}
+                    disabled={isApplyingDimensions}
+                  >
+                    {isApplyingDimensions ? 'Applying…' : 'Apply dimensions'}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {bed && (
               <div className="grn-designer-inspector__field">
@@ -611,8 +704,13 @@ export function MasterplanDetailPanel({
               className="mp-panel__save-status"
               aria-live="polite"
               data-saving={editing.isSaving}
+              data-error={editing.saveError !== null}
             >
-              {editing.isSaving ? 'Saving…' : 'Saved'}
+              {editing.saveError
+                ? editing.saveError
+                : editing.isSaving
+                  ? 'Saving…'
+                  : 'Saved'}
             </span>
           </>
         )}

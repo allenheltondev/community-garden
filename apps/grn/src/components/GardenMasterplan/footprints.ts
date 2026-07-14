@@ -67,6 +67,8 @@ const PAD_BOTTOM = 90;
 export interface SceneMetrics {
   width: number;
   height: number;
+  originX: number;
+  originY: number;
   viewBox: string;
 }
 
@@ -82,9 +84,13 @@ export function sceneMetrics(canvas: GardenCanvas): SceneMetrics {
   const b = boundsOf(corners);
   const width = b.maxX - b.minX + PAD_X * 2;
   const height = b.maxY - b.minY + PAD_TOP + PAD_BOTTOM;
+  const originX = b.minX - PAD_X;
+  const originY = b.minY - PAD_TOP;
   return {
     width,
     height,
-    viewBox: `${b.minX - PAD_X} ${b.minY - PAD_TOP} ${width} ${height}`,
+    originX,
+    originY,
+    viewBox: `${originX} ${originY} ${width} ${height}`,
   };
 }

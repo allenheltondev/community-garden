@@ -14,9 +14,18 @@ interface MasterplanDesignBarProps {
   onUndo: () => void;
   onRedo: () => void;
   isSaving: boolean;
+  saveError: string | null;
   widthInches: number;
   heightInches: number;
-  onPatchCanvas: (patch: { widthInches?: number; heightInches?: number }) => void;
+  onPatchCanvas: (patch: {
+    widthInches?: number;
+    heightInches?: number;
+  }) => void | Promise<boolean>;
+}
+
+interface SizeDraft {
+  width: string;
+  height: string;
 }
 
 // Accept "12", "12ft", "12 ft", "12'", or explicit inches like "144in".
@@ -55,31 +64,74 @@ export function MasterplanDesignBar({
   onUndo,
   onRedo,
   isSaving,
+  saveError,
   widthInches,
   heightInches,
   onPatchCanvas,
 }: MasterplanDesignBarProps) {
-  const [widthInput, setWidthInput] = useState(formatFeetFromInches(widthInches));
-  const [heightInput, setHeightInput] = useState(formatFeetFromInches(heightInches));
+  const [sizeDraft, setSizeDraft] = useState<SizeDraft | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+  const [isApplyingSize, setIsApplyingSize] = useState(false);
 
-  // Draft-on-focus: while a field is focused the local draft wins; on blur
-  // it commits (clamped) and re-formats, or reverts to the current value.
-  const widthValue = widthInput;
-  const heightValue = heightInput;
+  const widthValue = sizeDraft?.width ?? formatFeetFromInches(widthInches);
+  const heightValue = sizeDraft?.height ?? formatFeetFromInches(heightInches);
 
-  function commitScale(
-    field: 'widthInches' | 'heightInches',
-    raw: string,
-    current: number,
-    setInput: (value: string) => void
-  ) {
-    const next = parseFeetInches(raw);
-    if (next === null || next < 12 || next > 12_000) {
-      setInput(formatFeetFromInches(current));
+  function currentSizeDraft(): SizeDraft {
+    return {
+      width: formatFeetFromInches(widthInches),
+      height: formatFeetFromInches(heightInches),
+    };
+  }
+
+  function beginSizeEdit() {
+    setSizeDraft((current) => current ?? currentSizeDraft());
+  }
+
+  function updateSizeDraft(field: keyof SizeDraft, value: string) {
+    setSizeError(null);
+    setSizeDraft((current) => ({
+      ...(current ?? currentSizeDraft()),
+      [field]: value,
+    }));
+  }
+
+  function cancelSizeEdit() {
+    setSizeDraft(null);
+    setSizeError(null);
+  }
+
+  async function applySize() {
+    if (!sizeDraft || isApplyingSize) return;
+    const width = parseFeetInches(sizeDraft.width);
+    const height = parseFeetInches(sizeDraft.height);
+    if (width === null || width < 12 || width > 12_000) {
+      setSizeError('Enter a garden width between 1 ft and 1,000 ft.');
       return;
     }
-    setInput(formatFeetFromInches(next));
-    if (next !== current) onPatchCanvas({ [field]: next });
+    if (height === null || height < 12 || height > 12_000) {
+      setSizeError('Enter a garden height between 1 ft and 1,000 ft.');
+      return;
+    }
+
+    if (width === widthInches && height === heightInches) {
+      cancelSizeEdit();
+      return;
+    }
+
+    setIsApplyingSize(true);
+    try {
+      const saved = await onPatchCanvas({ widthInches: width, heightInches: height });
+      if (saved === false) {
+        setSizeError('We couldn\u2019t save the garden size. Check your connection and retry.');
+      } else {
+        setSizeDraft(null);
+        setSizeError(null);
+      }
+    } catch {
+      setSizeError('We couldn\u2019t save the garden size. Check your connection and retry.');
+    } finally {
+      setIsApplyingSize(false);
+    }
   }
 
   return (
@@ -177,7 +229,18 @@ export function MasterplanDesignBar({
 
       <span className="mp-design__divider" aria-hidden="true" />
 
-      <div className="mp-design__field mp-design__field--scale">
+      <div
+        className="mp-design__field mp-design__field--scale"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            void applySize();
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelSizeEdit();
+          }
+        }}
+      >
         <span className="mp-design__field-label">Garden size</span>
         <div className="mp-design__scale">
           <input
@@ -186,13 +249,10 @@ export function MasterplanDesignBar({
             value={widthValue}
             aria-label="Garden width"
             inputMode="decimal"
-            onChange={(event) => setWidthInput(event.target.value)}
-            onBlur={(event) =>
-              commitScale('widthInches', event.target.value, widthInches, setWidthInput)
-            }
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-            }}
+            onFocus={beginSizeEdit}
+            onChange={(event) => updateSizeDraft('width', event.target.value)}
+            aria-invalid={sizeError !== null}
+            aria-describedby={sizeError ? 'mp-garden-size-error' : undefined}
           />
           <span className="mp-design__scale-x" aria-hidden="true">
             ×
@@ -203,20 +263,42 @@ export function MasterplanDesignBar({
             value={heightValue}
             aria-label="Garden height"
             inputMode="decimal"
-            onChange={(event) => setHeightInput(event.target.value)}
-            onBlur={(event) =>
-              commitScale('heightInches', event.target.value, heightInches, setHeightInput)
-            }
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-            }}
+            onFocus={beginSizeEdit}
+            onChange={(event) => updateSizeDraft('height', event.target.value)}
+            aria-invalid={sizeError !== null}
+            aria-describedby={sizeError ? 'mp-garden-size-error' : undefined}
           />
         </div>
+        {sizeError && (
+          <span id="mp-garden-size-error" className="mp-design__field-error" role="alert">
+            {sizeError}
+          </span>
+        )}
+        {sizeDraft && (
+          <div className="mp-design__scale-actions">
+            <button
+              type="button"
+              className="mp-design__scale-cancel"
+              onClick={cancelSizeEdit}
+              disabled={isApplyingSize}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="mp-design__scale-apply"
+              onClick={() => void applySize()}
+              disabled={isApplyingSize}
+            >
+              {isApplyingSize ? 'Applying…' : 'Apply size'}
+            </button>
+          </div>
+        )}
       </div>
 
-      {isSaving && (
-        <span className="mp-design__saving" role="status">
-          Saving…
+      {(isSaving || saveError) && (
+        <span className="mp-design__saving" role="status" data-error={!!saveError}>
+          {saveError ?? 'Saving…'}
         </span>
       )}
     </div>
