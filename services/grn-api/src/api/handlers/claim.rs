@@ -1,6 +1,4 @@
-use crate::auth::{
-    extract_auth_context_with_fallback, require_grower, require_participant_user_type, UserType,
-};
+use crate::auth::{extract_auth_context_with_fallback, require_grower};
 use crate::db;
 use crate::models::crop::ErrorResponse;
 use aws_config::BehaviorVersion;
@@ -209,7 +207,7 @@ pub async fn transition_claim(
     claim_id: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
     let auth_context = extract_auth_context_with_fallback(request).await?;
-    require_claim_transition_user_type(auth_context.user_type.as_ref())?;
+    require_grower(&auth_context)?;
 
     let actor_user_id = Uuid::parse_str(&auth_context.user_id)
         .map_err(|_| lambda_http::Error::from("Invalid user ID format"))?;
@@ -561,12 +559,6 @@ async fn adjust_listing_quantity_if_needed(
     }
 }
 
-fn require_claim_transition_user_type(
-    user_type: Option<&UserType>,
-) -> Result<(), lambda_http::Error> {
-    require_participant_user_type(user_type)
-}
-
 fn is_claimable_listing_status(status: &str) -> bool {
     CLAIMABLE_LISTING_STATUSES.contains(&status)
 }
@@ -788,21 +780,6 @@ mod tests {
         payload.notes = Some("   ".to_string());
         let normalized = normalize_create_payload(&payload).unwrap();
         assert_eq!(normalized.notes, None);
-    }
-
-    #[test]
-    fn require_claim_transition_user_type_accepts_grower() {
-        assert!(require_claim_transition_user_type(Some(&UserType::Grower)).is_ok());
-    }
-
-    #[test]
-    fn require_claim_transition_user_type_rejects_missing_type() {
-        let result = require_claim_transition_user_type(None);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("User type not set"));
     }
 
     #[test]

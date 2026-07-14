@@ -113,15 +113,6 @@ pub fn require_grower(ctx: &AuthContext) -> Result<(), Error> {
     }
 }
 
-pub fn require_participant_user_type(user_type: Option<&UserType>) -> Result<(), Error> {
-    match user_type {
-        Some(UserType::Grower) => Ok(()),
-        None => Err(Error::from(
-            "Forbidden: User type not set. Please complete onboarding.",
-        )),
-    }
-}
-
 #[allow(dead_code)] // Preserved for future GRN admin-only endpoints
 pub fn require_admin(ctx: &AuthContext) -> Result<(), Error> {
     if ctx.is_admin {
@@ -191,21 +182,6 @@ mod tests {
             email: None,
         };
         let result = require_grower(&ctx);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("User type not set"));
-    }
-
-    #[test]
-    fn require_participant_user_type_accepts_grower() {
-        assert!(require_participant_user_type(Some(&UserType::Grower)).is_ok());
-    }
-
-    #[test]
-    fn require_participant_user_type_rejects_missing_type() {
-        let result = require_participant_user_type(None);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

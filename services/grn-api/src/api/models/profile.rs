@@ -96,24 +96,3 @@ pub struct PutMeRequest {
     pub user_type: Option<UserType>,
     pub grower_profile: Option<GrowerProfileInput>,
 }
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Legacy structure - replaced by PutMeRequest
-pub struct UpsertMeProfileRequest {
-    pub email: Option<String>,
-    pub display_name: Option<String>,
-    pub grower_profile: Option<UpsertGrowerProfileRequest>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Legacy structure - replaced by GrowerProfileInput
-pub struct UpsertGrowerProfileRequest {
-    pub home_zone: Option<String>,
-    pub address: Option<String>,
-    pub geo_key: Option<String>,
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub share_radius_km: Option<String>,
-    pub units: Option<String>,
-    pub locale: Option<String>,
-}

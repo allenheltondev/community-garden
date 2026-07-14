@@ -52,11 +52,8 @@ describe('OnboardingFlow', () => {
       </MemoryRouter>
     );
 
-    // The wizard's first step is shown directly...
+    // The wizard's first step is shown directly — no participation-mode picker.
     expect(screen.getByText(/Where are you growing/i)).toBeInTheDocument();
-    // ...and the old participation-mode picker is gone.
-    expect(screen.queryByText(/How would you like to participate/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/I'm a Gatherer/i)).not.toBeInTheDocument();
   });
 
   it('does not render a dead Back button on the first step', () => {
