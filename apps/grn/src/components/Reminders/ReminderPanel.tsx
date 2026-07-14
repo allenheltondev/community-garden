@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createReminder,
@@ -7,6 +8,7 @@ import {
   updateReminderStatus,
 } from '../../services/api';
 import { Button } from '@olivias/ui';
+import { completeTodayAction } from '../../utils/todayActionTracking';
 
 const REMINDER_TYPES: Array<{ value: ReminderType; label: string }> = [
   { value: 'watering', label: 'Watering' },
@@ -22,6 +24,7 @@ function todayIsoDate(): string {
 
 export function ReminderPanel() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [title, setTitle] = useState('');
   const [reminderType, setReminderType] = useState<ReminderType>('watering');
   const [cadenceDays, setCadenceDays] = useState(7);
@@ -54,6 +57,7 @@ export function ReminderPanel() {
       updateReminderStatus(reminderId, status),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      completeTodayAction('reminder');
     },
   });
 
@@ -61,6 +65,14 @@ export function ReminderPanel() {
     const items = remindersQuery.data?.items ?? [];
     return [...items].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt));
   }, [remindersQuery.data?.items]);
+  const linkedReminderId = searchParams.get('reminder');
+
+  useEffect(() => {
+    if (!linkedReminderId || sortedReminders.length === 0) return;
+    const element = document.getElementById(`reminder-${linkedReminderId}`);
+    element?.focus();
+    element?.scrollIntoView?.({ block: 'center' });
+  }, [linkedReminderId, sortedReminders]);
 
   const submit = () => {
     if (!title.trim()) {
@@ -160,7 +172,14 @@ export function ReminderPanel() {
             return (
               <li
                 key={reminder.id}
-                className="rounded-md border border-gray-200 px-3 py-2 flex items-center justify-between gap-3"
+                id={`reminder-${reminder.id}`}
+                tabIndex={-1}
+                aria-current={linkedReminderId === reminder.id ? 'true' : undefined}
+                className={`rounded-md border px-3 py-2 flex items-center justify-between gap-3 ${
+                  linkedReminderId === reminder.id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200'
+                }`}
               >
                 <div>
                   <p className="text-sm font-medium text-gray-900">{reminder.title}</p>

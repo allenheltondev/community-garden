@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { GrowerListingPanel } from './GrowerListingPanel';
 import type { Listing } from '../../types/listing';
 import {
@@ -13,7 +14,7 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
-import { updateClaimStatus } from '../../services/claims';
+import { listClaims, updateClaimStatus } from '../../services/claims';
 
 vi.mock('../../services/api', () => ({
   createListing: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('../../services/api', () => ({
 }));
 
 vi.mock('../../services/claims', () => ({
+  listClaims: vi.fn(),
   updateClaimStatus: vi.fn(),
 }));
 
@@ -37,6 +39,7 @@ const mockGetMyListing = vi.mocked(getMyListing);
 const mockCreateListing = vi.mocked(createListing);
 const mockUpdateListing = vi.mocked(updateListing);
 const mockUpdateClaimStatus = vi.mocked(updateClaimStatus);
+const mockListClaims = vi.mocked(listClaims);
 
 function setOnlineStatus(isOnline: boolean) {
   Object.defineProperty(window.navigator, 'onLine', {
@@ -72,7 +75,7 @@ function makeListing(overrides: Partial<Listing>): Listing {
   };
 }
 
-function renderPanel() {
+function renderPanel(initialEntry = '/') {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -83,7 +86,9 @@ function renderPanel() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <GrowerListingPanel viewerUserId="user-1" defaultLat={30.2672} defaultLng={-97.7431} />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <GrowerListingPanel viewerUserId="user-1" defaultLat={30.2672} defaultLng={-97.7431} />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -108,6 +113,13 @@ describe('GrowerListingPanel', () => {
     mockListMyCrops.mockResolvedValue([]);
     mockCreateListing.mockResolvedValue(makeListing({ id: 'new-listing' }));
     mockUpdateListing.mockResolvedValue(makeListing({ id: 'updated-listing' }));
+    mockListClaims.mockResolvedValue({
+      items: [],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
     mockUpdateClaimStatus.mockResolvedValue({
       id: 'claim-1',
       listingId: 'listing-1',
@@ -314,5 +326,46 @@ describe('GrowerListingPanel', () => {
     expect(claimSection).not.toBeNull();
     expect(within(claimSection as HTMLElement).getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
     expect(within(claimSection as HTMLElement).queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
+  });
+
+  it('opens and highlights the exact listing claim from a Today deep link', async () => {
+    const listing = makeListing({ id: 'listing-1', title: 'Tomatoes Basket' });
+    mockListMyListings.mockResolvedValue({
+      items: [listing],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+    mockGetMyListing.mockResolvedValue(listing);
+    mockListClaims.mockResolvedValue({
+      items: [
+        {
+          id: 'claim-server',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'grower-2',
+          listingOwnerId: 'user-1',
+          quantityClaimed: '1',
+          status: 'pending',
+          notes: null,
+          claimedAt: '2026-07-14T09:00:00Z',
+          confirmedAt: null,
+          completedAt: null,
+          cancelledAt: null,
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    renderPanel('/share/listings?listing=listing-1&claim=claim-server');
+
+    expect(await screen.findByRole('heading', { name: 'My Listings' })).toBeInTheDocument();
+    const claimId = await screen.findByText('claim-server');
+    expect(claimId.closest('[aria-current="true"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
   });
 });

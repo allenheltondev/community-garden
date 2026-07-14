@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   createListing,
   getMyListing,
@@ -9,12 +10,13 @@ import {
   listMyListings,
   updateListing,
 } from '../../services/api';
-import { createClaim, updateClaimStatus } from '../../services/claims';
+import { createClaim, listClaims, updateClaimStatus } from '../../services/claims';
 import type { Listing, UpsertListingRequest } from '../../types/listing';
 import type { Claim, ClaimStatus } from '../../types/claim';
 import { Button, Card } from '@olivias/ui';
 import { ListingForm, type ListingQuickPickOption } from './ListingForm';
 import { createLogger } from '../../utils/logging';
+import { completeTodayAction } from '../../utils/todayActionTracking';
 import { ClaimStatusList } from './ClaimStatusList';
 import {
   loadSessionClaims,
@@ -170,14 +172,19 @@ function ListingDetails({ listing }: { listing: Listing }) {
 
 export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: GrowerListingPanelProps) {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const linkedListingId = searchParams.get('listing');
+  const linkedClaimId = searchParams.get('claim');
   const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const [selectedCropId, setSelectedCropId] = useState<string>('');
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<ListingsView>('create');
+  const [activeView, setActiveView] = useState<ListingsView>(() =>
+    linkedListingId ? 'my-listings' : 'create'
+  );
   const [myListingsFilter, setMyListingsFilter] = useState<MyListingsFilter>('all');
-  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(linkedListingId);
   const [sessionClaims, setSessionClaims] = useState<Claim[]>(() => loadSessionClaims(viewerUserId));
   const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -259,6 +266,13 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
     enabled: !!selectedListingId,
   });
 
+  const listingClaimsQuery = useQuery({
+    queryKey: ['claims', 'listing', selectedListingId],
+    queryFn: () => listClaims({ listingId: selectedListingId ?? '', limit: 50 }),
+    enabled: !!selectedListingId,
+    staleTime: 30 * 1000,
+  });
+
   const createMutation = useMutation({
     mutationFn: (request: UpsertListingRequest) => createListing(request),
   });
@@ -292,6 +306,12 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
   useEffect(() => {
     saveSessionClaims(sessionClaims, viewerUserId);
   }, [sessionClaims, viewerUserId]);
+
+  useEffect(() => {
+    if (!linkedListingId) return;
+    setActiveView('my-listings');
+    setSelectedListingId(linkedListingId);
+  }, [linkedListingId]);
 
   useEffect(() => {
     void replayClaimQueue();
@@ -461,14 +481,21 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
       return [];
     }
 
-    return sessionClaims.filter((claim) => {
+    const combinedClaims = new Map(
+      (listingClaimsQuery.data?.items ?? []).map((claim) => [claim.id, claim])
+    );
+    for (const claim of sessionClaims) {
+      combinedClaims.set(claim.id, claim);
+    }
+
+    return [...combinedClaims.values()].filter((claim) => {
       if (claim.listingId !== selectedListing.id) {
         return false;
       }
 
       return viewerUserId ? claim.listingOwnerId === viewerUserId : true;
     });
-  }, [selectedListing, sessionClaims, viewerUserId]);
+  }, [listingClaimsQuery.data?.items, selectedListing, sessionClaims, viewerUserId]);
 
   const handleClaimTransition = async (claimId: string, status: ClaimStatus) => {
     setClaimError(null);
@@ -488,10 +515,10 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
       return;
     }
 
-    const previousClaim = sessionClaims.find((claim) => claim.id === claimId) ?? null;
-    setSessionClaims((current) =>
-      current.map((claim) => (claim.id === claimId ? { ...claim, status } : claim))
-    );
+    const previousClaim = claimsForSelectedListing.find((claim) => claim.id === claimId) ?? null;
+    if (previousClaim) {
+      setSessionClaims((current) => upsertSessionClaim(current, { ...previousClaim, status }));
+    }
 
     try {
       if (isOffline) {
@@ -502,13 +529,13 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
 
       const updated = await transitionClaimMutation.mutateAsync({ claimId, status });
       setSessionClaims((current) => upsertSessionClaim(current, updated));
+      void queryClient.invalidateQueries({ queryKey: ['claims'] });
+      completeTodayAction('claim');
       setClaimSuccessMessage('Claim updated.');
       logger.info('Claim updated', { claimId: updated.id, status: updated.status });
     } catch (error) {
       if (previousClaim) {
-        setSessionClaims((current) =>
-          current.map((claim) => (claim.id === claimId ? previousClaim : claim))
-        );
+        setSessionClaims((current) => upsertSessionClaim(current, previousClaim));
       }
 
       const message = error instanceof Error ? error.message : 'Failed to update claim';
@@ -708,9 +735,14 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
                 pendingClaimIds={pendingClaimIds}
                 successMessage={claimSuccessMessage}
                 errorMessage={claimError}
-                emptyMessage="No claims tracked for this listing in this session yet."
+                emptyMessage={
+                  listingClaimsQuery.isLoading
+                    ? 'Loading claims for this listing...'
+                    : 'No claims for this listing yet.'
+                }
                 getActions={(claim) => getGrowerActions(claim.status)}
                 onTransition={handleClaimTransition}
+                highlightedClaimId={linkedClaimId}
               />
             </>
           )}
@@ -793,9 +825,14 @@ export function GrowerListingPanel({ viewerUserId, defaultLat, defaultLng }: Gro
                 pendingClaimIds={pendingClaimIds}
                 successMessage={claimSuccessMessage}
                 errorMessage={claimError}
-                emptyMessage="No claims tracked for this listing in this session yet."
+                emptyMessage={
+                  listingClaimsQuery.isLoading
+                    ? 'Loading claims for this listing...'
+                    : 'No claims for this listing yet.'
+                }
                 getActions={(claim) => getGrowerActions(claim.status)}
                 onTransition={handleClaimTransition}
+                highlightedClaimId={linkedClaimId}
               />
             </>
           )}

@@ -1,26 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
-import { getMe, listMyCrops, listReminders } from '../services/api';
+import { getDerivedFeed, listMyCrops, listReminders } from '../services/api';
+import { listClaims } from '../services/claims';
 import type { GrowerCropItem } from '../types/listing';
 import type { UserProfile } from '../types/user';
 
 vi.mock('../services/api', () => ({
-  getMe: vi.fn(),
+  getDerivedFeed: vi.fn(),
   listMyCrops: vi.fn(),
   listReminders: vi.fn(),
 }));
 
-vi.mock('../hooks/useAuth', () => ({
-  useAuth: () => ({ signOut: vi.fn() }),
+vi.mock('../services/claims', () => ({
+  listClaims: vi.fn(),
 }));
 
-const mockGetMe = vi.mocked(getMe);
+const mockGetDerivedFeed = vi.mocked(getDerivedFeed);
 const mockListMyCrops = vi.mocked(listMyCrops);
 const mockListReminders = vi.mocked(listReminders);
+const mockListClaims = vi.mocked(listClaims);
 
 const profile = {
   id: 'grower-1',
@@ -29,7 +31,7 @@ const profile = {
   userType: 'grower',
   onboardingCompleted: true,
   subscription: { tier: 'free' },
-} as unknown as UserProfile;
+} as UserProfile;
 
 function crop(overrides: Partial<GrowerCropItem>): GrowerCropItem {
   return {
@@ -57,14 +59,14 @@ function crop(overrides: Partial<GrowerCropItem>): GrowerCropItem {
   };
 }
 
-function renderPage() {
+function renderPage(user: UserProfile = profile) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <DashboardPage />
+        <DashboardPage user={user} />
         <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>
@@ -73,73 +75,145 @@ function renderPage() {
 
 function LocationDisplay() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+    mockListMyCrops.mockResolvedValue([]);
     mockListReminders.mockResolvedValue({ items: [] });
+    mockListClaims.mockResolvedValue({
+      items: [],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+    mockGetDerivedFeed.mockResolvedValue({
+      items: [],
+      signals: [],
+      freshness: {
+        asOf: '2026-07-14T00:00:00Z',
+        isStale: false,
+        staleFallbackUsed: false,
+        staleReason: null,
+      },
+      aiSummary: null,
+      growerGuidance: null,
+      limit: 1,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
   });
 
-  it('greets the user and shows the empty-state CTA when there are no crops', async () => {
-    mockGetMe.mockResolvedValue(profile);
-    mockListMyCrops.mockResolvedValue([]);
-
+  it('shows one clear first step when the garden is empty', async () => {
     renderPage();
 
-    expect(await screen.findByText(/Welcome back, Ada/i)).toBeInTheDocument();
-    const cta = await screen.findByRole('button', { name: /add your first crop/i });
+    expect(await screen.findByRole('heading', { name: 'Today, Ada' })).toBeInTheDocument();
+    const actionList = await screen.findByRole('list', { name: /top actions today/i });
+    expect(within(actionList).getAllByRole('listitem')).toHaveLength(1);
 
-    await userEvent.click(cta);
+    await userEvent.click(within(actionList).getByRole('button', { name: 'Add a crop' }));
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/garden/plants/new');
     });
   });
 
-  it('summarizes crops and lists upcoming harvests and reminders', async () => {
-    mockGetMe.mockResolvedValue(profile);
+  it('ranks no more than three record-linked actions and preserves the harvest deep link', async () => {
     mockListMyCrops.mockResolvedValue([
-      crop({ id: 'c1', cropName: 'Tomato', status: 'growing', expectedHarvestDate: '2999-01-01' }),
-      crop({ id: 'c2', cropName: 'Basil', status: 'planning' }),
-      crop({ id: 'c3', cropName: 'Kale', status: 'interested' }),
+      crop({ id: 'crop-ready', nickname: 'Cherry tomatoes', expectedHarvestDate: '2000-01-01' }),
+      crop({ id: 'crop-plan', cropName: 'Kale', status: 'planning' }),
     ]);
     mockListReminders.mockResolvedValue({
       items: [
         {
-          id: 'r1',
-          title: 'Water the beds',
-          reminderType: 'custom',
+          id: 'reminder-due',
+          title: 'Water the raised beds',
+          reminderType: 'watering',
           cadenceDays: 1,
-          startDate: '2026-07-14',
+          startDate: '2000-01-01',
           timezone: 'UTC',
           status: 'active',
-          nextRunAt: '2999-07-15T09:00:00Z',
+          nextRunAt: '2000-01-01T09:00:00Z',
           lastRunAt: null,
-          createdAt: '2026-07-14T00:00:00Z',
+          createdAt: '2000-01-01T00:00:00Z',
         },
       ],
-    } as Awaited<ReturnType<typeof listReminders>>);
+    });
+    mockListClaims.mockResolvedValue({
+      items: [
+        {
+          id: 'claim-pending',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'neighbor-1',
+          listingOwnerId: 'grower-1',
+          quantityClaimed: '1',
+          status: 'pending',
+          notes: null,
+          claimedAt: '2000-01-01T00:00:00Z',
+          confirmedAt: null,
+          completedAt: null,
+          cancelledAt: null,
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
 
     renderPage();
 
-    // "Growing now" = 1, "Planning & interested" = 2.
-    expect(await screen.findByText('Growing now')).toBeInTheDocument();
-    expect(screen.getByText('Planning & interested')).toBeInTheDocument();
-    expect(screen.getByText('Upcoming harvests')).toBeInTheDocument();
-    expect(screen.getByText('Tomato')).toBeInTheDocument();
-    expect(screen.getByText('Water the beds')).toBeInTheDocument();
+    const actionList = await screen.findByRole('list', { name: /top actions today/i });
+    const actions = within(actionList).getAllByRole('listitem');
+    expect(actions).toHaveLength(3);
+    expect(within(actions[0]).getByText('Review a sharing request')).toBeInTheDocument();
+    expect(within(actions[1]).getByText('Water the raised beds')).toBeInTheDocument();
+    expect(within(actions[2]).getByText('Check Cherry tomatoes')).toBeInTheDocument();
+
+    await userEvent.click(within(actions[2]).getByRole('button', { name: 'Log harvest' }));
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/garden/plants?crop=crop-ready&action=harvest'
+    );
   });
 
-  it('surfaces an error state when the profile fails to load', async () => {
-    mockGetMe.mockRejectedValue(new Error('boom'));
-    mockListMyCrops.mockResolvedValue([]);
+  it('keeps successful actions visible when another source fails', async () => {
+    mockListMyCrops.mockResolvedValue([
+      crop({ id: 'crop-ready', expectedHarvestDate: '2000-01-01' }),
+    ]);
+    mockListClaims.mockRejectedValue(new Error('claims unavailable'));
 
     renderPage();
 
-    // The profile query retries twice with backoff before failing.
-    expect(
-      await screen.findByText(/failed to load your garden/i, undefined, { timeout: 5000 })
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Check Tomato')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not refresh/i);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('shows an explicit offline state without hiding cached actions', async () => {
+    mockListMyCrops.mockResolvedValue([
+      crop({ id: 'crop-ready', expectedHarvestDate: '2000-01-01' }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Check Tomato')).toBeInTheDocument();
+    fireEvent(window, new Event('offline'));
+    expect(await screen.findByText(/showing the latest garden information/i)).toBeInTheDocument();
+    expect(screen.getByText('Check Tomato')).toBeInTheDocument();
+  });
+
+  it('shows a focused loader while the initial action sources are pending', () => {
+    mockListMyCrops.mockReturnValue(new Promise(() => undefined));
+    mockListReminders.mockReturnValue(new Promise(() => undefined));
+    mockListClaims.mockReturnValue(new Promise(() => undefined));
+
+    renderPage();
+
+    expect(screen.getByText('Finding your next steps…')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /top actions today/i })).not.toBeInTheDocument();
   });
 });

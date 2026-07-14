@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listMyCrops, deleteMyCrop, listMyBeds } from '../../services/api';
 import type { GrowerCropItem } from '../../types/listing';
@@ -26,9 +26,11 @@ const STATUS_LABELS: Record<string, { label: string; emoji: string; tone: string
 export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   void viewerUserId;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'growing' | 'planning' | 'interested'>('all');
   const [harvestCrop, setHarvestCrop] = useState<GrowerCropItem | null>(null);
+  const [dismissedLinkedHarvestId, setDismissedLinkedHarvestId] = useState<string | null>(null);
 
   const { data: myCrops, isLoading: isLoadingCrops } = useQuery({
     queryKey: ['myCrops'],
@@ -39,6 +41,17 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
     queryKey: ['myBeds'],
     queryFn: listMyBeds,
   });
+
+  const linkedCropId = searchParams.get('crop');
+  const linkedAction = searchParams.get('action');
+
+  const linkedHarvestCrop = useMemo(() => {
+    if (linkedAction !== 'harvest' || !linkedCropId || !myCrops) return null;
+    return myCrops.find((crop) => crop.id === linkedCropId) ?? null;
+  }, [linkedAction, linkedCropId, myCrops]);
+  const activeHarvestCrop =
+    harvestCrop ??
+    (linkedHarvestCrop?.id !== dismissedLinkedHarvestId ? linkedHarvestCrop : null);
 
   const deleteMutation = useMutation({
     mutationFn: deleteMyCrop,
@@ -153,7 +166,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
             const progress = harvestProgress(crop.plantingDate, crop.expectedHarvestDate);
 
             return (
-              <article key={crop.id} className="grn-crop-card">
+              <article key={crop.id} id={`crop-${crop.id}`} className="grn-crop-card">
                 <header
                   className="grn-crop-card__header"
                   style={{
@@ -268,12 +281,17 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
         </div>
       </Card>
 
-      {harvestCrop ? (
+      {activeHarvestCrop ? (
         <HarvestLogModal
-          cropId={harvestCrop.id}
-          cropName={harvestCrop.nickname || harvestCrop.cropName}
-          defaultUnit={harvestCrop.defaultUnit}
-          onClose={() => setHarvestCrop(null)}
+          cropId={activeHarvestCrop.id}
+          cropName={activeHarvestCrop.nickname || activeHarvestCrop.cropName}
+          defaultUnit={activeHarvestCrop.defaultUnit}
+          onClose={() => {
+            setHarvestCrop(null);
+            if (activeHarvestCrop.id === linkedCropId) {
+              setDismissedLinkedHarvestId(activeHarvestCrop.id);
+            }
+          }}
         />
       ) : null}
     </div>

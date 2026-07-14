@@ -182,6 +182,16 @@ async function upsertUser(client, userId, email, { role, tier }) {
 }
 
 /**
+ * CI users are intentionally reused between staging runs. Clear their
+ * rolling AI allowance when fresh credentials are seeded so a previous PR's
+ * contract run cannot make the next run fail with a documented 429 response.
+ * This Lambda is never deployed to production.
+ */
+export async function resetCiUserUsage(client, userId) {
+  await client.query(`DELETE FROM ai_usage_events WHERE user_id = $1`, [userId]);
+}
+
+/**
  * Provision a single named user: create/reuse in Cognito, upsert in Postgres,
  * return tokens keyed by the caller-supplied name.
  */
@@ -190,6 +200,7 @@ async function provisionUser(client, { name, role, tier }) {
   await ensureTierGroup(tokens.email, tier);
   const userId = decodeSubFromJwt(tokens.id_token);
   await upsertUser(client, userId, tokens.email, { role, tier });
+  await resetCiUserUsage(client, userId);
   return { name, ...tokens };
 }
 

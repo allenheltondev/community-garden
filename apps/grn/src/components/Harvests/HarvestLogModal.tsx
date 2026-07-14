@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@olivias/ui';
+import { completeTodayAction } from '../../utils/todayActionTracking';
 import {
   deleteHarvest,
   listHarvests,
@@ -69,6 +70,7 @@ export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: Harv
       recordHarvest(cropId, input),
     onSuccess: () => {
       invalidate();
+      completeTodayAction('harvest');
       setAmount('');
       setNotes('');
       setHarvestedOn(todayIsoDate());

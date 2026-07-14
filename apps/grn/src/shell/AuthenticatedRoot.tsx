@@ -68,7 +68,7 @@ export function AuthenticatedRoot() {
         ) : (
           <OnboardingGuard user={user} refreshUser={refreshUser}>
             <Routes>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<DashboardPage user={user} />} />
               <Route path="/today/reminders" element={<RemindersPage />} />
               <Route path="/garden" element={<GardenDesignerPage />} />
               <Route path="/garden/plants" element={<CropsPage />} />

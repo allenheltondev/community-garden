@@ -5,6 +5,7 @@ import { Panel, SectionHeading } from '@olivias/ui';
 import { CropForm } from '../components/CropPlanner/CropForm';
 import { PlantLoader } from '../components/branding/PlantLoader';
 import { getMe, listMyBeds } from '../services/api';
+import { completeTodayAction } from '../utils/todayActionTracking';
 
 /**
  * Standalone page wrapper around <CropForm/> — the full add-a-crop form
@@ -62,7 +63,10 @@ export function NewCropPage() {
         lockedBed={lockedBed}
         initialBedId={requestedBedId}
         onCancel={() => navigate('/garden/plants')}
-        onSuccess={() => navigate('/garden/plants', { replace: true })}
+        onSuccess={() => {
+          completeTodayAction('start');
+          navigate('/garden/plants', { replace: true });
+        }}
       />
     </section>
   );
