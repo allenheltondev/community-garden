@@ -28,6 +28,12 @@ import {
   tierInterestSchema
 } from '../services/contact.mjs';
 import {
+  newsletterSignupSchema,
+  subscribeToNewsletter
+} from '../services/newsletter.mjs';
+import { listPublicImpactMetrics } from '../services/impact-metrics.mjs';
+import { listPublicTestimonials } from '../services/testimonials.mjs';
+import {
   cancelMyWorkshopSignup,
   getPublicWorkshopBySlug,
   listMyWorkshopSignups,
@@ -324,6 +330,90 @@ app.post('/contact', async ({ req, event }) => {
       headers: { 'x-correlation-id': correlationId }
     };
   } catch (error) {
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.post('/newsletter', async ({ req, event }) => {
+  const correlationId = getCorrelationId(event);
+  const payload = await req.json();
+
+  try {
+    validate({ payload, schema: newsletterSignupSchema });
+  } catch (error) {
+    if (error instanceof SchemaValidationError) {
+      logger.warn('Newsletter signup validation failed', {
+        correlationId,
+        issues: error.errors?.map((issue) => issue.message) ?? [error.message]
+      });
+      return {
+        statusCode: 422,
+        headers: { 'x-correlation-id': correlationId },
+        body: {
+          error: 'RequestValidationError',
+          message: 'Validation failed for request',
+          details: {
+            issues: error.errors?.map((issue) => issue.message) ?? [error.message]
+          }
+        }
+      };
+    }
+    throw error;
+  }
+
+  try {
+    await subscribeToNewsletter(payload, correlationId);
+    return {
+      statusCode: 204,
+      headers: { 'x-correlation-id': correlationId }
+    };
+  } catch (error) {
+    logger.error('Newsletter signup failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/impact-metrics', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  try {
+    const result = await listPublicImpactMetrics();
+    return {
+      statusCode: 200,
+      headers: {
+        'x-correlation-id': correlationId,
+        'cache-control': 'public, max-age=300, stale-while-revalidate=60'
+      },
+      body: result
+    };
+  } catch (error) {
+    logger.error('GET /impact-metrics failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  try {
+    const result = await listPublicTestimonials();
+    return {
+      statusCode: 200,
+      headers: {
+        'x-correlation-id': correlationId,
+        'cache-control': 'public, max-age=300, stale-while-revalidate=60'
+      },
+      body: result
+    };
+  } catch (error) {
+    logger.error('GET /testimonials failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return mapApiError(error, correlationId);
   }
 });

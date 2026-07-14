@@ -1,0 +1,34 @@
+$kind: http-request
+name: Newsletter Signup - Honeypot Dropped
+description: |-
+  Ensure POST /newsletter silently accepts (204) a submission that trips the
+  honeypot without forwarding it to the upstream newsletter service. This path
+  short-circuits before reading service configuration, so it is deterministic in
+  CI without newsletter secrets.
+method: POST
+url: '{{webBaseUrl}}/newsletter'
+order: 921
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: X-Correlation-Id
+    value: postman-newsletter-honeypot
+body:
+  type: json
+  content: |-
+    {
+      "email": "bot@example.com",
+      "source": "postman",
+      "website": "http://spam.example"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("POST /newsletter drops honeypot submissions with 204", function () {
+          pm.expect(pm.response.code).to.equal(204);
+      });
+
+      pm.test("Response includes correlation id header", function () {
+          pm.expect(pm.response.headers.get("x-correlation-id")).to.be.a("string").and.not.empty;
+      });

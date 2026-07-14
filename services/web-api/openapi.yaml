@@ -4,6 +4,113 @@ info:
   version: 0.1.0
   description: Public-site donation checkout API. Stripe donation lifecycle events arrive through EventBridge.
 paths:
+  /impact-metrics:
+    get:
+      summary: List admin-managed impact metrics for the public site
+      description: |
+        Public read of the impact numbers configured in the admin app (Impact section). The
+        foundation site blends these with live Okra map figures. Returns an empty list when none
+        are configured or before the backing table has been migrated.
+      responses:
+        '200':
+          description: Impact metrics list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                        caption:
+                          type: [string, 'null']
+                        sortOrder:
+                          type: integer
+  /testimonials:
+    get:
+      summary: List admin-managed testimonials for the public site
+      description: |
+        Public read of the testimonials configured in the admin app (Impact section). Returns an
+        empty list when none are configured or before the backing table has been migrated.
+      responses:
+        '200':
+          description: Testimonials list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        quote:
+                          type: string
+                        attribution:
+                          type: string
+                        role:
+                          type: [string, 'null']
+                        sortOrder:
+                          type: integer
+  /newsletter:
+    post:
+      summary: Subscribe an email address to the foundation newsletter
+      description: |
+        Proxies the public newsletter signup to the upstream newsletter service, keeping the
+        service API key server-side. Honeypot (`website`) submissions are accepted with 204 but
+        never forwarded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  minLength: 4
+                  maxLength: 320
+                firstName:
+                  type: string
+                  maxLength: 200
+                lastName:
+                  type: string
+                  maxLength: 200
+                source:
+                  type: string
+                  maxLength: 80
+                  description: Where the signup originated (e.g. home, donate). For logging only.
+                website:
+                  type: string
+                  maxLength: 200
+                  description: Honeypot field. A non-empty value marks the submission as a bot.
+                elapsedMs:
+                  type: integer
+                  minimum: 0
+                  description: Milliseconds the signup form was on screen before submit.
+      responses:
+        '204':
+          description: Subscriber accepted (or honeypot dropped)
+        '422':
+          description: Request validation failed
+        '502':
+          description: Upstream newsletter service is unavailable
+        '503':
+          description: Newsletter service is not configured in this environment
   /donations/checkout-session:
     post:
       summary: Create an embedded Stripe Checkout session for a donation

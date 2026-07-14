@@ -11,7 +11,10 @@ import {
   Section,
   WorkIcon,
 } from '../chrome';
-import { foundationOrganization } from '../organization';
+import { boardMembers, foundationOrganization } from '../organization';
+import { NewsletterSignup } from '../components/NewsletterSignup';
+import { StatsRow } from '../components/StatsRow';
+import { Testimonials } from '../components/Testimonials';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
 import { facebookUrl, goodRootsNetworkUrl, instagramUrl, webApiBase } from '../routes';
 
@@ -197,6 +200,12 @@ export function HomePage({ onNavigate }: { onNavigate: (path: string) => void; }
           </article>
         </div>
       </Section>
+
+      <Testimonials />
+
+      <section className="page-section section-newsletter" aria-label="Newsletter signup">
+        <NewsletterSignup source="home" />
+      </section>
     </>
   );
 }
@@ -326,6 +335,30 @@ export function AboutPage() {
         <p>
           We are still learning. We are building in public. And we are glad you found us.
         </p>
+      </section>
+
+      <hr className="about-divider" />
+
+      <section className="about-prose-block about-governance" aria-label="Governance" id="governance">
+        <p className="about-prose-block__eyebrow">Governance</p>
+        <p>
+          {foundationOrganization.legalName} is a Texas nonprofit and an IRS-recognized 501(c)(3)
+          public charity (EIN {foundationOrganization.ein}), determined {foundationOrganization.irsDeterminationDate}.
+          Our governing documents, conflict-of-interest policy, and most recent financial filings are
+          available on request at{' '}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+        </p>
+        {boardMembers.length > 0 ? (
+          <ul className="about-governance__board">
+            {boardMembers.map((member) => (
+              <li className="about-governance__member" key={member.name}>
+                <p className="about-governance__member-name">{member.name}</p>
+                <p className="about-governance__member-role">{member.role}</p>
+                {member.bio ? <p className="about-governance__member-bio">{member.bio}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
     </div>
@@ -467,6 +500,13 @@ export function ImpactPage({ onNavigate }: { onNavigate: (path: string) => void;
       />
 
       <Section
+        title="By the numbers."
+        body="A few signals of the work so far. Live numbers come from the Okra Project map; others are tracked by hand and dated."
+      >
+        <StatsRow />
+      </Section>
+
+      <Section
         title="What's already growing."
         body="The work is active and productive."
       >
@@ -482,6 +522,14 @@ export function ImpactPage({ onNavigate }: { onNavigate: (path: string) => void;
           cosmos, day lilies, forget-me-nots, and Colossus marigolds from border to border.
         </p>
       </Section>
+
+      {/*
+        "A story from the garden" section intentionally omitted: it previously
+        rendered an unapproved placeholder family story, which could read as a
+        real impact claim to donors and visitors. Reinstate this section only
+        with a real, approved grower story and photo (ideally sourced from
+        admin-managed content rather than hard-coded copy).
+      */}
 
       <Section
         title="Where we're going."

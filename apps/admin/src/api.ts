@@ -633,3 +633,79 @@ export async function uploadWorkshopImage(
 
   return { s3Key: intent.s3Key };
 }
+
+export interface ImpactMetric {
+  id: string;
+  label: string;
+  value: string;
+  caption: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export interface ImpactMetricInput {
+  label: string;
+  value: string;
+  caption?: string | null;
+}
+
+export async function listImpactMetrics(accessToken: string): Promise<ImpactMetric[]> {
+  const response = await requestJson<{ items: ImpactMetric[] }>(
+    `${getAdminApiBaseUrl()}/admin/impact-metrics`,
+    accessToken
+  );
+  return response.items;
+}
+
+export async function saveImpactMetrics(
+  accessToken: string,
+  metrics: ImpactMetricInput[]
+): Promise<ImpactMetric[]> {
+  const response = await requestJson<{ items: ImpactMetric[] }>(
+    `${getAdminApiBaseUrl()}/admin/impact-metrics`,
+    accessToken,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ metrics }),
+    }
+  );
+  return response.items;
+}
+
+export interface Testimonial {
+  id: string;
+  quote: string;
+  attribution: string;
+  role: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+export interface TestimonialInput {
+  quote: string;
+  attribution: string;
+  role?: string | null;
+}
+
+export async function listTestimonials(accessToken: string): Promise<Testimonial[]> {
+  const response = await requestJson<{ items: Testimonial[] }>(
+    `${getAdminApiBaseUrl()}/admin/testimonials`,
+    accessToken
+  );
+  return response.items;
+}
+
+export async function saveTestimonials(
+  accessToken: string,
+  testimonials: TestimonialInput[]
+): Promise<Testimonial[]> {
+  const response = await requestJson<{ items: Testimonial[] }>(
+    `${getAdminApiBaseUrl()}/admin/testimonials`,
+    accessToken,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ testimonials }),
+    }
+  );
+  return response.items;
+}

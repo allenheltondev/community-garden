@@ -1,0 +1,35 @@
+$kind: http-request
+name: Newsletter Signup - Missing Email
+description: |-
+  Ensure POST /newsletter rejects submissions without an email address before
+  contacting the upstream newsletter service.
+method: POST
+url: '{{webBaseUrl}}/newsletter'
+order: 920
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: X-Correlation-Id
+    value: postman-newsletter-missing-email
+body:
+  type: json
+  content: |-
+    {
+      "source": "postman"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("POST /newsletter rejects a missing email", function () {
+          pm.expect(pm.response.code).to.equal(422);
+      });
+
+      pm.test("Response body surfaces a validation error", function () {
+          const body = pm.response.json();
+          pm.expect(body.error).to.be.a("string").and.not.empty;
+      });
+
+      pm.test("Response includes correlation id header", function () {
+          pm.expect(pm.response.headers.get("x-correlation-id")).to.be.a("string").and.not.empty;
+      });

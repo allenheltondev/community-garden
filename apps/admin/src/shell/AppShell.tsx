@@ -117,6 +117,17 @@ const navItems: AdminNavItem[] = [
       </svg>
     ),
   },
+  {
+    id: 'impact',
+    path: '/impact',
+    label: 'Impact',
+    icon: (
+      // Bar chart — the impact metrics shown on the public site.
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 13h3v8H4v-8Zm6.5-9h3v17h-3V4ZM17 9h3v12h-3V9Z" fill="currentColor" />
+      </svg>
+    ),
+  },
 ];
 
 const footerLinks = [

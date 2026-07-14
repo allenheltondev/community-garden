@@ -45,6 +45,14 @@ on:
         required: false
         type: string
         default: ""
+      newsletter_api_base_url:
+        required: false
+        type: string
+        default: "https://newsletter.readysetcloud.io"
+      newsletter_tenant:
+        required: false
+        type: string
+        default: "ogf"
     secrets:
       aws_role_arn:
         required: true
@@ -63,6 +71,8 @@ on:
       web_stripe_secret_key:
         required: false
       web_donation_slack_webhook_url:
+        required: false
+      web_newsletter_api_key:
         required: false
     outputs:
       web-app-url:
@@ -321,6 +331,7 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.web_stripe_secret_key }}
           STRIPE_EVENT_BUS_NAME: ${{ inputs.stripe_event_bus_name }}
           DONATION_SLACK_WEBHOOK_URL: ${{ secrets.web_donation_slack_webhook_url }}
+          NEWSLETTER_API_KEY: ${{ secrets.web_newsletter_api_key }}
         run: |
           PARAM_OVERRIDES=(
             "DatabaseUrl=$DATABASE_URL"
@@ -335,6 +346,15 @@ jobs:
           fi
           if [ -n "$DONATION_SLACK_WEBHOOK_URL" ]; then
             PARAM_OVERRIDES+=("DonationSlackWebhookUrl=$DONATION_SLACK_WEBHOOK_URL")
+          fi
+          # Only wire the newsletter service once the API key secret exists.
+          # Without it the endpoint cleanly returns 503 instead of half-configured.
+          if [ -n "$NEWSLETTER_API_KEY" ]; then
+            PARAM_OVERRIDES+=(
+              "NewsletterApiBaseUrl=${{ inputs.newsletter_api_base_url }}"
+              "NewsletterTenant=${{ inputs.newsletter_tenant }}"
+              "NewsletterApiKey=$NEWSLETTER_API_KEY"
+            )
           fi
 
           sam deploy \

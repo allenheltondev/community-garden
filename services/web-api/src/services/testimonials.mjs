@@ -1,0 +1,53 @@
+import pg from 'pg';
+
+let pool;
+
+function getPool() {
+  if (!pool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is not configured');
+    }
+    const sslDisabled = /(?:[?&]|^)sslmode=disable(?:&|$)/i.test(connectionString);
+    pool = new pg.Pool({
+      connectionString,
+      max: 3,
+      idleTimeoutMillis: 5_000,
+      ...(sslDisabled ? {} : { ssl: { rejectUnauthorized: true } })
+    });
+  }
+  return pool;
+}
+
+/**
+ * Public read of admin-managed testimonials. The table is owned and written by
+ * admin-api; the foundation site reads it here from the shared database.
+ *
+ * Resilient by design: if the table does not exist yet (fresh environment
+ * where admin migrations have not run) we return an empty list so the public
+ * site simply hides the testimonials section instead of erroring.
+ */
+export async function listPublicTestimonials() {
+  try {
+    const result = await getPool().query(
+      `select id::text as id, quote, attribution, role, sort_order
+         from testimonials
+        order by sort_order asc, created_at asc`
+    );
+    return {
+      items: result.rows.map((row) => ({
+        id: row.id,
+        quote: row.quote,
+        attribution: row.attribution,
+        role: row.role ?? null,
+        sortOrder: row.sort_order
+      }))
+    };
+  } catch (error) {
+    // 42P01 = undefined_table. Treat a not-yet-migrated table as "no testimonials".
+    if (error?.code === '42P01') {
+      return { items: [] };
+    }
+    throw error;
+  }
+}

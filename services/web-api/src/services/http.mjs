@@ -94,5 +94,12 @@ export function mapApiError(error, correlationId) {
     return errorResponse(503, 'Service not configured in this environment', correlationId);
   }
 
+  if (
+    message.includes('Newsletter signup failed')
+    || message.includes('Newsletter service request failed')
+  ) {
+    return errorResponse(502, 'Newsletter service is unavailable right now', correlationId);
+  }
+
   return errorResponse(500, message, correlationId);
 }

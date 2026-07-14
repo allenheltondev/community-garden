@@ -22,6 +22,14 @@ import {
 import { listActivity } from '../services/activity.mjs';
 import { getRevenueSummary } from '../services/finance.mjs';
 import {
+  listImpactMetrics,
+  replaceImpactMetrics
+} from '../services/impact.mjs';
+import {
+  listTestimonials,
+  replaceTestimonials
+} from '../services/testimonials.mjs';
+import {
   createWorkshop,
   createWorkshopImageUploadIntent,
   deleteWorkshop,
@@ -190,6 +198,80 @@ app.post('/admin/workshops/image-upload-intent', async ({ event }) => {
     return jsonResponse(201, result, correlationId);
   } catch (error) {
     logger.error('POST /admin/workshops/image-upload-intent failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/admin/impact-metrics', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('GET /admin/impact-metrics', event);
+
+  try {
+    const result = await listImpactMetrics();
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('GET /admin/impact-metrics failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.put('/admin/impact-metrics', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('PUT /admin/impact-metrics', event);
+
+  try {
+    const payload = parseJsonBody(event);
+    const result = await replaceImpactMetrics(event, payload);
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('PUT /admin/impact-metrics failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.get('/admin/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('GET /admin/testimonials', event);
+
+  try {
+    const result = await listTestimonials();
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('GET /admin/testimonials failed', {
+      correlationId,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return mapApiError(error, correlationId);
+  }
+});
+
+app.put('/admin/testimonials', async ({ event }) => {
+  const correlationId = getCorrelationId(event);
+  logRouteHit('PUT /admin/testimonials', event);
+
+  try {
+    const payload = parseJsonBody(event);
+    const result = await replaceTestimonials(event, payload);
+    return jsonResponse(200, result, correlationId);
+  } catch (error) {
+    logger.error('PUT /admin/testimonials failed', {
       correlationId,
       error: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : 'UnknownError',

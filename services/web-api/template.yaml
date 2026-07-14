@@ -47,6 +47,19 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Deprecated. Contact Slack notifications now flow through services/notifications. Retained so existing CI parameter overrides keep deploying.
+  NewsletterApiBaseUrl:
+    Type: String
+    Default: ""
+    Description: Base URL for the newsletter subscriber service (e.g. https://newsletter.readysetcloud.io)
+  NewsletterTenant:
+    Type: String
+    Default: ""
+    Description: Tenant slug for the newsletter service subscriber endpoint
+  NewsletterApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: API key for the newsletter service, sent raw in the Authorization header
 
 Conditions:
   DeploySharedApiBasePathMapping: !And
@@ -141,6 +154,11 @@ Resources:
       Handler: src/handlers/api.handler
       Architectures:
         - arm64
+      Environment:
+        Variables:
+          NEWSLETTER_API_BASE_URL: !Ref NewsletterApiBaseUrl
+          NEWSLETTER_TENANT: !Ref NewsletterTenant
+          NEWSLETTER_API_KEY: !Ref NewsletterApiKey
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: '2012-10-17'

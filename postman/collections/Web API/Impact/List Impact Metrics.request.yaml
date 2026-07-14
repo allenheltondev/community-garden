@@ -1,0 +1,35 @@
+$kind: http-request
+name: List Impact Metrics
+description: |-
+  Public read of admin-managed impact metrics shown on the foundation site.
+  Returns an empty items array when none are configured.
+method: GET
+url: '{{webBaseUrl}}/impact-metrics'
+order: 940
+headers:
+  - key: X-Correlation-Id
+    value: postman-impact-metrics-list
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("GET /impact-metrics returns 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      const body = pm.response.json();
+
+      pm.test("Response contains an items array", function () {
+          pm.expect(body).to.have.property("items");
+          pm.expect(Array.isArray(body.items)).to.eql(true);
+      });
+
+      pm.test("Each metric exposes label and value", function () {
+          if (body.items.length === 0) return;
+          pm.expect(body.items[0]).to.have.property("label");
+          pm.expect(body.items[0]).to.have.property("value");
+      });
+
+      pm.test("Response includes correlation id header", function () {
+          pm.expect(pm.response.headers.get("x-correlation-id")).to.be.a("string").and.not.empty;
+      });

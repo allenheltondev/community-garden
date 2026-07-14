@@ -23,6 +23,14 @@ import {
   parseDateBoundary,
   resolveGranularity
 } from '../src/services/finance.mjs';
+import {
+  replaceImpactMetrics,
+  validateImpactMetricsPayload
+} from '../src/services/impact.mjs';
+import {
+  replaceTestimonials,
+  validateTestimonialsPayload
+} from '../src/services/testimonials.mjs';
 
 async function testAuthorizer() {
   assert.equal(
@@ -494,7 +502,93 @@ async function testGetRevenueSummary() {
   assert.equal(result.buckets.length, 1);
 }
 
+function testImpactHelpers() {
+  // Valid payload trims fields and normalizes empty captions to null.
+  const normalized = validateImpactMetricsPayload({
+    metrics: [
+      { label: '  Volunteer hours  ', value: ' 2,733 ', caption: ' as of June 2026 ' },
+      { label: 'Pounds harvested', value: '36' }
+    ]
+  });
+  assert.deepEqual(normalized, [
+    { label: 'Volunteer hours', value: '2,733', caption: 'as of June 2026' },
+    { label: 'Pounds harvested', value: '36', caption: null }
+  ]);
+
+  // An empty list is allowed (clears all metrics).
+  assert.deepEqual(validateImpactMetricsPayload({ metrics: [] }), []);
+
+  assert.throws(() => validateImpactMetricsPayload(null), /Request body is required/);
+  assert.throws(() => validateImpactMetricsPayload({}), /metrics must be an array/);
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ value: '1' }] }),
+    /metrics\[0\]\.label is required/
+  );
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ label: 'Hours' }] }),
+    /metrics\[0\]\.value is required/
+  );
+  assert.throws(
+    () => validateImpactMetricsPayload({ metrics: [{ label: 'x'.repeat(81), value: '1' }] }),
+    /metrics\[0\]\.label must be at most/
+  );
+}
+
+async function testReplaceImpactMetricsRequiresAdmin() {
+  // requireAdmin runs before any database access, so a non-admin caller is
+  // rejected without a DB connection.
+  await assert.rejects(
+    () =>
+      replaceImpactMetrics(
+        { requestContext: { authorizer: { userId: 'user-1', isAdmin: 'false' } } },
+        { metrics: [] }
+      ),
+    /Forbidden/
+  );
+}
+
+function testTestimonialsHelpers() {
+  const normalized = validateTestimonialsPayload({
+    testimonials: [
+      { quote: '  The okra seeds were a hit.  ', attribution: ' Seed recipient ', role: ' McKinney, TX ' },
+      { quote: 'A work day taught me a lot.', attribution: 'Volunteer' }
+    ]
+  });
+  assert.deepEqual(normalized, [
+    { quote: 'The okra seeds were a hit.', attribution: 'Seed recipient', role: 'McKinney, TX' },
+    { quote: 'A work day taught me a lot.', attribution: 'Volunteer', role: null }
+  ]);
+
+  assert.deepEqual(validateTestimonialsPayload({ testimonials: [] }), []);
+
+  assert.throws(() => validateTestimonialsPayload(null), /Request body is required/);
+  assert.throws(() => validateTestimonialsPayload({}), /testimonials must be an array/);
+  assert.throws(
+    () => validateTestimonialsPayload({ testimonials: [{ attribution: 'A' }] }),
+    /testimonials\[0\]\.quote is required/
+  );
+  assert.throws(
+    () => validateTestimonialsPayload({ testimonials: [{ quote: 'Q' }] }),
+    /testimonials\[0\]\.attribution is required/
+  );
+}
+
+async function testReplaceTestimonialsRequiresAdmin() {
+  await assert.rejects(
+    () =>
+      replaceTestimonials(
+        { requestContext: { authorizer: { userId: 'user-1', isAdmin: 'false' } } },
+        { testimonials: [] }
+      ),
+    /Forbidden/
+  );
+}
+
 await testAuthorizer();
+testImpactHelpers();
+await testReplaceImpactMetricsRequiresAdmin();
+testTestimonialsHelpers();
+await testReplaceTestimonialsRequiresAdmin();
 testAuthAndHttpHelpers();
 testActivityHelpers();
 testFinanceHelpers();

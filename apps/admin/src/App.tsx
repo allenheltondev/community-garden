@@ -10,6 +10,7 @@ import { OkraQueuePage } from './pages/OkraQueuePage';
 import { StorePage } from './pages/StorePage';
 import { StoreOrdersPage } from './pages/StoreOrdersPage';
 import { WorkshopsPage } from './pages/WorkshopsPage';
+import { ImpactPage } from './pages/ImpactPage';
 
 const foundationHomeUrl = import.meta.env.VITE_FOUNDATION_URL
   ? import.meta.env.VITE_FOUNDATION_URL.replace(/\/+$/, '')
@@ -81,6 +82,7 @@ export default function App() {
         <Route path="/store" element={<StorePage session={session} />} />
         <Route path="/store/orders" element={<StoreOrdersPage session={session} />} />
         <Route path="/workshops" element={<WorkshopsPage session={session} />} />
+        <Route path="/impact" element={<ImpactPage session={session} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

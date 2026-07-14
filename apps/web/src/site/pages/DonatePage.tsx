@@ -3,6 +3,7 @@ import { loadStripe, type StripeEmbeddedCheckout } from '@stripe/stripe-js';
 import { Button, FormFeedback } from '@olivias/ui';
 import type { AuthSession } from '../../auth/session';
 import { CtaButton, PageHero } from '../chrome';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { foundationOrganization } from '../organization';
 import { buildResponsiveBackgroundImage, ResponsiveImage } from '../responsive-images';
 import { stripePublishableKey, webApiBase } from '../routes';
@@ -460,6 +461,12 @@ export function DonatePage({
                 See the impact
               </CtaButton>
             </div>
+            <NewsletterSignup
+              source="donate"
+              heading="Want updates on your gift’s impact?"
+              description="We’ll send the occasional note about the garden, workshops, and how donations are put to work. Unsubscribe anytime."
+              className="donate-status-card__newsletter"
+            />
           </div>
         ) : null}
 
@@ -689,6 +696,67 @@ export function DonatePage({
             </CtaButton>
           </div>
         </aside>
+      </section>
+
+      <section className="page-section donate-other-ways" aria-label="Other ways to give">
+        <h2>Other ways to give</h2>
+        <p className="page-text">
+          Larger gifts often come through other channels. However you give, make checks and
+          transfers out to {foundationOrganization.legalName}, EIN {foundationOrganization.ein}.
+        </p>
+        <ul className="donate-other-ways__list">
+          <li className="donate-other-ways__item">
+            <h3>Donor-advised funds (DAF)</h3>
+            <p>
+              Recommend a grant through Fidelity Charitable, Schwab Charitable, or your DAF sponsor
+              to {foundationOrganization.legalName}, EIN {foundationOrganization.ein}, at the mailing
+              address below.
+            </p>
+          </li>
+          <li className="donate-other-ways__item">
+            <h3>Stock and securities</h3>
+            <p>
+              Gifts of appreciated stock can be tax-advantaged. Email{' '}
+              <a href={`mailto:${foundationOrganization.contactEmail}`}>{foundationOrganization.contactEmail}</a>{' '}
+              for transfer instructions.
+            </p>
+          </li>
+          <li className="donate-other-ways__item">
+            <h3>Employer matching gifts</h3>
+            <p>
+              Many employers match charitable donations. Ask your HR team for our legal name,{' '}
+              {foundationOrganization.legalName}, and EIN {foundationOrganization.ein}.
+            </p>
+          </li>
+          <li className="donate-other-ways__item">
+            <h3>Mailed checks</h3>
+            <p>
+              Make checks payable to {foundationOrganization.legalName} and mail to{' '}
+              {foundationOrganization.mailingAddress.line1}, {foundationOrganization.mailingAddress.city},{' '}
+              {foundationOrganization.mailingAddress.region} {foundationOrganization.mailingAddress.postalCode}.
+            </p>
+          </li>
+          <li className="donate-other-ways__item">
+            <h3>In-kind donations</h3>
+            <p>
+              Seeds, tools, supplies, and time all help. Reach out through our{' '}
+              <a
+                href="/contact"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onNavigate('/contact');
+                }}
+              >
+                contact page
+              </a>{' '}
+              to coordinate.
+            </p>
+          </li>
+        </ul>
+        <p className="donate-form-card__legal-note">
+          {foundationOrganization.legalName} is a 501(c)(3) nonprofit (EIN {foundationOrganization.ein}).
+          Donations are tax-deductible to the extent permitted by law.
+        </p>
       </section>
     </>
   );
