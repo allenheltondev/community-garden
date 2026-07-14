@@ -9,12 +9,8 @@ begin
         raise exception 'grower_profiles.address does not exist';
     end if;
 
-    if not exists (
-        select 1 from information_schema.columns
-        where table_name = 'gatherer_profiles' and column_name = 'address'
-    ) then
-        raise exception 'gatherer_profiles.address does not exist';
-    end if;
+    -- The gatherer_profiles.address column added by 0004 is intentionally not
+    -- checked here: migration 0039 later drops the gatherer_profiles table.
 
     if not exists (
         select 1 from information_schema.columns
