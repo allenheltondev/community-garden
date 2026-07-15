@@ -88,12 +88,12 @@ describe('CropLibraryPanel deep links', () => {
     expect(await screen.findByRole('dialog')).toHaveAttribute('data-highlighted-harvest', 'h1');
   });
 
-  it('changes a crop bed optimistically through the shared crop query', async () => {
-    const tomato = {
+  it('edits a user-defined crop without adding a catalog link', async () => {
+    const customCrop = {
       id: 'crop-1',
       userId: 'grower-1',
       canonicalId: null,
-      cropName: 'Tomato',
+      cropName: 'Purple yard bean',
       varietyId: null,
       status: 'growing',
       visibility: 'private',
@@ -134,15 +134,15 @@ describe('CropLibraryPanel deep links', () => {
         updatedAt: '2026-07-01T00:00:00Z',
       },
     ]);
-    const updatedTomato = {
-      ...tomato,
+    const updatedCustomCrop = {
+      ...customCrop,
       bedId: 'bed-1',
       bedName: 'Kitchen bed',
     };
     vi.mocked(listMyCrops)
-      .mockResolvedValueOnce([tomato])
-      .mockResolvedValue([updatedTomato]);
-    vi.mocked(updateMyCrop).mockResolvedValue(updatedTomato);
+      .mockResolvedValueOnce([customCrop])
+      .mockResolvedValue([updatedCustomCrop]);
+    vi.mocked(updateMyCrop).mockResolvedValue(updatedCustomCrop);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
@@ -154,17 +154,21 @@ describe('CropLibraryPanel deep links', () => {
     );
 
     await userEvent.selectOptions(
-      await screen.findByRole('combobox', { name: 'Bed assignment for Tomato' }),
+      await screen.findByRole('combobox', { name: 'Bed assignment for Purple yard bean' }),
       'bed-1'
     );
 
-    expect(screen.getByRole('combobox', { name: 'Bed assignment for Tomato' })).toHaveValue(
-      'bed-1'
-    );
+    expect(
+      screen.getByRole('combobox', { name: 'Bed assignment for Purple yard bean' })
+    ).toHaveValue('bed-1');
     await waitFor(() =>
       expect(updateMyCrop).toHaveBeenCalledWith(
         'crop-1',
-        expect.objectContaining({ cropName: 'Tomato', bedId: 'bed-1' })
+        expect.objectContaining({
+          canonicalId: undefined,
+          cropName: 'Purple yard bean',
+          bedId: 'bed-1',
+        })
       )
     );
   });

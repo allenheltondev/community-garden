@@ -74,9 +74,107 @@ describe('ListingForm', () => {
     await user.selectOptions(screen.getByLabelText(/share something you already grow/i), 'grower-crop-1');
 
     expect(screen.getByLabelText(/share title/i)).toHaveValue('Patio Tomatoes');
-    expect(screen.getByLabelText(/crop/i)).toHaveValue('crop-1');
+    expect(screen.getByText('Catalog-linked crop')).toBeInTheDocument();
+    expect(screen.getByText(/linked to tomato in the crop catalog/i)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^crop/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/unit/i)).toHaveValue('kg');
     expect(onCropChange).toHaveBeenCalledWith('crop-1');
+  });
+
+  it('submits a saved custom crop without asking for a catalog crop', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ListingForm
+        mode="create"
+        crops={crops}
+        varieties={[]}
+        quickPickOptions={[
+          {
+            id: 'grower-custom-1',
+            label: 'Back fence squash',
+            cropId: '',
+            growerCropId: 'grower-custom-1',
+            defaultUnit: 'item',
+            suggestedTitle: 'Back fence squash',
+          },
+        ]}
+        defaultLat={37.7}
+        defaultLng={-122.4}
+        isLoadingVarieties={false}
+        isSubmitting={false}
+        isOffline={false}
+        submitError={null}
+        onCropChange={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    await user.selectOptions(
+      screen.getByLabelText(/share something you already grow/i),
+      'grower-custom-1'
+    );
+
+    expect(screen.getByText('Saved custom crop')).toBeInTheDocument();
+    expect(screen.getByText(/no catalog crop selection is needed/i)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^crop/i })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/quantity/i), '3');
+    await user.click(screen.getByRole('button', { name: /review share/i }));
+    await user.click(screen.getByRole('button', { name: /confirm and share/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Back fence squash',
+        cropId: undefined,
+        growerCropId: 'grower-custom-1',
+        quantityTotal: 3,
+        unit: 'item',
+      })
+    );
+  });
+
+  it('requires a catalog crop after clearing a saved custom crop', async () => {
+    const user = userEvent.setup();
+    const onCropChange = vi.fn();
+
+    render(
+      <ListingForm
+        mode="create"
+        crops={crops}
+        varieties={[]}
+        quickPickOptions={[
+          {
+            id: 'grower-custom-1',
+            label: 'Back fence squash',
+            cropId: '',
+            growerCropId: 'grower-custom-1',
+            suggestedTitle: 'Back fence squash',
+          },
+        ]}
+        defaultLat={37.7}
+        defaultLng={-122.4}
+        isLoadingVarieties={false}
+        isSubmitting={false}
+        isOffline={false}
+        submitError={null}
+        onCropChange={onCropChange}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    const quickPick = screen.getByLabelText(/share something you already grow/i);
+    await user.selectOptions(quickPick, 'grower-custom-1');
+    await user.selectOptions(quickPick, '');
+
+    expect(screen.getByRole('combobox', { name: /^crop/i })).toBeInTheDocument();
+    expect(onCropChange).toHaveBeenLastCalledWith('');
+
+    await user.type(screen.getByLabelText(/quantity/i), '3');
+    await user.click(screen.getByRole('button', { name: /review share/i }));
+    expect(await screen.findByText(/crop is required/i)).toBeInTheDocument();
   });
 
   it('prefills an editable draft from a saved harvest', async () => {
