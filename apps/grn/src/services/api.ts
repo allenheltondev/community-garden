@@ -1093,9 +1093,13 @@ export async function getMyListing(listingId: string): Promise<Listing> {
   return mapListingItem(response);
 }
 
-export async function createListing(data: UpsertListingRequest): Promise<Listing> {
+export async function createListing(
+  data: UpsertListingRequest,
+  idempotencyKey = uuidv4()
+): Promise<Listing> {
   const response = await apiFetch<RawListingWriteResponse>('/listings', {
     method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(data),
   });
 

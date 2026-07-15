@@ -319,7 +319,7 @@ describe('FindFoodPanel', () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/no listings found in this area yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no food is available in this area yet/i)).toBeInTheDocument();
   });
 
   it('shows an error state when discovery fails', async () => {
@@ -372,21 +372,21 @@ describe('FindFoodPanel', () => {
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
     window.dispatchEvent(new Event('online'));
-    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+    await user.click(screen.getByRole('button', { name: /request pickup/i }));
 
     await waitFor(() => {
       expect(mockCreateClaim).toHaveBeenCalledTimes(1);
     });
 
-    expect(await screen.findByText(/claim submitted/i)).toBeInTheDocument();
-    const claimSectionHeading = await screen.findByRole('heading', { name: /my claim coordination/i });
+    expect(await screen.findByText(/pickup requested/i)).toBeInTheDocument();
+    const claimSectionHeading = await screen.findByRole('heading', { name: /my pickups/i });
     const claimSection = claimSectionHeading.closest('.rounded-base');
     expect(claimSection).not.toBeNull();
 
-    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i }));
+    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /cancel pickup/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /my claim coordination/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /my pickups/i })).toBeInTheDocument();
     });
   });
 
@@ -398,21 +398,21 @@ describe('FindFoodPanel', () => {
 
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
     window.dispatchEvent(new Event('online'));
-    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+    await user.click(screen.getByRole('button', { name: /request pickup/i }));
 
     await waitFor(() => {
       expect(mockCreateClaim).toHaveBeenCalledTimes(1);
     });
 
-    const claimSectionHeading = await screen.findByRole('heading', { name: /my claim coordination/i });
+    const claimSectionHeading = await screen.findByRole('heading', { name: /my pickups/i });
     const claimSection = claimSectionHeading.closest('.rounded-base');
     expect(claimSection).not.toBeNull();
-    expect(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    expect(within(claimSection as HTMLElement).getByRole('button', { name: /cancel pickup/i })).toBeInTheDocument();
 
-    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /^cancel$/i }));
+    await user.click(within(claimSection as HTMLElement).getByRole('button', { name: /cancel pickup/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /my claim coordination/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /my pickups/i })).toBeInTheDocument();
     });
   });
 
@@ -426,10 +426,10 @@ describe('FindFoodPanel', () => {
     setOnlineStatus(false);
     window.dispatchEvent(new Event('offline'));
 
-    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+    await user.click(screen.getByRole('button', { name: /request pickup/i }));
 
     expect(mockCreateClaim).not.toHaveBeenCalled();
-    expect(await screen.findByText(/claim was queued/i)).toBeInTheDocument();
+    expect(await screen.findByText(/pickup request is saved/i)).toBeInTheDocument();
 
     setOnlineStatus(true);
     window.dispatchEvent(new Event('online'));
@@ -487,7 +487,7 @@ describe('FindFoodPanel', () => {
       expect(mockCreateRequest).toHaveBeenCalledTimes(2);
     });
 
-    await user.click(screen.getByRole('button', { name: /claim this listing/i }));
+    await user.click(screen.getByRole('button', { name: /request pickup/i }));
 
     await waitFor(() => {
       expect(mockCreateClaim).toHaveBeenCalledTimes(1);
@@ -581,8 +581,8 @@ describe('FindFoodPanel', () => {
 
     renderPanel('/share/find?claim=claim-server');
 
-    const claimId = await screen.findByText('claim-server');
-    expect(claimId.closest('[aria-current="true"]')).not.toBeNull();
-    expect(screen.getByRole('button', { name: /^complete$/i })).toBeInTheDocument();
+    await screen.findByText(/pickup scheduled/i);
+    expect(document.querySelector('[aria-current="true"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /mark picked up/i })).toBeInTheDocument();
   });
 });

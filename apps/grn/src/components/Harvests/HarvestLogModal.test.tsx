@@ -14,11 +14,17 @@ vi.mock('../../services/api', async (importOriginal) => {
   return { ...actual, listHarvests, recordHarvest, updateHarvest, deleteHarvest };
 });
 
-function renderModal() {
+function renderModal(onShareHarvest?: Parameters<typeof HarvestLogModal>[0]['onShareHarvest']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <HarvestLogModal cropId="crop-1" cropName="Tomato" defaultUnit="lb" onClose={() => {}} />
+      <HarvestLogModal
+        cropId="crop-1"
+        cropName="Tomato"
+        defaultUnit="lb"
+        onClose={() => {}}
+        onShareHarvest={onShareHarvest}
+      />
     </QueryClientProvider>
   );
 }
@@ -74,6 +80,42 @@ describe('HarvestLogModal', () => {
     await waitFor(() => expect(recordHarvest).toHaveBeenCalledTimes(1));
     expect(recordHarvest.mock.calls[0][0]).toBe('crop-1');
     expect(recordHarvest.mock.calls[0][1]).toMatchObject({ amount: 2, unit: 'lb' });
+  });
+
+  it('starts a food share from the harvest that was just saved', async () => {
+    const onShareHarvest = vi.fn();
+    const savedHarvest = {
+      id: 'h2',
+      growerCropId: 'crop-1',
+      amount: '2',
+      unit: 'lb',
+      harvestedOn: '2026-06-22',
+      notes: null,
+      createdAt: '2026-06-22T00:00:00Z',
+    };
+    recordHarvest.mockResolvedValue({
+      harvest: savedHarvest,
+      totalHarvested: '5.5',
+      harvestCount: 2,
+    });
+
+    renderModal(onShareHarvest);
+    await screen.findByTestId('harvest-total');
+    await userEvent.type(screen.getByPlaceholderText('3.5'), '2');
+    await userEvent.click(screen.getByRole('button', { name: /log harvest/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /share some food/i }));
+
+    expect(onShareHarvest).toHaveBeenCalledWith(savedHarvest);
+  });
+
+  it('starts a food share from an existing harvest', async () => {
+    const onShareHarvest = vi.fn();
+    renderModal(onShareHarvest);
+    const row = (await screen.findByText(/first picking/i)).closest('li') as HTMLElement;
+
+    await userEvent.click(within(row).getByRole('button', { name: /share food/i }));
+
+    expect(onShareHarvest).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
   });
 
   it('rejects a non-positive amount before calling the API', async () => {

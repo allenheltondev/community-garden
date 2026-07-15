@@ -130,6 +130,23 @@ export function buildTodayActions({
     }
   }
 
+  const surplusCrop = crops.find(
+    (crop) => crop.status === 'growing' && crop.surplusEnabled
+  );
+  if (surplusCrop) {
+    candidates.push({
+      id: `share:${surplusCrop.id}`,
+      kind: 'share',
+      label: 'Share',
+      title: `Share extra ${cropName(surplusCrop)}`,
+      body: 'You marked this crop for surplus sharing. You choose the amount and timing before anything is public.',
+      cta: 'Share food',
+      to: `/share/listings?crop=${encodeURIComponent(surplusCrop.id)}`,
+      destination: 'share',
+      priority: 45,
+    });
+  }
+
   const planningCrop = crops.find((crop) => crop.status === 'planning' || crop.status === 'interested');
   if (planningCrop) {
     candidates.push({

@@ -34,7 +34,7 @@ describe('ListingForm', () => {
       />
     );
 
-    await user.click(screen.getByRole('button', { name: /post listing/i }));
+    await user.click(screen.getByRole('button', { name: /review share/i }));
 
     expect(await screen.findByText(/title is required/i)).toBeInTheDocument();
     expect(screen.getByText(/crop is required/i)).toBeInTheDocument();
@@ -73,10 +73,52 @@ describe('ListingForm', () => {
 
     await user.selectOptions(screen.getByLabelText(/share something you already grow/i), 'grower-crop-1');
 
-    expect(screen.getByLabelText(/listing title/i)).toHaveValue('Patio Tomatoes');
+    expect(screen.getByLabelText(/share title/i)).toHaveValue('Patio Tomatoes');
     expect(screen.getByLabelText(/crop/i)).toHaveValue('crop-1');
     expect(screen.getByLabelText(/unit/i)).toHaveValue('kg');
     expect(onCropChange).toHaveBeenCalledWith('crop-1');
+  });
+
+  it('prefills an editable draft from a saved harvest', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ListingForm
+        mode="create"
+        crops={crops}
+        varieties={[]}
+        quickPickOptions={[
+          {
+            id: 'grower-crop-1',
+            label: 'Patio Tomatoes',
+            cropId: 'crop-1',
+            defaultUnit: 'lb',
+            suggestedTitle: 'Patio Tomatoes',
+          },
+        ]}
+        prefill={{
+          quickPickId: 'grower-crop-1',
+          quantity: '3.5',
+          unit: 'lb',
+          sourceLabel: 'your saved harvest',
+        }}
+        isLoadingVarieties={false}
+        isSubmitting={false}
+        isOffline={false}
+        submitError={null}
+        onCropChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText(/share something you already grow/i)).toHaveValue('grower-crop-1');
+    expect(screen.getByLabelText(/share title/i)).toHaveValue('Patio Tomatoes');
+    expect(screen.getByLabelText(/quantity/i)).toHaveValue(3.5);
+    expect(screen.getByText(/prefilled from your saved harvest/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/quantity/i));
+    await user.type(screen.getByLabelText(/quantity/i), '4');
+    expect(screen.getByLabelText(/quantity/i)).toHaveValue(4);
   });
 
   it('submits valid payload when required fields are complete', async () => {
@@ -97,13 +139,18 @@ describe('ListingForm', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/listing title/i), 'Fresh Tomatoes');
+    await user.type(screen.getByLabelText(/share title/i), 'Fresh Tomatoes');
     await user.selectOptions(screen.getByLabelText(/crop/i), 'crop-1');
     await user.type(screen.getByLabelText(/quantity/i), '4.5');
     await user.type(screen.getByLabelText(/latitude/i), '37.7');
     await user.type(screen.getByLabelText(/longitude/i), '-122.4');
 
-    await user.click(screen.getByRole('button', { name: /post listing/i }));
+    await user.click(screen.getByRole('button', { name: /review share/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /ready to share/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /confirm and share/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -141,13 +188,13 @@ describe('ListingForm', () => {
 
     expect(screen.getByText(/you are offline/i)).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/listing title/i), 'Fresh Tomatoes');
+    await user.type(screen.getByLabelText(/share title/i), 'Fresh Tomatoes');
     await user.selectOptions(screen.getByLabelText(/crop/i), 'crop-1');
     await user.type(screen.getByLabelText(/quantity/i), '4.5');
     await user.type(screen.getByLabelText(/latitude/i), '37.7');
     await user.type(screen.getByLabelText(/longitude/i), '-122.4');
 
-    await user.click(screen.getByRole('button', { name: /post listing/i }));
+    expect(screen.getByRole('button', { name: /review share/i })).toBeDisabled();
 
     expect(onSubmit).not.toHaveBeenCalled();
   });

@@ -136,7 +136,7 @@ describe('GrowerListingPanel', () => {
     });
   });
 
-  it('renders my listings, applies status filters, and opens listing details', async () => {
+  it('renders food offers, applies human status filters, and opens pickup details', async () => {
     const user = userEvent.setup();
 
     const activeListing = makeListing({ id: 'listing-1', title: 'Tomatoes Basket', status: 'active' });
@@ -149,44 +149,12 @@ describe('GrowerListingPanel', () => {
       pickupLocationText: 'Driveway table',
     });
 
-    mockListMyListings.mockImplementation(async (_limit, _offset, status) => {
-      if (status === 'active') {
-        return {
-          items: [activeListing],
-          limit: 50,
-          offset: 0,
-          hasMore: false,
-          nextOffset: null,
-        };
-      }
-
-      if (status === 'expired') {
-        return {
-          items: [expiredListing],
-          limit: 50,
-          offset: 0,
-          hasMore: false,
-          nextOffset: null,
-        };
-      }
-
-      if (status === 'completed') {
-        return {
-          items: [],
-          limit: 50,
-          offset: 0,
-          hasMore: false,
-          nextOffset: null,
-        };
-      }
-
-      return {
-        items: [activeListing, expiredListing],
-        limit: 50,
-        offset: 0,
-        hasMore: false,
-        nextOffset: null,
-      };
+    mockListMyListings.mockResolvedValue({
+      items: [activeListing, expiredListing],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
     });
 
     mockGetMyListing.mockImplementation(async (listingId: string) => {
@@ -195,22 +163,21 @@ describe('GrowerListingPanel', () => {
 
     renderPanel();
 
-    await user.click(screen.getByRole('tab', { name: /my listings/i }));
-
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Active' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Current' })).toBeInTheDocument();
+    expect(screen.queryByText('Late Kale')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Expired' }));
+    await user.click(screen.getByRole('button', { name: 'Ended' }));
 
     expect(await screen.findByText('Late Kale')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /view details/i }));
+    await user.click(screen.getByRole('button', { name: /pickup details/i }));
 
-    expect(await screen.findByText(/listing details/i)).toBeInTheDocument();
+    expect(await screen.findByText(/food to share details/i)).toBeInTheDocument();
     expect(screen.getByText(/driveway table/i)).toBeInTheDocument();
   });
 
-  it('shows empty states for my listings and local discovery', async () => {
+  it('shows an empty hub and keeps sharing one action away', async () => {
     const user = userEvent.setup();
 
     mockListMyListings.mockResolvedValue({
@@ -224,21 +191,16 @@ describe('GrowerListingPanel', () => {
 
     renderPanel();
 
-    await user.click(screen.getByRole('tab', { name: /my listings/i }));
-    expect(await screen.findByText(/no listings match this filter/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no food offers match this view/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /local discovery/i }));
-    expect(await screen.findByText(/no active listings available for local discovery yet/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^share food$/i }));
+    expect(await screen.findByRole('heading', { name: /^share food$/i })).toBeInTheDocument();
   });
 
   it('shows error state when listing queries fail', async () => {
-    const user = userEvent.setup();
-
     mockListMyListings.mockRejectedValue(new Error('Listings request failed'));
 
     renderPanel();
-
-    await user.click(screen.getByRole('tab', { name: /my listings/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/listings request failed/i)).toBeInTheDocument();
@@ -271,13 +233,12 @@ describe('GrowerListingPanel', () => {
 
     renderPanel();
 
-    await user.click(screen.getByRole('tab', { name: /my listings/i }));
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(screen.getByRole('button', { name: 'Edit offer' }));
 
-    expect(await screen.findByRole('heading', { name: /edit listing/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/listing title/i)).toHaveValue('Tomatoes Basket');
+    expect(await screen.findByRole('heading', { name: /edit food offer/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/share title/i)).toHaveValue('Tomatoes Basket');
 
     resolveDetail?.(activeListing);
   });
@@ -316,16 +277,15 @@ describe('GrowerListingPanel', () => {
 
     renderPanel();
 
-    await user.click(screen.getByRole('tab', { name: /my listings/i }));
     expect(await screen.findByText('Tomatoes Basket')).toBeInTheDocument();
     window.dispatchEvent(new Event('online'));
-    await user.click(screen.getByRole('button', { name: /view details/i }));
+    await user.click(screen.getByRole('button', { name: /pickup details/i }));
 
-    const claimSectionHeading = await screen.findByRole('heading', { name: /claim coordination/i });
+    const claimSectionHeading = await screen.findByRole('heading', { name: /pickup coordination/i });
     const claimSection = claimSectionHeading.closest('.rounded-base');
     expect(claimSection).not.toBeNull();
-    expect(within(claimSection as HTMLElement).getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
-    expect(within(claimSection as HTMLElement).queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
+    expect(within(claimSection as HTMLElement).getByRole('button', { name: /confirm pickup/i })).toBeInTheDocument();
+    expect(within(claimSection as HTMLElement).queryByRole('button', { name: /mark picked up/i })).not.toBeInTheDocument();
   });
 
   it('opens and highlights the exact listing claim from a Today deep link', async () => {
@@ -363,9 +323,140 @@ describe('GrowerListingPanel', () => {
 
     renderPanel('/share/listings?listing=listing-1&claim=claim-server');
 
-    expect(await screen.findByRole('heading', { name: 'My Listings' })).toBeInTheDocument();
-    const claimId = await screen.findByText('claim-server');
-    expect(claimId.closest('[aria-current="true"]')).not.toBeNull();
-    expect(screen.getByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Food to share & pickups' })).toBeInTheDocument();
+    await screen.findByText(/waiting for confirmation/i);
+    expect(document.querySelector('[aria-current="true"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /confirm pickup/i })).toBeInTheDocument();
+  });
+
+  it('prefills an editable share draft from a saved harvest deep link', async () => {
+    const user = userEvent.setup();
+    mockListMyCrops.mockResolvedValue([
+      {
+        id: 'grower-crop-1',
+        userId: 'user-1',
+        canonicalId: 'crop-1',
+        cropName: 'Tomato',
+        varietyId: null,
+        status: 'growing',
+        visibility: 'private',
+        surplusEnabled: true,
+        nickname: 'Patio tomatoes',
+        defaultUnit: 'lb',
+        notes: null,
+        bedId: null,
+        bedName: null,
+        plantingDate: null,
+        expectedHarvestDate: null,
+        plantCount: null,
+        spacingInches: null,
+        pyramidTier: null,
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z',
+      },
+    ]);
+    mockListMyListings.mockResolvedValue({
+      items: [],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    renderPanel('/share/listings?crop=grower-crop-1&harvest=h1&quantity=3.5&unit=lb');
+
+    expect(await screen.findByLabelText(/share title/i)).toHaveValue('Patio tomatoes');
+    expect(screen.getByLabelText(/quantity/i)).toHaveValue(3.5);
+    expect(screen.getByLabelText(/unit/i)).toHaveValue('lb');
+    expect(screen.getByText(/prefilled from your saved harvest/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/quantity/i));
+    await user.type(screen.getByLabelText(/quantity/i), '4');
+    expect(screen.getByLabelText(/quantity/i)).toHaveValue(4);
+  });
+
+  it('requires confirmation and reuses the idempotency key when a share is retried', async () => {
+    const user = userEvent.setup();
+    mockListMyCrops.mockResolvedValue([
+      {
+        id: 'grower-crop-1',
+        userId: 'user-1',
+        canonicalId: 'crop-1',
+        cropName: 'Tomato',
+        varietyId: null,
+        status: 'growing',
+        visibility: 'private',
+        surplusEnabled: true,
+        nickname: null,
+        defaultUnit: 'lb',
+        notes: null,
+        bedId: null,
+        bedName: null,
+        plantingDate: null,
+        expectedHarvestDate: null,
+        plantCount: null,
+        spacingInches: null,
+        pyramidTier: null,
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z',
+      },
+    ]);
+    mockListMyListings.mockResolvedValue({
+      items: [], limit: 50, offset: 0, hasMore: false, nextOffset: null,
+    });
+    mockCreateListing
+      .mockRejectedValueOnce(new Error('Connection interrupted'))
+      .mockResolvedValueOnce(makeListing({ id: 'new-listing' }));
+
+    renderPanel('/share/listings?crop=grower-crop-1&quantity=2&unit=lb');
+
+    await screen.findByLabelText(/share title/i);
+    await user.click(screen.getByRole('button', { name: /review share/i }));
+    expect(mockCreateListing).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /confirm and share/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/connection interrupted/i);
+    await user.click(screen.getByRole('button', { name: /confirm and share/i }));
+
+    await waitFor(() => expect(mockCreateListing).toHaveBeenCalledTimes(2));
+    expect(mockCreateListing.mock.calls[0][1]).toBe(mockCreateListing.mock.calls[1][1]);
+    expect(mockCreateListing.mock.calls[0][1]).toMatch(/^share-/);
+    expect(await screen.findByText(/now available to nearby neighbors/i)).toBeInTheDocument();
+  });
+
+  it('shows completed pickups only in the grower private impact summary', async () => {
+    mockListMyListings.mockResolvedValue({
+      items: [makeListing({ id: 'listing-1' })],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+    mockListClaims.mockResolvedValue({
+      items: [
+        {
+          id: 'claim-1',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'neighbor-1',
+          listingOwnerId: 'user-1',
+          quantityClaimed: '2',
+          status: 'completed',
+          notes: null,
+          claimedAt: '2026-07-14T09:00:00Z',
+          confirmedAt: '2026-07-14T10:00:00Z',
+          completedAt: '2026-07-14T11:00:00Z',
+          cancelledAt: null,
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+      nextOffset: null,
+    });
+
+    renderPanel();
+
+    expect(await screen.findByText(/1 neighbor pickup completed/i)).toBeInTheDocument();
   });
 });

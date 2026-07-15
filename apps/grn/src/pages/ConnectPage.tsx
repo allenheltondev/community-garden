@@ -18,9 +18,9 @@ const options: ConnectOption[] = [
   {
     id: 'share',
     emoji: '🧺',
-    title: 'Share your surplus',
-    body: 'Post what’s ready to give away so nearby neighbors can pick it up before it goes to waste.',
-    cta: 'Post a listing',
+    title: 'Food to share',
+    body: 'Share what is ready so a nearby neighbor can request a pickup before it goes to waste.',
+    cta: 'Share food',
     to: '/share/listings',
   },
   {
@@ -69,7 +69,7 @@ export function ConnectPage() {
     <section className="grn-section">
       <SectionHeading
         title="Share with people nearby"
-        body="Growing is better together. Share what you have, find what you need, and stay in touch with your local food community — all optional."
+        body="Share what you have, find what you need, and stay in touch with your local food community. It is always optional."
       />
       <div className="grn-connect-grid">
         {options.map((option) => (

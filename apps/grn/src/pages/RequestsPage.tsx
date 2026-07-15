@@ -19,7 +19,7 @@ export function RequestsPage() {
   if (isLoading) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Connect" title="Find food nearby" />
+        <SectionHeading title="Find food nearby" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading…</p>
@@ -42,9 +42,8 @@ export function RequestsPage() {
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Connect"
         title="Find food nearby"
-        body="Search growers near you and coordinate pickup details."
+        body="See food available from nearby growers, request a pickup, and follow its status."
       />
       <FindFoodPanel
         viewerUserId={profile.id}

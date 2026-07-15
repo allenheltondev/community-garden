@@ -4,6 +4,7 @@ export type TodayActionKind =
   | 'claim'
   | 'reminder'
   | 'harvest'
+  | 'share'
   | 'pickup'
   | 'plan'
   | 'local'

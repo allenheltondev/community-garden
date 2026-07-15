@@ -106,6 +106,32 @@ describe('buildTodayActions', () => {
     expect(action.to).toBe('/share/find?claim=claim-1');
   });
 
+  it('offers an optional share action for a surplus-enabled crop', () => {
+    const [action] = buildTodayActions({
+      userId: 'grower-1',
+      now: new Date('2026-07-14T12:00:00Z'),
+      crops: [
+        crop({
+          id: 'crop-share',
+          cropName: 'Zucchini',
+          status: 'growing',
+          surplusEnabled: true,
+        }),
+      ],
+      cropsLoaded: true,
+      reminders: [],
+      claims: [],
+      signals: [],
+    });
+
+    expect(action).toMatchObject({
+      kind: 'share',
+      cta: 'Share food',
+      to: '/share/listings?crop=crop-share',
+    });
+    expect(action.body).toMatch(/you choose the amount and timing/i);
+  });
+
   it('returns one clear start action for an empty, loaded garden', () => {
     const actions = buildTodayActions({
       crops: [],
