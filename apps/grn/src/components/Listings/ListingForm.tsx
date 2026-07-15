@@ -11,7 +11,7 @@ export interface ListingQuickPickOption {
   id: string;
   label: string;
   cropId: string;
-  growerCropId?: string;  // For user-defined crops
+  growerCropId?: string;
   varietyId?: string;
   defaultUnit?: string;
   suggestedTitle: string;
@@ -173,6 +173,13 @@ export function ListingForm({
   }, [mode, initialListing, defaultLat, defaultLng, prefilledQuickPick, prefill]);
 
   const [formState, setFormState] = useState<ListingFormState>(initialState);
+  const selectedQuickPick = selectedQuickPickId
+    ? quickPickOptions.find((option) => option.id === selectedQuickPickId)
+    : undefined;
+  const selectedQuickPickIsCustom = selectedQuickPick?.cropId === '';
+  const selectedCatalogCropName = selectedQuickPick?.cropId
+    ? crops.find((crop) => crop.id === selectedQuickPick.cropId)?.commonName
+    : undefined;
 
   const validateForm = (): boolean => {
     const nextErrors: ListingFormErrors = {};
@@ -230,6 +237,13 @@ export function ListingForm({
     setSelectedQuickPickId(quickPickId);
 
     if (!quickPickId) {
+      setFormState((current) => ({
+        ...current,
+        cropId: '',
+        growerCropId: '',
+        varietyId: '',
+      }));
+      onCropChange('');
       return;
     }
 
@@ -241,8 +255,8 @@ export function ListingForm({
     setFormState((current) => ({
       ...current,
       title: selected.suggestedTitle,
-      cropId: selected.cropId || '',  // Empty for user-defined crops
-      growerCropId: selected.growerCropId || selected.id,  // Use growerCropId if available, otherwise the option id
+      cropId: selected.cropId || '',
+      growerCropId: selected.growerCropId || selected.id,
       varietyId: selected.varietyId ?? '',
       unit: selected.defaultUnit ?? current.unit,
     }));
@@ -278,8 +292,8 @@ export function ListingForm({
 
     const request: UpsertListingRequest = {
       title: formState.title.trim(),
-      cropId: formState.cropId || undefined,  // Only include if we have a catalog crop
-      growerCropId: formState.growerCropId || undefined,  // Include for user-defined crops
+      cropId: formState.cropId || undefined,
+      growerCropId: formState.growerCropId || undefined,
       quantityTotal: Number(formState.quantityTotal),
       unit: formState.unit,
       availableStart: new Date(formState.availableStart).toISOString(),
@@ -326,8 +340,29 @@ export function ListingForm({
             ))}
           </select>
           {!isLoadingQuickPicks && quickPickOptions.length === 0 && (
-            <p className="text-sm text-neutral-600">No saved grower crops yet. Fill the form manually below.</p>
+            <p className="text-sm text-neutral-600">
+              No saved crops yet. Choose a catalog crop below, or add a custom crop from Garden.
+            </p>
           )}
+          {selectedQuickPick ? (
+            <div
+              className="mt-2 rounded-base border border-primary-200 bg-primary-50 px-3 py-3 text-sm text-neutral-800"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <strong>{selectedQuickPick.label}</strong>
+                <span className="font-semibold text-primary-800">
+                  {selectedQuickPickIsCustom ? 'Saved custom crop' : 'Catalog-linked crop'}
+                </span>
+              </div>
+              <p className="mt-1 text-neutral-700">
+                {selectedQuickPickIsCustom
+                  ? 'This crop came from your garden. No catalog crop selection is needed.'
+                  : `Linked to ${selectedCatalogCropName ?? selectedQuickPick.label} in the crop catalog.`}
+              </p>
+            </div>
+          ) : null}
           {prefill?.sourceLabel ? (
             <p className="rounded-base border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800" role="status">
               Prefilled from {prefill.sourceLabel}. Review every field before sharing.
@@ -350,67 +385,71 @@ export function ListingForm({
         error={errors.title}
       />
 
-      <div className="space-y-1">
-        <label htmlFor="crop-select" className="text-sm font-medium text-neutral-700">
-          Crop<span className="text-error ml-1" aria-label="required">*</span>
-        </label>
-        <select
-          id="crop-select"
-          value={formState.cropId}
-          onChange={(event) => {
-            const nextCrop = event.target.value;
-            setFormState((current) => ({
-              ...current,
-              cropId: nextCrop,
-              varietyId: '',
-            }));
-            onCropChange(nextCrop);
-            if (errors.cropId) {
-              setErrors((current) => ({ ...current, cropId: undefined }));
-            }
-          }}
-          className="w-full rounded-base border-2 border-neutral-300 bg-white px-4 py-2 text-base text-neutral-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          aria-invalid={!!errors.cropId}
-          aria-describedby={errors.cropId ? 'crop-select-error' : undefined}
-          required
-        >
-          <option value="">Select a crop</option>
-          {crops.map((crop) => (
-            <option key={crop.id} value={crop.id}>
-              {crop.commonName}
-            </option>
-          ))}
-        </select>
-        {errors.cropId && (
-          <p id="crop-select-error" className="text-sm text-error" role="alert">
-            {errors.cropId}
-          </p>
-        )}
-      </div>
+      {!selectedQuickPick ? (
+        <>
+          <div className="space-y-1">
+            <label htmlFor="crop-select" className="text-sm font-medium text-neutral-700">
+              Crop<span className="text-error ml-1" aria-label="required">*</span>
+            </label>
+            <select
+              id="crop-select"
+              value={formState.cropId}
+              onChange={(event) => {
+                const nextCrop = event.target.value;
+                setFormState((current) => ({
+                  ...current,
+                  cropId: nextCrop,
+                  varietyId: '',
+                }));
+                onCropChange(nextCrop);
+                if (errors.cropId) {
+                  setErrors((current) => ({ ...current, cropId: undefined }));
+                }
+              }}
+              className="w-full rounded-base border-2 border-neutral-300 bg-white px-4 py-2 text-base text-neutral-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              aria-invalid={!!errors.cropId}
+              aria-describedby={errors.cropId ? 'crop-select-error' : undefined}
+              required
+            >
+              <option value="">Select a crop</option>
+              {crops.map((crop) => (
+                <option key={crop.id} value={crop.id}>
+                  {crop.commonName}
+                </option>
+              ))}
+            </select>
+            {errors.cropId && (
+              <p id="crop-select-error" className="text-sm text-error" role="alert">
+                {errors.cropId}
+              </p>
+            )}
+          </div>
 
-      <div className="space-y-1">
-        <label htmlFor="variety-select" className="text-sm font-medium text-neutral-700">
-          Variety (optional)
-        </label>
-        <select
-          id="variety-select"
-          value={formState.varietyId}
-          onChange={(event) => {
-            setFormState((current) => ({ ...current, varietyId: event.target.value }));
-          }}
-          className="w-full rounded-base border-2 border-neutral-300 bg-white px-4 py-2 text-base text-neutral-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          disabled={!formState.cropId || isLoadingVarieties}
-        >
-          <option value="">
-            {isLoadingVarieties ? 'Loading varieties...' : 'No variety selected'}
-          </option>
-          {varieties.map((variety) => (
-            <option key={variety.id} value={variety.id}>
-              {variety.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="space-y-1">
+            <label htmlFor="variety-select" className="text-sm font-medium text-neutral-700">
+              Variety (optional)
+            </label>
+            <select
+              id="variety-select"
+              value={formState.varietyId}
+              onChange={(event) => {
+                setFormState((current) => ({ ...current, varietyId: event.target.value }));
+              }}
+              className="w-full rounded-base border-2 border-neutral-300 bg-white px-4 py-2 text-base text-neutral-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={!formState.cropId || isLoadingVarieties}
+            >
+              <option value="">
+                {isLoadingVarieties ? 'Loading varieties...' : 'No variety selected'}
+              </option>
+              {varieties.map((variety) => (
+                <option key={variety.id} value={variety.id}>
+                  {variety.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
