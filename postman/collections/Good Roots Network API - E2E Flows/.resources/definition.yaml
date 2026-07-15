@@ -43,6 +43,15 @@ variables:
   - key: reminderId
     value: ''
     description: Reminder ID for consistency checks
+  - key: customCropE2eId
+    value: ''
+    description: User-defined crop ID captured by the custom-crop listing flow
+  - key: customCropE2eListingId
+    value: ''
+    description: Listing ID captured by the custom-crop listing flow
+  - key: customCropE2eListingGeoKey
+    value: ''
+    description: Listing geohash captured for custom-crop discovery verification
 auth:
   type: bearer
   credentials:

@@ -1,0 +1,32 @@
+$kind: http-request
+name: 'Step 10 - Verify Custom Crop Deleted'
+description: Confirms cleanup removed the custom crop and clears run-scoped variables.
+method: GET
+url: '{{baseUrl}}/crops/:cropLibraryId'
+order: 10000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: cropLibraryId
+    value: '{{customCropE2eId}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 404", function () {
+          pm.response.to.have.status(404);
+      });
+
+      [
+          "customCropE2eId",
+          "customCropE2eListingId",
+          "customCropE2eListingGeoKey",
+          "customCropE2eRunId",
+          "customCropE2eName",
+          "customCropE2eNickname",
+          "customCropE2eListingTitle",
+          "customCropE2eIdempotencyKey",
+          "customCropE2eAvailableStart",
+          "customCropE2eAvailableEnd"
+      ].forEach((key) => pm.collectionVariables.unset(key));

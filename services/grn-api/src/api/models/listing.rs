@@ -46,3 +46,41 @@ pub struct DiscoverListingsResponse {
     pub has_more: bool,
     pub next_offset: Option<i64>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ListingItem;
+
+    #[test]
+    fn custom_crop_listing_serializes_without_a_catalog_crop() {
+        let listing = ListingItem {
+            id: "listing-id".to_string(),
+            user_id: "user-id".to_string(),
+            grower_crop_id: Some("grower-crop-id".to_string()),
+            crop_id: None,
+            variety_id: None,
+            title: Some("Purple yard beans".to_string()),
+            unit: Some("bunch".to_string()),
+            quantity_total: Some("3".to_string()),
+            quantity_remaining: Some("3".to_string()),
+            available_start: Some("2026-07-15T12:00:00Z".to_string()),
+            available_end: Some("2026-07-17T12:00:00Z".to_string()),
+            status: "active".to_string(),
+            pickup_location_text: Some("Front porch".to_string()),
+            pickup_address: None,
+            effective_pickup_address: Some("1100 Congress Ave, Austin, TX 78701".to_string()),
+            pickup_disclosure_policy: "after_confirmed".to_string(),
+            pickup_notes: None,
+            contact_pref: "app_message".to_string(),
+            geo_key: Some("9v6kpv".to_string()),
+            lat: Some(30.2747),
+            lng: Some(-97.7404),
+            created_at: "2026-07-15T12:00:00Z".to_string(),
+        };
+
+        let serialized = serde_json::json!(listing);
+
+        assert_eq!(serialized["growerCropId"], "grower-crop-id");
+        assert!(serialized["cropId"].is_null());
+    }
+}

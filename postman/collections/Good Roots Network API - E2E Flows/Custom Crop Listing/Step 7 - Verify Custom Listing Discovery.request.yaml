@@ -1,0 +1,41 @@
+$kind: http-request
+name: 'Step 7 - Verify Custom Listing Discovery'
+description: Verifies downstream discovery returns the custom-crop-backed listing intact.
+method: GET
+url: '{{baseUrl}}/listings/discover'
+order: 7000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+queryParams:
+  - key: geoKey
+    value: '{{customCropE2eListingGeoKey}}'
+  - key: status
+    value: active
+  - key: limit
+    value: '100'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const geoKey = pm.collectionVariables.get("customCropE2eListingGeoKey");
+      if (!geoKey) {
+          console.error("customCropE2eListingGeoKey not set; aborting custom-crop flow.");
+          pm.execution.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Discovery returns the custom-crop-backed listing", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("items").that.is.an("array");
+          const listing = body.items.find((item) => item.id === pm.collectionVariables.get("customCropE2eListingId"));
+          pm.expect(listing, "Custom-crop listing not found in discovery").to.not.be.undefined;
+          pm.expect(listing.growerCropId).to.eql(pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(listing.cropId).to.be.null;
+          pm.expect(listing.title).to.eql(pm.collectionVariables.get("customCropE2eListingTitle"));
+      });

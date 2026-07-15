@@ -1,0 +1,40 @@
+$kind: http-request
+name: 'Step 2 - Get Custom Crop'
+description: Reads the newly created user-defined crop back by ID.
+method: GET
+url: '{{baseUrl}}/crops/:cropLibraryId'
+order: 2000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: cropLibraryId
+    value: '{{customCropE2eId}}'
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const cropId = pm.collectionVariables.get("customCropE2eId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("customCropE2eId is a valid UUID", function () {
+          pm.expect(cropId).to.be.a("string");
+          pm.expect(cropId).to.match(uuidRe);
+      });
+      if (!cropId || !uuidRe.test(cropId)) {
+          pm.execution.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Detail read matches the custom crop write", function () {
+          const crop = pm.response.json();
+          pm.expect(crop).to.have.property("id", pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(crop).to.have.property("canonical_id", null);
+          pm.expect(crop).to.have.property("crop_name", pm.collectionVariables.get("customCropE2eName"));
+          pm.expect(crop).to.have.property("total_harvested");
+          pm.expect(crop).to.have.property("harvest_count");
+      });

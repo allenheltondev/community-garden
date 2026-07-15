@@ -1,0 +1,43 @@
+$kind: http-request
+name: 'Step 3 - Update Custom Crop'
+description: Updates the user-defined crop without introducing a catalog link.
+method: PUT
+url: '{{baseUrl}}/crops/:cropLibraryId'
+order: 3000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: cropLibraryId
+    value: '{{customCropE2eId}}'
+body:
+  type: json
+  content: |-
+    {
+      "crop_name": "{{customCropE2eName}}",
+      "status": "growing",
+      "visibility": "local",
+      "surplus_enabled": true,
+      "nickname": "{{customCropE2eNickname}}",
+      "default_unit": "bunch",
+      "notes": "Custom crop E2E update"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Updated custom crop remains unlinked", function () {
+          const crop = pm.response.json();
+          pm.expect(crop).to.have.property("id", pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(crop).to.have.property("canonical_id", null);
+          pm.expect(crop).to.have.property("crop_name", pm.collectionVariables.get("customCropE2eName"));
+          pm.expect(crop).to.have.property("nickname", pm.collectionVariables.get("customCropE2eNickname"));
+          pm.expect(crop).to.have.property("status", "growing");
+          pm.expect(crop).to.have.property("surplus_enabled", true);
+      });

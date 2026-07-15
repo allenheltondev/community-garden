@@ -70,7 +70,7 @@
         name: status
         schema:
           type: string
-          enum: [active, claimed, expired]
+          enum: [active, expired, completed]
       - in: query
         name: limit
         schema:

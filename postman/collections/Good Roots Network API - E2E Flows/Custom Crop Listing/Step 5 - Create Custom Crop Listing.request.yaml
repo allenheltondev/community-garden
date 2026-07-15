@@ -1,0 +1,68 @@
+$kind: http-request
+name: 'Step 5 - Create Custom Crop Listing'
+description: |-
+  Creates a listing using only `growerCropId`; no catalog crop is supplied.
+
+  **Chaining**: Captures the listing ID and geohash for read and discovery checks.
+method: POST
+url: '{{baseUrl}}/listings'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{customCropE2eIdempotencyKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "title": "{{customCropE2eListingTitle}}",
+      "growerCropId": "{{customCropE2eId}}",
+      "quantityTotal": 3,
+      "unit": "bunch",
+      "availableStart": "{{customCropE2eAvailableStart}}",
+      "availableEnd": "{{customCropE2eAvailableEnd}}",
+      "pickupLocationText": "Front porch",
+      "pickupAddress": "1100 Congress Ave, Austin, TX 78701",
+      "pickupDisclosurePolicy": "after_confirmed",
+      "pickupNotes": "Custom crop E2E share",
+      "contactPref": "app_message",
+      "status": "active"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const cropId = pm.collectionVariables.get("customCropE2eId");
+      pm.test("custom crop is available for listing creation", function () {
+          pm.expect(cropId).to.be.a("string").and.not.empty;
+      });
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+
+      pm.test("Listing response preserves the custom-crop link", function () {
+          const listing = pm.response.json();
+          pm.expect(listing).to.have.property("id");
+          pm.expect(listing).to.have.property("growerCropId", pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(listing).to.have.property("cropId", null);
+          pm.expect(listing).to.have.property("title", pm.collectionVariables.get("customCropE2eListingTitle"));
+          pm.expect(listing).to.have.property("status", "active");
+          pm.expect(listing).to.have.property("geoKey").that.is.a("string").and.not.empty;
+      });
+
+      if (pm.response.code === 201) {
+          const listing = pm.response.json();
+          if (!listing.id || !listing.geoKey) {
+              pm.expect.fail("Missing listing id or geoKey; aborting custom-crop flow.");
+              pm.execution.setNextRequest(null);
+          } else {
+              pm.collectionVariables.set("customCropE2eListingId", listing.id);
+              pm.collectionVariables.set("customCropE2eListingGeoKey", listing.geoKey);
+          }
+      }
