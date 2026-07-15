@@ -52,6 +52,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
 
   const linkedCropId = searchParams.get('crop');
   const linkedAction = searchParams.get('action');
+  const linkedHarvestId = searchParams.get('harvest');
 
   const linkedHarvestCrop = useMemo(() => {
     if (linkedAction !== 'harvest' || !linkedCropId || !myCrops) return null;
@@ -368,6 +369,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
           cropId={activeHarvestCrop.id}
           cropName={activeHarvestCrop.nickname || activeHarvestCrop.cropName}
           defaultUnit={activeHarvestCrop.defaultUnit}
+          highlightedHarvestId={linkedHarvestId}
           onShareHarvest={(harvest) => openShareDraft(activeHarvestCrop, harvest)}
           onClose={() => {
             setHarvestCrop(null);

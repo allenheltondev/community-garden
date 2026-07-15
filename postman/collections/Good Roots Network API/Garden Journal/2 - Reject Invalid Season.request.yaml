@@ -1,0 +1,16 @@
+$kind: http-request
+name: Reject Invalid Journal Season
+description: Reject a non-year journal season before querying records.
+method: GET
+url: '{{baseUrl}}/journal?season=summer'
+order: 2000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });

@@ -2,8 +2,28 @@ use crate::auth::extract_auth_context;
 use crate::db;
 use lambda_http::{Body, Request, Response};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio_postgres::Row;
 use uuid::Uuid;
+
+const COMPLETE_REMINDER_SQL: &str = "
+    update reminder_rules
+       set last_run_at = now(),
+           next_run_at = greatest(next_run_at, now()) + cadence_days * interval '1 day',
+           updated_at = now()
+     where id = $1
+       and user_id = $2
+       and deleted_at is null
+    returning id, title, reminder_type, cadence_days, start_date::text as start_date,
+              timezone, status, next_run_at, last_run_at, created_at
+";
+
+const SELECT_REMINDER_SQL: &str = "
+    select id, title, reminder_type, cadence_days, start_date::text as start_date,
+           timezone, status, next_run_at, last_run_at, created_at
+      from reminder_rules
+     where id = $1 and user_id = $2 and deleted_at is null
+";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -154,8 +174,15 @@ pub async fn update_reminder_status(
         .map_err(|_| lambda_http::Error::from("Invalid reminder id"))?;
     let payload: UpdateReminderStatusRequest = parse_json_body(request)?;
 
-    if !matches!(payload.status.as_str(), "active" | "paused") {
-        return error_response(400, "status must be active or paused");
+    if !is_valid_reminder_status(&payload.status) {
+        return error_response(400, "status must be active, paused, or completed");
+    }
+
+    if payload.status == "completed" {
+        let Some(idempotency_key) = extract_idempotency_key(request) else {
+            return error_response(400, "Idempotency-Key header is required for completion");
+        };
+        return complete_reminder(correlation_id, user_id, reminder_uuid, &idempotency_key).await;
     }
 
     let client = db::connect().await?;
@@ -189,6 +216,103 @@ pub async fn update_reminder_status(
     );
 
     json_response(200, &row_to_response(&row))
+}
+
+async fn complete_reminder(
+    correlation_id: &str,
+    user_id: Uuid,
+    reminder_id: Uuid,
+    idempotency_key: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    let completion_id = derive_completion_id(user_id, reminder_id, idempotency_key);
+    let mut client = db::connect().await?;
+    let transaction = client
+        .transaction()
+        .await
+        .map_err(|event| db_error(&event))?;
+    let inserted = transaction
+        .query_opt(
+            "
+            insert into reminder_completions (id, reminder_id, user_id)
+            select $1, id, user_id
+              from reminder_rules
+             where id = $2 and user_id = $3 and deleted_at is null
+            on conflict (id) do nothing
+            returning id
+            ",
+            &[&completion_id, &reminder_id, &user_id],
+        )
+        .await
+        .map_err(|event| db_error(&event))?;
+
+    let (row, is_replay) = if inserted.is_some() {
+        let row = transaction
+            .query_opt(COMPLETE_REMINDER_SQL, &[&reminder_id, &user_id])
+            .await
+            .map_err(|event| db_error(&event))?;
+        (row, false)
+    } else {
+        let replay = transaction
+            .query_opt(
+                "select id from reminder_completions where id = $1 and reminder_id = $2 and user_id = $3",
+                &[&completion_id, &reminder_id, &user_id],
+            )
+            .await
+            .map_err(|event| db_error(&event))?;
+        if replay.is_none() {
+            return error_response(409, "Idempotency key collision for reminder completion");
+        }
+        let row = transaction
+            .query_opt(SELECT_REMINDER_SQL, &[&reminder_id, &user_id])
+            .await
+            .map_err(|event| db_error(&event))?;
+        (row, true)
+    };
+
+    let Some(row) = row else {
+        return error_response(404, "Reminder not found");
+    };
+    transaction
+        .commit()
+        .await
+        .map_err(|event| db_error(&event))?;
+
+    tracing::info!(
+        correlation_id = correlation_id,
+        user_id = %user_id,
+        reminder_id = %reminder_id,
+        completion_id = %completion_id,
+        idempotency_replay = is_replay,
+        "Recorded deterministic reminder completion"
+    );
+    json_response(200, &row_to_response(&row))
+}
+
+fn derive_completion_id(user_id: Uuid, reminder_id: Uuid, idempotency_key: &str) -> Uuid {
+    let mut hasher = Sha256::new();
+    hasher.update(user_id.as_bytes());
+    hasher.update(reminder_id.as_bytes());
+    hasher.update(idempotency_key.as_bytes());
+    let digest = hasher.finalize();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
+}
+
+fn extract_idempotency_key(request: &Request) -> Option<String> {
+    request
+        .headers()
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn is_valid_reminder_status(status: &str) -> bool {
+    matches!(status, "active" | "paused" | "completed")
 }
 
 fn calculate_next_run_at(
@@ -289,5 +413,33 @@ mod tests {
         let start_date = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let next = calculate_next_run_at(start_date, 7);
         assert!(next > chrono::Utc::now() - chrono::Duration::days(7));
+    }
+
+    #[test]
+    fn completed_is_a_supported_reminder_action() {
+        assert!(is_valid_reminder_status("completed"));
+        assert!(!is_valid_reminder_status("done"));
+    }
+
+    #[test]
+    fn completion_records_the_run_and_advances_the_schedule() {
+        assert!(COMPLETE_REMINDER_SQL.contains("last_run_at = now()"));
+        assert!(COMPLETE_REMINDER_SQL.contains("greatest(next_run_at, now())"));
+        assert!(COMPLETE_REMINDER_SQL.contains("cadence_days"));
+    }
+
+    #[test]
+    fn completion_id_is_stable_for_retries_and_scoped_to_the_reminder() {
+        let user_id = Uuid::new_v4();
+        let reminder_a = Uuid::new_v4();
+        let reminder_b = Uuid::new_v4();
+        assert_eq!(
+            derive_completion_id(user_id, reminder_a, "retry-key"),
+            derive_completion_id(user_id, reminder_a, "retry-key")
+        );
+        assert_ne!(
+            derive_completion_id(user_id, reminder_a, "retry-key"),
+            derive_completion_id(user_id, reminder_b, "retry-key")
+        );
     }
 }

@@ -572,6 +572,45 @@ create index if not exists idx_crop_harvests_grower_crop on crop_harvests(grower
 create index if not exists idx_crop_harvests_user on crop_harvests(user_id);
 
 -- ============================
+-- REMINDER COMPLETIONS (private immutable facts)
+-- ============================
+create table if not exists reminder_completions (
+  id uuid primary key,
+  reminder_id uuid not null references reminder_rules(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  completed_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_reminder_completions_user_season
+  on reminder_completions(user_id, completed_at desc, id desc);
+
+-- ============================
+-- GARDEN JOURNAL NOTES (private)
+-- ============================
+-- The full journal is a deterministic read projection over existing garden
+-- records. This table stores only optional gardener-authored notes/photos.
+create table if not exists garden_journal_notes (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  occurred_on date not null,
+  title text not null,
+  body text,
+  photo_key text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  constraint garden_journal_notes_title_not_empty check (length(trim(title)) > 0),
+  constraint garden_journal_notes_title_length check (length(title) <= 120),
+  constraint garden_journal_notes_body_length check (body is null or length(body) <= 2000),
+  constraint garden_journal_notes_photo_key_scope check (photo_key is null or photo_key like 'journal-photos/%')
+);
+
+create index if not exists idx_garden_journal_notes_user_season
+  on garden_journal_notes(user_id, occurred_on desc, id desc)
+  where deleted_at is null;
+
+-- ============================
 -- SURPLUS LISTINGS
 -- ============================
 create table if not exists surplus_listings (

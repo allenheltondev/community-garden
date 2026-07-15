@@ -336,7 +336,7 @@ body {
   gap: 1.25rem;
 }
 
-/* One garden, three related views. The shell stays deliberately compact so
+/* One garden, four related views. The shell stays deliberately compact so
    the illustrated map remains the visual home instead of competing with a
    second page hero. */
 .grn-garden-workspace {
@@ -363,7 +363,7 @@ body {
 
 .grn-garden-views {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   padding: 0.4rem;
   border: 1px solid rgba(79, 56, 37, 0.12);
@@ -423,6 +423,188 @@ body {
   min-width: 0;
 }
 
+.grn-journal {
+  display: grid;
+  gap: 1rem;
+}
+
+.grn-journal__season {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.grn-journal__season h2 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  font-size: 1.15rem;
+  letter-spacing: normal;
+  text-align: center;
+}
+
+.grn-journal__offline,
+.grn-journal__privacy {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.88rem;
+}
+
+.grn-journal__offline {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(176, 106, 60, 0.35);
+  border-radius: var(--og-radius-md);
+  background: rgba(255, 244, 224, 0.82);
+}
+
+.grn-journal__summary,
+.grn-journal__note-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.grn-journal__summary h2,
+.grn-journal__note-form h2,
+.grn-journal__timeline > h2 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  font-size: 1.2rem;
+  letter-spacing: normal;
+}
+
+.grn-journal__summary p,
+.grn-journal__note-form p {
+  margin: 0.3rem 0 0;
+}
+
+.grn-journal__summary dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.grn-journal__summary dl > div {
+  padding: 0.7rem;
+  border-radius: var(--og-radius-md);
+  background: rgba(66, 107, 63, 0.07);
+}
+
+.grn-journal__summary dt {
+  color: rgba(79, 56, 37, 0.7);
+  font-size: 0.78rem;
+}
+
+.grn-journal__summary dd {
+  margin: 0.2rem 0 0;
+  color: var(--og-color-moss);
+  font-family: var(--og-font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.grn-journal__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.grn-journal__form-grid label {
+  display: grid;
+  gap: 0.3rem;
+  color: rgba(79, 56, 37, 0.78);
+  font-size: 0.85rem;
+}
+
+.grn-journal__form-grid input,
+.grn-journal__form-grid textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(79, 56, 37, 0.22);
+  border-radius: var(--og-radius-md);
+  color: var(--og-color-soil);
+  background: var(--og-color-paper);
+}
+
+.grn-journal__wide {
+  grid-column: 1 / -1;
+}
+
+.grn-journal__timeline {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.grn-journal__timeline ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grn-journal-entry {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+  border: 1px solid rgba(79, 56, 37, 0.14);
+  border-left: 4px solid var(--og-color-moss);
+  border-radius: var(--og-radius-md);
+  background: var(--og-color-paper);
+}
+
+.grn-journal-entry__meta,
+.grn-journal-entry__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  color: rgba(79, 56, 37, 0.68);
+  font-size: 0.78rem;
+}
+
+.grn-journal-entry h3,
+.grn-journal-entry p {
+  margin: 0;
+}
+
+.grn-journal-entry h3 {
+  color: var(--og-color-soil);
+  font-family: var(--og-font-display);
+  letter-spacing: normal;
+}
+
+.grn-journal-entry img {
+  max-width: min(100%, 32rem);
+  max-height: 24rem;
+  border-radius: var(--og-radius-md);
+  object-fit: cover;
+}
+
+.grn-journal-entry__actions {
+  justify-content: space-between;
+}
+
+.grn-journal__empty {
+  display: grid;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.grn-journal__empty h3,
+.grn-journal__empty p {
+  margin: 0;
+}
+
+.grn-journal__empty > div {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 640px) {
   .grn-garden-workspace {
     gap: 0.75rem;
@@ -446,6 +628,24 @@ body {
 
   .grn-garden-views__description {
     display: none;
+  }
+
+  .grn-journal__season {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .grn-journal__season h2 {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .grn-journal__summary dl,
+  .grn-journal__form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grn-journal__wide {
+    grid-column: auto;
   }
 }
 

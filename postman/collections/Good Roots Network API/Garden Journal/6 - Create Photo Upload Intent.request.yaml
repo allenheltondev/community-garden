@@ -1,0 +1,33 @@
+$kind: http-request
+name: Create Journal Photo Upload Intent
+description: Issue a short-lived owner-scoped upload URL for a supported private photo.
+method: POST
+url: '{{baseUrl}}/journal/photo-upload-url'
+order: 6000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "contentType": "image/jpeg",
+      "contentLength": 1024
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Upload intent is private and owner-scoped", function () {
+          const intent = pm.response.json();
+          pm.expect(intent).to.have.property("method", "PUT");
+          pm.expect(intent.uploadUrl).to.be.a("string").and.not.empty;
+          pm.expect(intent.photoKey).to.match(new RegExp(`^journal-photos/${pm.collectionVariables.get("myUserId")}/`));
+          pm.expect(intent.headers).to.have.property("Content-Type", "image/jpeg");
+          pm.expect(intent.expiresInSeconds).to.be.greaterThan(0);
+      });

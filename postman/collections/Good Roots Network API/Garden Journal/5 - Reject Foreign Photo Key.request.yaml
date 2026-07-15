@@ -1,0 +1,28 @@
+$kind: http-request
+name: Reject Foreign Journal Photo Key
+description: A note cannot attach a photo outside the authenticated grower's owner scope.
+method: POST
+url: '{{baseUrl}}/journal/notes'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: 'journal-invalid-photo-{{$guid}}'
+body:
+  type: json
+  content: |-
+    {
+      "occurredOn": "2026-07-14",
+      "title": "Invalid photo scope",
+      "photoKey": "journal-photos/not-the-owner/photo"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });

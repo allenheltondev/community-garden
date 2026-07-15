@@ -1,0 +1,31 @@
+$kind: http-request
+name: Replay Private Journal Note
+description: Replaying the same idempotency key and body returns the same note.
+method: POST
+url: '{{baseUrl}}/journal/notes'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{journalNoteKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "occurredOn": "2026-07-14",
+      "title": "{{journalNoteTitle}}",
+      "body": "A private contract-test observation."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Replay returns the original entry", function () {
+          pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get("journalEntryId"));
+      });

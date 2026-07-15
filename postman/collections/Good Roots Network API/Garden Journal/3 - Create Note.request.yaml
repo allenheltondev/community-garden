@@ -1,0 +1,41 @@
+$kind: http-request
+name: Create Private Journal Note
+description: Create a private note using an idempotency key and capture its ID.
+method: POST
+url: '{{baseUrl}}/journal/notes'
+order: 3000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{journalNoteKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "occurredOn": "2026-07-14",
+      "title": "{{journalNoteTitle}}",
+      "body": "A private contract-test observation."
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const suffix = Date.now().toString();
+      pm.collectionVariables.set("journalNoteKey", `journal-contract-${suffix}`);
+      pm.collectionVariables.set("journalNoteTitle", `Contract note ${suffix}`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Private note contract is returned", function () {
+          const entry = pm.response.json();
+          pm.expect(entry).to.include({ kind: "note", manual: true, isPrivate: true });
+          pm.expect(entry).to.have.property("sourceId");
+          pm.collectionVariables.set("journalNoteId", entry.sourceId);
+          pm.collectionVariables.set("journalEntryId", entry.id);
+      });

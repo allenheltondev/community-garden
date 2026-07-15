@@ -1,0 +1,19 @@
+$kind: http-request
+name: Delete Private Journal Note
+description: Soft-delete the note owned by the authenticated grower.
+method: DELETE
+url: '{{baseUrl}}/journal/notes/:noteId'
+order: 8000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: noteId
+    value: '{{journalNoteId}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204", function () {
+          pm.response.to.have.status(204);
+      });

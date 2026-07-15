@@ -1,0 +1,25 @@
+$kind: http-request
+name: Reject Unsupported Journal Photo
+description: Reject unsupported photo content before issuing an upload URL.
+method: POST
+url: '{{baseUrl}}/journal/photo-upload-url'
+order: 7000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "contentType": "image/svg+xml",
+      "contentLength": 1024
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });

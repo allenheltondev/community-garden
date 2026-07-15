@@ -23,6 +23,13 @@ const GARDEN_VIEWS = [
     description: 'Balance the garden pyramid and planting ideas.',
     end: false,
   },
+  {
+    id: 'journal',
+    label: 'Journal',
+    path: '/garden/journal',
+    description: 'Remember what you planted, tended, harvested, and shared.',
+    end: false,
+  },
 ] as const;
 
 function readOnlineStatus(): boolean {

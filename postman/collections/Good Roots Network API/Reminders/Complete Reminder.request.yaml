@@ -1,0 +1,41 @@
+$kind: http-request
+name: Complete Reminder Today
+description: Record a real completion and advance the deterministic recurring schedule.
+method: PUT
+url: '{{baseUrl}}/reminders/:reminderId'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{reminderCompletionKey}}'
+pathVariables:
+  - key: reminderId
+    value: '{{reminderId}}'
+body:
+  type: json
+  content: |-
+    {
+      "status": "completed"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      pm.collectionVariables.set("reminderCompletionKey", `reminder-completion-${Date.now()}`);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Completion is recorded and the schedule advances", function () {
+          const reminder = pm.response.json();
+          pm.expect(reminder).to.have.property("id", pm.collectionVariables.get("reminderId"));
+          pm.expect(reminder.lastRunAt).to.be.a("string").and.not.empty;
+          pm.expect(new Date(reminder.nextRunAt).getTime()).to.be.greaterThan(new Date(reminder.lastRunAt).getTime());
+          pm.collectionVariables.set("reminderCompletionLastRunAt", reminder.lastRunAt);
+          pm.collectionVariables.set("reminderCompletionNextRunAt", reminder.nextRunAt);
+      });

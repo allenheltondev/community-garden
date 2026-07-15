@@ -16,6 +16,7 @@ interface HarvestLogModalProps {
   defaultUnit?: string | null;
   onClose: () => void;
   onShareHarvest?: (harvest: HarvestItem) => void;
+  highlightedHarvestId?: string | null;
 }
 
 function todayIsoDate(): string {
@@ -42,6 +43,7 @@ export function HarvestLogModal({
   defaultUnit,
   onClose,
   onShareHarvest,
+  highlightedHarvestId,
 }: HarvestLogModalProps) {
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState('');
@@ -154,6 +156,13 @@ export function HarvestLogModal({
   const log = logQuery.data;
   const harvests = log?.harvests ?? [];
 
+  useEffect(() => {
+    if (!highlightedHarvestId || harvests.length === 0) return;
+    const row = document.getElementById(`harvest-${highlightedHarvestId}`);
+    row?.focus();
+    row?.scrollIntoView?.({ block: 'center' });
+  }, [highlightedHarvestId, harvests.length]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -263,7 +272,17 @@ export function HarvestLogModal({
 
           <ul className="space-y-2">
             {harvests.map((harvest) => (
-              <li key={harvest.id} className="rounded-md border border-gray-200 px-3 py-2">
+              <li
+                key={harvest.id}
+                id={`harvest-${harvest.id}`}
+                tabIndex={-1}
+                aria-current={highlightedHarvestId === harvest.id ? 'true' : undefined}
+                className={`rounded-md border px-3 py-2 ${
+                  highlightedHarvestId === harvest.id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200'
+                }`}
+              >
                 {editingId === harvest.id && editState ? (
                   <div className="grid gap-2 sm:grid-cols-2">
                     <input
