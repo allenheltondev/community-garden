@@ -287,12 +287,12 @@ export function FindFoodPanel({
       if (result.processed.length > 0) {
         setSessionClaims((current) => applyProcessedQueuedClaims(current, result.processed));
         setClaimSuccessMessage(
-          `Synced ${result.processed.length} queued claim action${result.processed.length === 1 ? '' : 's'}.`
+          `Synced ${result.processed.length} saved pickup update${result.processed.length === 1 ? '' : 's'}.`
         );
       }
 
       if (result.failed.length > 0) {
-        setClaimError('Some offline claim actions are still queued. They will retry when you reconnect.');
+        setClaimError('Some offline pickup updates are still saved. They will retry when you reconnect.');
       }
     } finally {
       setIsReplayingClaimQueue(false);
@@ -577,7 +577,7 @@ export function FindFoodPanel({
 
     const cropId = selectedListing?.cropId ?? draft.cropId;
     if (!cropId) {
-      setSubmitError('Choose a listing or crop before submitting your request.');
+      setSubmitError('Choose available food or a crop before submitting your request.');
       return;
     }
 
@@ -624,7 +624,7 @@ export function FindFoodPanel({
 
     const requestMatch = resolveMatchingRequestId(listing, sessionRequests);
     if (requestMatch.ambiguous) {
-      setClaimError('Multiple open requests match this listing. Claim will be created without linking to a request.');
+      setClaimError('Multiple open food requests match. This pickup will not be linked to one automatically.');
     }
 
     const payload = {
@@ -652,7 +652,7 @@ export function FindFoodPanel({
 
       setSessionClaims((previous) => upsertSessionClaim(previous, localClaim));
       enqueueCreateClaimAction(payload, localClaimId, viewerUserId);
-      setClaimSuccessMessage('You are offline. Claim was queued and will sync when you reconnect.');
+      setClaimSuccessMessage('You are offline. Your pickup request is saved and will sync when you reconnect.');
       return;
     }
 
@@ -661,10 +661,10 @@ export function FindFoodPanel({
 
       setSessionClaims((previous) => upsertSessionClaim(previous, createdClaim));
       void queryClient.invalidateQueries({ queryKey: ['claims'] });
-      setClaimSuccessMessage('Claim submitted.');
+      setClaimSuccessMessage('Pickup requested.');
       logger.info('Claim created', { claimId: createdClaim.id, listingId: createdClaim.listingId });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create claim';
+      const message = error instanceof Error ? error.message : 'Failed to request this pickup';
       setClaimError(message);
       logger.error('Claim creation failed', error as Error);
     }
@@ -696,27 +696,27 @@ export function FindFoodPanel({
     try {
       if (isOffline) {
         enqueueTransitionClaimAction(claimId, { status }, viewerUserId);
-        setClaimSuccessMessage('You are offline. Claim transition was queued and will sync when you reconnect.');
+        setClaimSuccessMessage('You are offline. This pickup update is saved and will sync when you reconnect.');
         return;
       }
 
       const resolvedClaimId = isLocalClaimId(claimId) ? previousClaim?.id : claimId;
       if (!resolvedClaimId || isLocalClaimId(resolvedClaimId)) {
-        throw new Error('Claim is not synced yet. Reconnect to sync queued actions first.');
+        throw new Error('This pickup is not synced yet. Reconnect before updating it.');
       }
 
       const updated = await transitionClaimMutation.mutateAsync({ claimId: resolvedClaimId, status });
       setSessionClaims((current) => upsertSessionClaim(current, updated));
       void queryClient.invalidateQueries({ queryKey: ['claims'] });
       completeTodayAction('pickup');
-      setClaimSuccessMessage('Claim updated.');
+      setClaimSuccessMessage('Pickup updated.');
       logger.info('Claim updated', { claimId: updated.id, status: updated.status });
     } catch (error) {
       if (previousClaim) {
         setSessionClaims((current) => upsertSessionClaim(current, previousClaim));
       }
 
-      const message = error instanceof Error ? error.message : 'Failed to update claim';
+      const message = error instanceof Error ? error.message : 'Failed to update pickup';
       setClaimError(message);
       logger.error('Claim transition failed', error as Error);
     } finally {
@@ -729,7 +729,7 @@ export function FindFoodPanel({
       <Card className="space-y-3" padding="6">
         <h3 className="text-lg font-semibold text-neutral-900">Find food nearby</h3>
         <p className="text-sm text-neutral-700">
-          Add your garden location in Settings to start discovering nearby listings.
+          Add your garden location in Settings to find food shared nearby.
         </p>
       </Card>
     );
@@ -790,7 +790,7 @@ export function FindFoodPanel({
               onClick={() => discoveryQuery.refetch()}
               disabled={isOffline || discoveryQuery.isFetching}
             >
-              Refresh Listings
+              Refresh food
             </Button>
           </div>
         </div>
@@ -827,7 +827,7 @@ export function FindFoodPanel({
           </div>
 
           <p className="text-xs text-neutral-500">
-            We only show AI-generated summary text for Pro accounts when enabled. Core listing and request flows always remain available.
+            We only show AI-generated summary text for Pro accounts when enabled. Finding food and requesting pickups always remain available.
           </p>
         </div>
 
@@ -849,7 +849,7 @@ export function FindFoodPanel({
 
         {hasProAiInsights && !aiInsightsOptOut && derivedFeedQuery.isError && (
           <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
-            AI insights are temporarily unavailable. You can still discover listings and submit requests.
+            AI insights are temporarily unavailable. You can still find food and request a pickup.
           </p>
         )}
 
@@ -921,24 +921,24 @@ export function FindFoodPanel({
 
       <Card className="space-y-4" padding="6">
         <div className="space-y-1">
-          <h4 className="text-base font-semibold text-neutral-900">Available listings</h4>
+          <h4 className="text-base font-semibold text-neutral-900">Food available nearby</h4>
           <p className="text-sm text-neutral-600">
-            Select a listing to prefill your request form.
+            Select food to prefill your request form.
           </p>
         </div>
 
         {discoveryQuery.isLoading && (
-          <p className="text-sm text-neutral-600" role="status">Loading listings...</p>
+          <p className="text-sm text-neutral-600" role="status">Loading food...</p>
         )}
 
         {discoveryQuery.isError && (
           <p className="rounded-base border border-error bg-red-50 px-3 py-2 text-sm text-error" role="alert">
-            {discoveryQuery.error instanceof Error ? discoveryQuery.error.message : 'Failed to load listings'}
+            {discoveryQuery.error instanceof Error ? discoveryQuery.error.message : 'Failed to load food nearby'}
           </p>
         )}
 
         {!discoveryQuery.isLoading && !discoveryQuery.isError && sortedListings.length === 0 && (
-          <p className="text-sm text-neutral-600">No listings found in this area yet. Try a wider radius.</p>
+          <p className="text-sm text-neutral-600">No food is available in this area yet. Try a wider radius.</p>
         )}
 
         {sortedListings.map((listing) => {
@@ -963,7 +963,7 @@ export function FindFoodPanel({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="font-medium text-neutral-900">{listing.title || 'Untitled listing'}</p>
+                  <p className="font-medium text-neutral-900">{listing.title || 'Shared food'}</p>
                   <p className="text-sm text-neutral-700">
                     {listing.quantityRemaining} {listing.unit} available
                   </p>
@@ -982,7 +982,7 @@ export function FindFoodPanel({
                     loading={createClaimMutation.isPending}
                     onClick={() => handleCreateClaim(listing)}
                   >
-                    Claim this listing
+                    Request pickup
                   </Button>
                 </div>
               </div>
@@ -1003,7 +1003,7 @@ export function FindFoodPanel({
 
         {selectedListing && (
           <p className="rounded-base border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800" role="status">
-            Requesting from: {selectedListing.title || 'Untitled listing'}
+            Requesting from: {selectedListing.title || 'Shared food'}
           </p>
         )}
 
@@ -1104,13 +1104,13 @@ export function FindFoodPanel({
       </Card>
 
       <ClaimStatusList
-        title="My claim coordination"
-        description="Track your claim states and apply only valid transitions."
+        title="My pickups"
+        description="Follow each pickup and take the next available action."
         claims={visibleClaims}
         pendingClaimIds={pendingClaimIds}
         successMessage={claimSuccessMessage}
         errorMessage={claimError}
-        emptyMessage={claimsQuery.isLoading ? 'Loading your claims...' : 'No claims yet.'}
+        emptyMessage={claimsQuery.isLoading ? 'Loading your pickups...' : 'No pickup requests yet.'}
         getActions={(claim) => getClaimActions(claim.status)}
         onTransition={handleClaimTransition}
         highlightedClaimId={linkedClaimId}

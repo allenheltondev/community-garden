@@ -21,7 +21,7 @@ function renderPage() {
 describe('ConnectPage', () => {
   it('renders the four connect options', () => {
     renderPage();
-    expect(screen.getByText('Share your surplus')).toBeInTheDocument();
+    expect(screen.getByText('Food to share')).toBeInTheDocument();
     expect(screen.getByText('Find food nearby')).toBeInTheDocument();
     expect(screen.getByText('What neighbors need')).toBeInTheDocument();
     expect(screen.getByText('Share your garden')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('ConnectPage', () => {
 
   it('navigates to the listings flow from the share card', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /post a listing/i }));
+    await userEvent.click(screen.getByRole('button', { name: /share food/i }));
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/share/listings');
     });

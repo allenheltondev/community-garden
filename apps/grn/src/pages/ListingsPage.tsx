@@ -16,7 +16,7 @@ export function ListingsPage() {
   if (isLoading) {
     return (
       <section className="grn-section">
-        <SectionHeading eyebrow="Market activity" title="Listings" />
+        <SectionHeading title="Food to share" />
         <Panel className="grn-page-status">
           <PlantLoader size="md" />
           <p>Loading…</p>
@@ -32,9 +32,8 @@ export function ListingsPage() {
   return (
     <section className="grn-section">
       <SectionHeading
-        eyebrow="Market activity"
-        title="Listings"
-        body="Post what's ready to share and review listings you've already created."
+        title="Food to share"
+        body="Share extra food, respond to pickup requests, and see your completed neighbor pickups."
       />
       <GrowerListingPanel
         viewerUserId={profile.id}

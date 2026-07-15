@@ -17,6 +17,13 @@ export interface ListingQuickPickOption {
   suggestedTitle: string;
 }
 
+export interface ListingFormPrefill {
+  quickPickId?: string | null;
+  quantity?: string | null;
+  unit?: string | null;
+  sourceLabel?: string | null;
+}
+
 interface ListingFormProps {
   mode: 'create' | 'edit';
   crops: CatalogCrop[];
@@ -24,6 +31,7 @@ interface ListingFormProps {
   quickPickOptions?: ListingQuickPickOption[];
   isLoadingVarieties: boolean;
   isLoadingQuickPicks?: boolean;
+  prefill?: ListingFormPrefill;
   initialListing?: Listing | null;
   defaultLat?: number;
   defaultLng?: number;
@@ -88,19 +96,24 @@ function parseIsoToLocal(isoValue: string): string {
   return toLocalDateTimeInput(parsed);
 }
 
-function buildDefaultForm(defaultLat?: number, defaultLng?: number): ListingFormState {
+function buildDefaultForm(
+  defaultLat?: number,
+  defaultLng?: number,
+  quickPick?: ListingQuickPickOption,
+  prefill?: ListingFormPrefill
+): ListingFormState {
   const now = new Date();
-  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   return {
-    title: '',
-    cropId: '',
-    growerCropId: '',
-    varietyId: '',
-    quantityTotal: '',
-    unit: 'lb',
+    title: quickPick?.suggestedTitle ?? '',
+    cropId: quickPick?.cropId ?? '',
+    growerCropId: quickPick?.growerCropId ?? quickPick?.id ?? '',
+    varietyId: quickPick?.varietyId ?? '',
+    quantityTotal: prefill?.quantity ?? '',
+    unit: prefill?.unit ?? quickPick?.defaultUnit ?? 'lb',
     availableStart: toLocalDateTimeInput(now),
-    availableEnd: toLocalDateTimeInput(oneHourLater),
+    availableEnd: toLocalDateTimeInput(oneDayLater),
     lat: defaultLat !== undefined ? String(defaultLat) : '',
     lng: defaultLng !== undefined ? String(defaultLng) : '',
     pickupLocationText: '',
@@ -132,6 +145,7 @@ export function ListingForm({
   quickPickOptions = [],
   isLoadingVarieties,
   isLoadingQuickPicks = false,
+  prefill,
   initialListing,
   defaultLat,
   defaultLng,
@@ -143,14 +157,20 @@ export function ListingForm({
   onCancelEdit,
 }: ListingFormProps) {
   const [errors, setErrors] = useState<ListingFormErrors>({});
-  const [selectedQuickPickId, setSelectedQuickPickId] = useState<string>('');
+  const prefilledQuickPick = prefill?.quickPickId
+    ? quickPickOptions.find((option) => option.id === prefill.quickPickId)
+    : undefined;
+  const [selectedQuickPickId, setSelectedQuickPickId] = useState<string>(
+    prefilledQuickPick?.id ?? ''
+  );
+  const [isReviewing, setIsReviewing] = useState(false);
 
   const initialState = useMemo(() => {
     if (mode === 'edit' && initialListing) {
       return buildEditForm(initialListing);
     }
-    return buildDefaultForm(defaultLat, defaultLng);
-  }, [mode, initialListing, defaultLat, defaultLng]);
+    return buildDefaultForm(defaultLat, defaultLng, prefilledQuickPick, prefill);
+  }, [mode, initialListing, defaultLat, defaultLng, prefilledQuickPick, prefill]);
 
   const [formState, setFormState] = useState<ListingFormState>(initialState);
 
@@ -246,6 +266,11 @@ export function ListingForm({
       return;
     }
 
+    if (mode === 'create' && !isReviewing) {
+      setIsReviewing(true);
+      return;
+    }
+
     const status: UpsertListingRequest['status'] =
       mode === 'edit' && initialListing && isListingStatus(initialListing.status)
         ? initialListing.status
@@ -269,7 +294,12 @@ export function ListingForm({
       contactPref: 'app_message',
     };
 
-    await onSubmit(request);
+    try {
+      await onSubmit(request);
+    } catch {
+      // The parent renders the actionable error and keeps this confirmed draft
+      // intact so retrying reuses the same idempotency key.
+    }
   };
 
   return (
@@ -298,11 +328,16 @@ export function ListingForm({
           {!isLoadingQuickPicks && quickPickOptions.length === 0 && (
             <p className="text-sm text-neutral-600">No saved grower crops yet. Fill the form manually below.</p>
           )}
+          {prefill?.sourceLabel ? (
+            <p className="rounded-base border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800" role="status">
+              Prefilled from {prefill.sourceLabel}. Review every field before sharing.
+            </p>
+          ) : null}
         </div>
       )}
 
       <Input
-        label="Listing title"
+        label="Share title"
         value={formState.title}
         onChange={(event) => {
           setFormState((current) => ({ ...current, title: event.target.value }));
@@ -310,7 +345,7 @@ export function ListingForm({
             setErrors((current) => ({ ...current, title: undefined }));
           }
         }}
-        placeholder="Fresh tomatoes ready this afternoon"
+        placeholder="Fresh tomatoes ready to share"
         required
         error={errors.title}
       />
@@ -529,9 +564,33 @@ export function ListingForm({
         placeholder="Please text before pickup"
       />
 
+      {mode === 'create' && !isReviewing ? (
+        <p className="rounded-base border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+          Draft — only you can see this. Nothing becomes available to neighbors until you review and confirm.
+        </p>
+      ) : null}
+
+      {mode === 'create' && isReviewing ? (
+        <section
+          className="space-y-2 rounded-base border-2 border-primary-300 bg-primary-50 px-4 py-4"
+          aria-label="Review food to share"
+        >
+          <h3 className="font-semibold text-neutral-900">Ready to share?</h3>
+          <p className="text-sm text-neutral-700">
+            {formState.quantityTotal} {formState.unit} · {formState.title}
+          </p>
+          <p className="text-sm text-neutral-700">
+            Confirming makes this visible to nearby neighbors. You can still edit any field above.
+          </p>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setIsReviewing(false)}>
+            Keep editing
+          </Button>
+        </section>
+      ) : null}
+
       {isOffline && (
         <p className="rounded-base border border-warning bg-accent-50 px-3 py-2 text-sm text-neutral-800" role="status">
-          You are offline. Reconnect to submit this listing.
+          You are offline. This draft stays private; reconnect before sharing.
         </p>
       )}
 
@@ -554,7 +613,11 @@ export function ListingForm({
           loading={isSubmitting}
           disabled={isSubmitting || isOffline}
         >
-          {mode === 'create' ? 'Post listing' : 'Save changes'}
+          {mode === 'create'
+            ? isReviewing
+              ? 'Confirm and share'
+              : 'Review share'
+            : 'Save changes'}
         </Button>
       </div>
     </form>

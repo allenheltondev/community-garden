@@ -15,6 +15,7 @@ interface HarvestLogModalProps {
   cropName: string;
   defaultUnit?: string | null;
   onClose: () => void;
+  onShareHarvest?: (harvest: HarvestItem) => void;
 }
 
 function todayIsoDate(): string {
@@ -35,7 +36,13 @@ interface EditState {
   notes: string;
 }
 
-export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: HarvestLogModalProps) {
+export function HarvestLogModal({
+  cropId,
+  cropName,
+  defaultUnit,
+  onClose,
+  onShareHarvest,
+}: HarvestLogModalProps) {
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState('');
   const [unit, setUnit] = useState(defaultUnit ?? '');
@@ -44,6 +51,7 @@ export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: Harv
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [savedHarvest, setSavedHarvest] = useState<HarvestItem | null>(null);
 
   // Close on Escape, matching the app's other dialogs.
   useEffect(() => {
@@ -68,9 +76,10 @@ export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: Harv
   const recordMutation = useMutation({
     mutationFn: (input: { amount: number; unit?: string; harvestedOn?: string; notes?: string }) =>
       recordHarvest(cropId, input),
-    onSuccess: () => {
+    onSuccess: (response) => {
       invalidate();
       completeTodayAction('harvest');
+      setSavedHarvest(response.harvest);
       setAmount('');
       setNotes('');
       setHarvestedOn(todayIsoDate());
@@ -227,6 +236,22 @@ export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: Harv
           {recordMutation.isPending ? 'Logging...' : 'Log harvest'}
         </Button>
 
+        {savedHarvest && onShareHarvest ? (
+          <div className="rounded-base border border-primary-200 bg-primary-50 px-4 py-3" role="status">
+            <p className="font-medium text-primary-900">Harvest saved.</p>
+            <p className="mt-1 text-sm text-primary-800">
+              Have extra? You decide whether and how much to make available.
+            </p>
+            <Button
+              className="mt-3"
+              variant="secondary"
+              onClick={() => onShareHarvest(savedHarvest)}
+            >
+              Share some food
+            </Button>
+          </div>
+        ) : null}
+
         <div className="border-t pt-4">
           {logQuery.isLoading ? <p className="text-sm text-gray-600">Loading harvests...</p> : null}
           {logQuery.isError ? (
@@ -297,7 +322,12 @@ export function HarvestLogModal({ cropId, cropName, defaultUnit, onClose }: Harv
                         <p className="text-xs text-gray-600 truncate">{harvest.notes}</p>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                      {onShareHarvest ? (
+                        <Button variant="secondary" onClick={() => onShareHarvest(harvest)}>
+                          Share food
+                        </Button>
+                      ) : null}
                       <Button variant="secondary" onClick={() => startEditing(harvest)}>
                         Edit
                       </Button>

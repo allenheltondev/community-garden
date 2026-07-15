@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { CropLibraryPanel } from './CropLibraryPanel';
 import { listMyBeds, listMyCrops, updateMyCrop } from '../../services/api';
 
@@ -18,6 +18,11 @@ vi.mock('../Harvests/HarvestLogModal', () => ({
     <div role="dialog" aria-label={`Harvest ${cropName}`}>Harvest {cropName}</div>
   ),
 }));
+
+function LocationDisplay() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+}
 
 describe('CropLibraryPanel deep links', () => {
   it('opens the harvest workflow for the linked crop', async () => {
@@ -138,5 +143,47 @@ describe('CropLibraryPanel deep links', () => {
         expect.objectContaining({ cropName: 'Tomato', bedId: 'bed-1' })
       )
     );
+  });
+
+  it('starts an editable food share from a crop', async () => {
+    vi.mocked(listMyBeds).mockResolvedValue([]);
+    vi.mocked(listMyCrops).mockResolvedValue([
+      {
+        id: 'crop-1',
+        userId: 'grower-1',
+        canonicalId: 'catalog-tomato',
+        cropName: 'Tomato',
+        varietyId: null,
+        status: 'growing',
+        visibility: 'private',
+        surplusEnabled: true,
+        nickname: null,
+        defaultUnit: 'lb',
+        notes: null,
+        bedId: null,
+        bedName: null,
+        plantingDate: null,
+        expectedHarvestDate: null,
+        plantCount: null,
+        spacingInches: null,
+        pyramidTier: null,
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z',
+      },
+    ]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/garden/plants']}>
+          <CropLibraryPanel viewerUserId="grower-1" />
+          <LocationDisplay />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /share food/i }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/share/listings?crop=crop-1');
   });
 });

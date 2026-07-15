@@ -16,15 +16,31 @@ interface ClaimStatusListProps {
 }
 
 const actionLabels: Record<ClaimStatus, string> = {
-  pending: 'Set Pending',
-  confirmed: 'Confirm',
-  completed: 'Complete',
-  cancelled: 'Cancel',
-  no_show: 'No Show',
+  pending: 'Return to waiting',
+  confirmed: 'Confirm pickup',
+  completed: 'Mark picked up',
+  cancelled: 'Cancel pickup',
+  no_show: 'Mark pickup missed',
+};
+
+const statusLabels: Record<ClaimStatus, string> = {
+  pending: 'Waiting for confirmation',
+  confirmed: 'Pickup scheduled',
+  completed: 'Food picked up',
+  cancelled: 'Pickup cancelled',
+  no_show: 'Pickup missed',
 };
 
 function formatStatus(status: ClaimStatus): string {
-  return status.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  return statusLabels[status];
+}
+
+function nextAction(status: ClaimStatus): string {
+  if (status === 'pending') return 'The grower needs to confirm the pickup.';
+  if (status === 'confirmed') return 'Coordinate the pickup, then mark the food picked up.';
+  if (status === 'completed') return 'Pickup is complete. No further action is needed.';
+  if (status === 'cancelled') return 'This pickup will not happen.';
+  return 'This pickup was not completed.';
 }
 
 export function ClaimStatusList({
@@ -83,15 +99,14 @@ export function ClaimStatusList({
             }`}
           >
             <div className="space-y-2">
-              <p className="text-sm text-neutral-800">
-                Claim <span className="font-medium">{claim.id}</span>
-              </p>
+              <p className="text-sm font-medium text-neutral-900">Pickup request</p>
               <p className="text-sm text-neutral-700">
                 Status: <span className="font-medium">{formatStatus(claim.status)}</span>
               </p>
               <p className="text-sm text-neutral-700">
                 Quantity: {claim.quantityClaimed}
               </p>
+              <p className="text-sm text-neutral-700">{nextAction(claim.status)}</p>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">

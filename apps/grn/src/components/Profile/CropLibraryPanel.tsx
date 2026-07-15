@@ -6,6 +6,7 @@ import {
   deleteMyCrop,
   listMyBeds,
   updateMyCrop,
+  type HarvestItem,
   type UpsertGrowerCropRequest,
 } from '../../services/api';
 import type { GrowerCropItem } from '../../types/listing';
@@ -111,11 +112,22 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   const handleDelete = (crop: GrowerCropItem) => {
     if (
       confirm(
-        `Remove "${crop.nickname || crop.cropName}" from your garden? This won't delete any listings already created.`
+        `Remove "${crop.nickname || crop.cropName}" from your garden? This won't delete any food offers already shared.`
       )
     ) {
       deleteMutation.mutate(crop.id);
     }
+  };
+
+  const openShareDraft = (crop: GrowerCropItem, harvest?: HarvestItem) => {
+    const params = new URLSearchParams({ crop: crop.id });
+    if (harvest) {
+      params.set('harvest', harvest.id);
+      params.set('quantity', harvest.amount);
+      params.set('unit', harvest.unit ?? crop.defaultUnit ?? 'lb');
+      params.set('harvestedOn', harvest.harvestedOn);
+    }
+    navigate(`/share/listings?${params.toString()}`);
   };
 
   if (isLoadingCrops) {
@@ -264,7 +276,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                     {crop.surplusEnabled ? (
                       <li>
                         <span aria-hidden="true">🤝</span>
-                        <span>Surplus sharing on</span>
+                        <span>Food sharing enabled</span>
                       </li>
                     ) : null}
                   </ul>
@@ -306,6 +318,13 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                 </div>
 
                 <footer className="grn-crop-card__footer">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openShareDraft(crop)}
+                  >
+                    Share food
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -349,6 +368,7 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
           cropId={activeHarvestCrop.id}
           cropName={activeHarvestCrop.nickname || activeHarvestCrop.cropName}
           defaultUnit={activeHarvestCrop.defaultUnit}
+          onShareHarvest={(harvest) => openShareDraft(activeHarvestCrop, harvest)}
           onClose={() => {
             setHarvestCrop(null);
             if (activeHarvestCrop.id === linkedCropId) {
