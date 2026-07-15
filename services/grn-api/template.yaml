@@ -346,6 +346,17 @@ Resources:
               Resource: !Sub
                 - '${SharedAssetsBucketArn}/garden-backgrounds/*'
                 - SharedAssetsBucketArn: !ImportValue OGF-AssetsBucketArn
+            # Journal photos are private application records. The API issues
+            # short-lived signed PUT/GET URLs and deletes the object when its
+            # owning note is removed.
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:DeleteObject
+              Resource: !Sub
+                - '${SharedAssetsBucketArn}/journal-photos/*'
+                - SharedAssetsBucketArn: !ImportValue OGF-AssetsBucketArn
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl

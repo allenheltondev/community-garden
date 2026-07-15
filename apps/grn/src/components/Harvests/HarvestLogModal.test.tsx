@@ -14,7 +14,10 @@ vi.mock('../../services/api', async (importOriginal) => {
   return { ...actual, listHarvests, recordHarvest, updateHarvest, deleteHarvest };
 });
 
-function renderModal(onShareHarvest?: Parameters<typeof HarvestLogModal>[0]['onShareHarvest']) {
+function renderModal(
+  onShareHarvest?: Parameters<typeof HarvestLogModal>[0]['onShareHarvest'],
+  highlightedHarvestId?: string
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -24,6 +27,7 @@ function renderModal(onShareHarvest?: Parameters<typeof HarvestLogModal>[0]['onS
         defaultUnit="lb"
         onClose={() => {}}
         onShareHarvest={onShareHarvest}
+        highlightedHarvestId={highlightedHarvestId}
       />
     </QueryClientProvider>
   );
@@ -54,6 +58,13 @@ describe('HarvestLogModal', () => {
     renderModal();
     expect(await screen.findByText(/3.5 lb brought in across 1 harvest/i)).toBeInTheDocument();
     expect(screen.getByText(/first picking/i)).toBeInTheDocument();
+  });
+
+  it('focuses the exact harvest linked from the journal', async () => {
+    renderModal(undefined, 'h1');
+    const row = (await screen.findByText(/first picking/i)).closest('li');
+    expect(row).toHaveAttribute('aria-current', 'true');
+    await waitFor(() => expect(row).toHaveFocus());
   });
 
   it('logs a new harvest', async () => {

@@ -14,8 +14,10 @@ vi.mock('../../services/api', () => ({
 }));
 
 vi.mock('../Harvests/HarvestLogModal', () => ({
-  HarvestLogModal: ({ cropName }: { cropName: string }) => (
-    <div role="dialog" aria-label={`Harvest ${cropName}`}>Harvest {cropName}</div>
+  HarvestLogModal: ({ cropName, highlightedHarvestId }: { cropName: string; highlightedHarvestId?: string }) => (
+    <div role="dialog" aria-label={`Harvest ${cropName}`} data-highlighted-harvest={highlightedHarvestId}>
+      Harvest {cropName}
+    </div>
   ),
 }));
 
@@ -62,6 +64,28 @@ describe('CropLibraryPanel deep links', () => {
     );
 
     expect(await screen.findByRole('dialog', { name: 'Harvest Cherry tomatoes' })).toBeInTheDocument();
+  });
+
+  it('passes an exact harvest deep link into the harvest log', async () => {
+    vi.mocked(listMyBeds).mockResolvedValue([]);
+    vi.mocked(listMyCrops).mockResolvedValue([{
+      id: 'crop-1', userId: 'grower-1', canonicalId: null, cropName: 'Tomato', varietyId: null,
+      status: 'growing', visibility: 'private', surplusEnabled: false, nickname: null,
+      defaultUnit: 'lb', notes: null, bedId: null, bedName: null, plantingDate: null,
+      expectedHarvestDate: null, plantCount: null, spacingInches: null, pyramidTier: null,
+      createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-01T00:00:00Z',
+    }]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/garden/plants?crop=crop-1&action=harvest&harvest=h1']}>
+          <CropLibraryPanel viewerUserId="grower-1" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByRole('dialog')).toHaveAttribute('data-highlighted-harvest', 'h1');
   });
 
   it('changes a crop bed optimistically through the shared crop query', async () => {

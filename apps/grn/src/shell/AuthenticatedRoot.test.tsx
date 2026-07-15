@@ -38,6 +38,9 @@ vi.mock('../pages/RecommendationsPage', () => ({
 vi.mock('../pages/GardenDesignerPage', () => ({
   GardenDesignerPage: () => <h1>Garden map page</h1>,
 }));
+vi.mock('../pages/GardenJournalPage', () => ({
+  GardenJournalPage: () => <h1>Garden journal page</h1>,
+}));
 vi.mock('../pages/GardenWorkspacePage', async () => {
   const { Outlet } = await import('react-router-dom');
   return { GardenWorkspacePage: () => <><span>Garden workspace</span><Outlet /></> };
@@ -76,6 +79,7 @@ describe('AuthenticatedRoot routes', () => {
     ['/garden/plants/new', 'New plant page'],
     ['/garden/plan', 'Plan page'],
     ['/garden/plan/recommendations', 'Recommendations page'],
+    ['/garden/journal', 'Garden journal page'],
     ['/share', 'Share page'],
     ['/share/listings', 'Listings page'],
     ['/share/find', 'Find food page'],

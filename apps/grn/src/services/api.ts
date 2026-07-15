@@ -929,6 +929,63 @@ export interface BackgroundUploadIntent {
   expiresInSeconds: number;
 }
 
+export type JournalEntryKind =
+  | 'planned'
+  | 'planted'
+  | 'garden'
+  | 'harvest'
+  | 'reminder'
+  | 'share'
+  | 'note';
+
+export interface JournalEntry {
+  id: string;
+  kind: JournalEntryKind;
+  occurredAt: string;
+  title: string;
+  detail: string | null;
+  sourceType: string;
+  sourceId: string;
+  sourcePath: string | null;
+  isPrivate: boolean;
+  manual: boolean;
+  photoUrl: string | null;
+}
+
+export interface JournalSummary {
+  season: number;
+  plantedCount: number;
+  harvestCount: number;
+  reminderCompletionCount: number;
+  completedShareCount: number;
+  foodSharedBeforeExpiryCount: number;
+  activeMonthCount: number;
+  explanation: string;
+  explanationSource: 'recorded_facts';
+  isAiGenerated: false;
+}
+
+export interface JournalResponse {
+  season: number;
+  entries: JournalEntry[];
+  summary: JournalSummary;
+}
+
+export interface CreateJournalNoteRequest {
+  occurredOn: string;
+  title: string;
+  body?: string;
+  photoKey?: string;
+}
+
+export interface JournalPhotoUploadIntent {
+  uploadUrl: string;
+  method: 'PUT';
+  headers: Record<string, string>;
+  photoKey: string;
+  expiresInSeconds: number;
+}
+
 // --- AI garden review -------------------------------------------------------
 
 export interface GardenReviewInsight {
@@ -1064,6 +1121,48 @@ export async function requestBackgroundUploadUrl(
     s3Key: response.s3_key,
     expiresInSeconds: response.expires_in_seconds,
   };
+}
+
+export async function getGardenJournal(season: number): Promise<JournalResponse> {
+  return apiFetch<JournalResponse>(`/journal?season=${encodeURIComponent(String(season))}`);
+}
+
+export async function createJournalNote(
+  payload: CreateJournalNoteRequest,
+  idempotencyKey = uuidv4()
+): Promise<JournalEntry> {
+  return apiFetch<JournalEntry>('/journal/notes', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteJournalNote(noteId: string): Promise<void> {
+  await apiFetch(`/journal/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' });
+}
+
+export async function requestJournalPhotoUpload(
+  file: File
+): Promise<JournalPhotoUploadIntent> {
+  return apiFetch<JournalPhotoUploadIntent>('/journal/photo-upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
+  });
+}
+
+export async function uploadJournalPhoto(
+  intent: JournalPhotoUploadIntent,
+  file: File
+): Promise<void> {
+  const response = await fetch(intent.uploadUrl, {
+    method: intent.method,
+    headers: intent.headers,
+    body: file,
+  });
+  if (!response.ok) {
+    throw new ApiError('Could not upload that photo. Please try again.', response.status);
+  }
 }
 
 export async function listMyListings(
@@ -1261,10 +1360,16 @@ export async function createReminder(payload: CreateReminderRequest): Promise<Re
 
 export async function updateReminderStatus(
   reminderId: string,
-  status: 'active' | 'paused'
+  status: 'active' | 'paused' | 'completed',
+  idempotencyKey?: string
 ): Promise<ReminderItem> {
+  const headers: Record<string, string> = {};
+  if (status === 'completed') {
+    headers['Idempotency-Key'] = idempotencyKey ?? uuidv4();
+  }
   return apiFetch<ReminderItem>(`/reminders/${encodeURIComponent(reminderId)}`, {
     method: 'PUT',
+    headers,
     body: JSON.stringify({ status }),
   });
 }

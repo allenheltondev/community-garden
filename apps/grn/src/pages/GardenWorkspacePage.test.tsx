@@ -17,6 +17,7 @@ function renderWorkspace(initialEntry = '/garden') {
           <Route index element={<h2>Map view</h2>} />
           <Route path="plants" element={<h2>Plants view</h2>} />
           <Route path="plan" element={<h2>Plan view</h2>} />
+          <Route path="journal" element={<h2>Journal view</h2>} />
         </Route>
       </Routes>
       <LocationDisplay />
@@ -57,6 +58,15 @@ describe('GardenWorkspacePage', () => {
 
     expect(screen.getByRole('heading', { name: 'Plants view' })).toBeInTheDocument();
     expect(plantsLink).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('keeps the journal inside the shared garden workspace', async () => {
+    renderWorkspace('/garden?season=2026');
+
+    await userEvent.click(screen.getByRole('link', { name: /journal/i }));
+
+    expect(screen.getByRole('heading', { name: 'Journal view' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/garden/journal?season=2026');
   });
 
   it('announces offline garden behavior and clears it after reconnecting', () => {

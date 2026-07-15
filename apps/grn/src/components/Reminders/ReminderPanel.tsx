@@ -8,6 +8,7 @@ import {
   updateReminderStatus,
 } from '../../services/api';
 import { Button } from '@olivias/ui';
+import { v4 as uuidv4 } from 'uuid';
 import { completeTodayAction } from '../../utils/todayActionTracking';
 
 const REMINDER_TYPES: Array<{ value: ReminderType; label: string }> = [
@@ -35,6 +36,7 @@ export function ReminderPanel() {
   const requestedTitle = searchParams.get('title')?.trim() ?? '';
   const requestedType = reminderTypeFromQuery(searchParams.get('type'));
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const completionKeys = useRef(new Map<string, string>());
   const [title, setTitle] = useState(() =>
     requestedNewReminder ? requestedTitle : ''
   );
@@ -67,11 +69,17 @@ export function ReminderPanel() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ reminderId, status }: { reminderId: string; status: 'active' | 'paused' }) =>
-      updateReminderStatus(reminderId, status),
-    onSuccess: () => {
+    mutationFn: ({ reminderId, status, idempotencyKey }: {
+      reminderId: string;
+      status: 'active' | 'paused' | 'completed';
+      idempotencyKey?: string;
+    }) => updateReminderStatus(reminderId, status, idempotencyKey),
+    onSuccess: (_reminder, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      completeTodayAction('reminder');
+      if (variables.status === 'completed') {
+        completionKeys.current.delete(variables.reminderId);
+        completeTodayAction('reminder');
+      }
     },
   });
 
@@ -209,18 +217,33 @@ export function ReminderPanel() {
                     {new Date(reminder.nextRunAt).toLocaleString()}
                   </p>
                 </div>
-                <Button
-                  variant={isPaused ? 'primary' : 'secondary'}
-                  onClick={() =>
-                    statusMutation.mutate({
-                      reminderId: reminder.id,
-                      status: isPaused ? 'active' : 'paused',
-                    })
-                  }
-                  disabled={statusMutation.isPending}
-                >
-                  {isPaused ? 'Resume' : 'Pause'}
-                </Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {!isPaused ? (
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        const idempotencyKey = completionKeys.current.get(reminder.id) ?? uuidv4();
+                        completionKeys.current.set(reminder.id, idempotencyKey);
+                        statusMutation.mutate({ reminderId: reminder.id, status: 'completed', idempotencyKey });
+                      }}
+                      disabled={statusMutation.isPending}
+                    >
+                      Done today
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant={isPaused ? 'primary' : 'secondary'}
+                    onClick={() =>
+                      statusMutation.mutate({
+                        reminderId: reminder.id,
+                        status: isPaused ? 'active' : 'paused',
+                      })
+                    }
+                    disabled={statusMutation.isPending}
+                  >
+                    {isPaused ? 'Resume' : 'Pause'}
+                  </Button>
+                </div>
               </li>
             );
           })}

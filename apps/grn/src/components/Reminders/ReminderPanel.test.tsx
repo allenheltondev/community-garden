@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ReminderPanel } from './ReminderPanel';
-import { listReminders } from '../../services/api';
+import { listReminders, updateReminderStatus } from '../../services/api';
 
 vi.mock('../../services/api', () => ({
   createReminder: vi.fn(),
@@ -67,5 +68,35 @@ describe('ReminderPanel deep links', () => {
     const reminderRow = reminder.closest('li');
     expect(reminderRow).toHaveAttribute('aria-current', 'true');
     await waitFor(() => expect(document.activeElement).toBe(reminderRow));
+  });
+
+  it('records a real completion when the grower chooses done today', async () => {
+    vi.mocked(listReminders).mockResolvedValue({
+      items: [{
+        id: 'reminder-1', title: 'Water the raised beds', reminderType: 'watering',
+        cadenceDays: 1, startDate: '2026-07-14', timezone: 'UTC', status: 'active',
+        nextRunAt: '2026-07-14T09:00:00Z', lastRunAt: null, createdAt: '2026-07-01T00:00:00Z',
+      }],
+    });
+    vi.mocked(updateReminderStatus).mockResolvedValue({
+      id: 'reminder-1', title: 'Water the raised beds', reminderType: 'watering',
+      cadenceDays: 1, startDate: '2026-07-14', timezone: 'UTC', status: 'active',
+      nextRunAt: '2026-07-15T09:00:00Z', lastRunAt: '2026-07-14T09:00:00Z',
+      createdAt: '2026-07-01T00:00:00Z',
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter><ReminderPanel /></MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /done today/i }));
+    await waitFor(() =>
+      expect(updateReminderStatus).toHaveBeenCalledWith(
+        'reminder-1', 'completed', expect.any(String)
+      )
+    );
   });
 });

@@ -1,0 +1,34 @@
+$kind: http-request
+name: Replay Reminder Completion
+description: Retrying the same completion key does not advance the recurring schedule twice.
+method: PUT
+url: '{{baseUrl}}/reminders/:reminderId'
+order: 6000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{reminderCompletionKey}}'
+pathVariables:
+  - key: reminderId
+    value: '{{reminderId}}'
+body:
+  type: json
+  content: |-
+    {
+      "status": "completed"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Replay returns the same completion timestamps", function () {
+          const reminder = pm.response.json();
+          pm.expect(reminder.lastRunAt).to.eql(pm.collectionVariables.get("reminderCompletionLastRunAt"));
+          pm.expect(reminder.nextRunAt).to.eql(pm.collectionVariables.get("reminderCompletionNextRunAt"));
+      });

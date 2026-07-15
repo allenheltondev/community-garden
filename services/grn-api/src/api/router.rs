@@ -1,7 +1,7 @@
 use crate::handlers::{
     agent_task, ai_copilot, analytics, annotation, api_key, bed, billing, catalog, claim,
-    claim_read, crop, feed, garden_canvas, garden_review, garden_share, listing, listing_discovery,
-    reminder, request, user,
+    claim_read, crop, feed, garden_canvas, garden_review, garden_share, journal, listing,
+    listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -65,15 +65,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
     );
 
     if event.method().as_str() == "OPTIONS" {
-        let response = Response::builder()
-            .status(200)
-            .body(Body::Empty)
-            .map_err(|e| lambda_http::Error::from(e.to_string()))?;
-
-        return Ok(add_correlation_id_to_response(
-            add_cors_headers(response),
-            &correlation_id,
-        ));
+        return cors_preflight_response(&correlation_id);
     }
 
     let response = match (event.method().as_str(), request_path) {
@@ -137,7 +129,15 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         ("POST", "/reminders") => handle(reminder::create_reminder(event, &correlation_id).await)?,
 
         ("GET", "/catalog/crops") => handle(catalog::list_catalog_crops().await)?,
-        _ => route_dynamic_routes(event, &correlation_id, request_path).await?,
+        _ => {
+            if let Some(result) =
+                Box::pin(route_journal_request(event, &correlation_id, request_path)).await
+            {
+                handle(result)?
+            } else {
+                Box::pin(route_dynamic_routes(event, &correlation_id, request_path)).await?
+            }
+        }
     };
 
     let response_with_cors = add_cors_headers(response);
@@ -285,6 +285,40 @@ async fn route_dynamic_routes(
         .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
+fn cors_preflight_response(correlation_id: &str) -> Result<Response<Body>, lambda_http::Error> {
+    let response = Response::builder()
+        .status(200)
+        .body(Body::Empty)
+        .map_err(|event| lambda_http::Error::from(event.to_string()))?;
+    Ok(add_correlation_id_to_response(
+        add_cors_headers(response),
+        correlation_id,
+    ))
+}
+
+async fn route_journal_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    let result = match (event.method().as_str(), request_path) {
+        ("GET", "/journal") => Box::pin(journal::list_journal(event, correlation_id)).await,
+        ("POST", "/journal/notes") => journal::create_note(event, correlation_id).await,
+        ("POST", "/journal/photo-upload-url") => {
+            journal::create_photo_upload_url(event, correlation_id).await
+        }
+        (method, path) if path.starts_with("/journal/notes/") => {
+            let note_id = path.trim_start_matches("/journal/notes/");
+            match method {
+                "DELETE" => journal::delete_note(event, correlation_id, note_id).await,
+                _ => method_not_allowed(),
+            }
+        }
+        _ => return None,
+    };
+    Some(result)
+}
+
 async fn route_api_key_request(
     event: &Request,
     correlation_id: &str,
@@ -426,6 +460,15 @@ fn is_garden_designer_validation_message(message: &str) -> bool {
         || message.contains("contentLength must be")
 }
 
+fn is_journal_validation_message(message: &str) -> bool {
+    message.contains("season must be")
+        || message.contains("occurredOn")
+        || message.contains("body must be")
+        || message.contains("photoKey must")
+        || message.contains("noteId must")
+        || message.contains("Idempotency-Key header is required")
+}
+
 fn map_api_error_to_response(
     error: &lambda_http::Error,
 ) -> Result<Response<Body>, lambda_http::Error> {
@@ -434,6 +477,7 @@ fn map_api_error_to_response(
     if message.contains("Invalid JSON body")
         || message.contains("must be a valid UUID")
         || message.contains("Invalid status")
+        || message.contains("status must be")
         || message.contains("Invalid claim status")
         || message.contains("Invalid claim transition")
         || message.contains("Invalid visibility")
@@ -485,17 +529,19 @@ fn map_api_error_to_response(
         || message.contains("Listing is not claimable")
         || message.contains("requestId must reference an open request")
         || message.contains("requestId crop must match listing crop")
+        || is_journal_validation_message(&message)
     {
         return crop::error_response(400, &message);
     }
 
-    if message.contains("Insufficient quantity remaining") {
+    if message.contains("Insufficient quantity remaining") || message.contains("Idempotency key") {
         return crop::error_response(409, &message);
     }
 
     if message.contains("Request not found")
         || message.contains("Claim not found")
         || message.contains("Listing not found")
+        || message.contains("Journal note not found")
     {
         return crop::error_response(404, &message);
     }
@@ -655,6 +701,22 @@ mod tests {
     #[test]
     fn map_api_error_maps_insufficient_quantity_to_409() {
         let error = lambda_http::Error::from("Insufficient quantity remaining".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 409);
+    }
+
+    #[test]
+    fn map_api_error_maps_journal_validation_to_400() {
+        let error = lambda_http::Error::from("season must be a year from 2000 to 2100".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 400);
+    }
+
+    #[test]
+    fn map_api_error_maps_idempotency_collision_to_409() {
+        let error = lambda_http::Error::from(
+            "Idempotency key collision for reminder completion".to_string(),
+        );
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 409);
     }
