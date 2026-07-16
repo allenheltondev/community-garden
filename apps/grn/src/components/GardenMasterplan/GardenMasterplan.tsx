@@ -56,7 +56,7 @@ export interface MasterplanEditing {
   onResizeBed: (bedId: string, next: ElementGeometry) => void;
   onResizeAnnotation: (annotationId: string, next: ElementGeometry) => void;
   onUpdateBedPoints: (bedId: string, points: BedPolygonPoint[]) => void;
-  onAddBed: (shape: BedShape) => void;
+  onAddBed: (shape: BedShape, position?: { x: number; y: number }) => void;
   onAddAnnotation: (presetId: string) => void;
   onDeleteBed: (bedId: string) => void;
   onDeleteAnnotation: (annotationId: string) => void;
@@ -191,7 +191,8 @@ export function GardenMasterplan({
     metrics.width,
     metrics.height,
     metrics.originX,
-    metrics.originY
+    metrics.originY,
+    { disableDoubleClickZoom: Boolean(editing) }
   );
   const isEmpty = beds.length === 0 && annotations.length === 0;
   const plantedBedCount = useMemo(
@@ -231,7 +232,7 @@ export function GardenMasterplan({
     <div className="mp-explorer">
       <div
         ref={containerRef}
-        className="mp-explorer__viewport"
+        className={`mp-explorer__viewport${editing ? ' mp-explorer__viewport--editable' : ''}`}
         {...containerHandlers}
       >
         <div className="mp-explorer__content" style={contentStyle} ref={contentRef}>
@@ -261,6 +262,11 @@ export function GardenMasterplan({
                   }
                 : undefined
             }
+            onDoubleClickBackground={
+              editing
+                ? (worldPosition) => editing.onAddBed('rect', worldPosition)
+                : undefined
+            }
           />
         </div>
 
@@ -268,7 +274,12 @@ export function GardenMasterplan({
           <MasterplanDesignBar
             snap={editing.snap}
             onSnapChange={editing.onSnapChange}
-            onAddBed={editing.onAddBed}
+            onAddBed={(shape) => {
+              editing.onAddBed(shape);
+              // On mobile, centre the view so the new bed (placed at canvas
+              // centre) is visible even if the user was panned away.
+              requestAnimationFrame(fitToScreen);
+            }}
             onAddAnnotation={editing.onAddAnnotation}
             canUndo={editing.canUndo}
             canRedo={editing.canRedo}
@@ -280,6 +291,20 @@ export function GardenMasterplan({
             heightInches={canvas.heightInches}
             onPatchCanvas={editing.onPatchCanvas}
           />
+        )}
+
+        {editing && editing.mode === 'editing-vertices' && (
+          <div className="mp-explorer__mode-banner" role="status" aria-live="polite">
+            <span>Reshaping bed</span>
+            <button
+              type="button"
+              className="mp-explorer__mode-exit"
+              onClick={() => editing.onSetMode('idle')}
+            >
+              Done
+            </button>
+            <kbd className="mp-explorer__mode-kbd">Esc</kbd>
+          </div>
         )}
 
         {editing && !isEmpty && !selected && (
@@ -296,7 +321,10 @@ export function GardenMasterplan({
             <button
               type="button"
               className="mp-explorer__coach-action"
-              onClick={() => editing.onAddBed('rect')}
+              onClick={() => {
+                editing.onAddBed('rect');
+                requestAnimationFrame(fitToScreen);
+              }}
             >
               Add a raised bed
             </button>
@@ -375,7 +403,7 @@ export function GardenMasterplan({
         {!isEmpty && (
           <p className="mp-explorer__hint" aria-hidden="true">
             {editing
-              ? 'Drag an element to move it · scroll to zoom · drag the lawn to pan'
+              ? 'Double-click the lawn to add a bed · drag to move · scroll to zoom'
               : 'Drag to explore · scroll to zoom · click anything for details'}
           </p>
         )}
@@ -386,6 +414,29 @@ export function GardenMasterplan({
               className="mp-season"
               role="group"
               aria-label="Show the garden during a month"
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                if (touch) {
+                  (e.currentTarget as HTMLElement).dataset.swipeX = String(touch.clientX);
+                }
+              }}
+              onTouchEnd={(e) => {
+                const startX = Number((e.currentTarget as HTMLElement).dataset.swipeX);
+                const endTouch = e.changedTouches[0];
+                if (!endTouch || !startX) return;
+                const dx = endTouch.clientX - startX;
+                if (Math.abs(dx) < 40) return;
+                // Only trigger if the bar didn't scroll (user swiped quickly).
+                const el = e.currentTarget as HTMLElement;
+                if (el.scrollWidth <= el.clientWidth) {
+                  setSeasonMonth((current) => {
+                    if (dx < 0) {
+                      return current == null ? 0 : current >= 11 ? null : ((current + 1) as SeasonMonth);
+                    }
+                    return current == null ? 11 : current <= 0 ? null : ((current - 1) as SeasonMonth);
+                  });
+                }
+              }}
             >
               <button
                 type="button"

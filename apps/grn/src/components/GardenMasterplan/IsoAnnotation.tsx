@@ -254,8 +254,19 @@ function renderFence(a: GardenAnnotation): ReactNode {
   const railTop = toPath(projectFootprint(line, FENCE_HEIGHT * 0.82), false);
   const railMid = toPath(projectFootprint(line, FENCE_HEIGHT * 0.45), false);
 
+  // Invisible wide stroke along the fence for a generous click/tap target.
+  // Without this the hit area is only the thin posts and rails (~2px).
+  const hitPath = toPath(projectFootprint(line, FENCE_HEIGHT * 0.45), false);
+
   return (
     <>
+      <path
+        d={hitPath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={24}
+        className="mp-el__hit"
+      />
       <path
         d={toPath(projectFootprint(line, 0), false)}
         fill="none"
