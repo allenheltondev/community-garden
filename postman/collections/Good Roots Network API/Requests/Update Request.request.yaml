@@ -20,7 +20,7 @@ body:
       "cropId": "{{catalogCropId}}",
       "unit": "lb",
       "quantity": 8,
-      "neededBy": "2026-07-20T18:00:00Z",
+      "neededBy": "2027-03-20T18:00:00Z",
       "notes": "Expanded request for the weekend meal service.",
       "status": "matched"
     }
