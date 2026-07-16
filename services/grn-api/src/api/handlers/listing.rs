@@ -103,32 +103,6 @@ struct ListMyListingsQuery {
     offset: i64,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListingWriteResponse {
-    pub id: String,
-    pub user_id: String,
-    pub crop_id: String,
-    pub variety_id: Option<String>,
-    pub title: String,
-    pub quantity_total: String,
-    pub quantity_remaining: String,
-    pub unit: String,
-    pub available_start: String,
-    pub available_end: String,
-    pub status: String,
-    pub pickup_location_text: Option<String>,
-    pub pickup_address: Option<String>,
-    pub effective_pickup_address: Option<String>,
-    pub pickup_disclosure_policy: String,
-    pub pickup_notes: Option<String>,
-    pub contact_pref: String,
-    pub geo_key: String,
-    pub lat: f64,
-    pub lng: f64,
-    pub created_at: String,
-}
-
 pub async fn list_my_listings(
     request: &Request,
     correlation_id: &str,
@@ -375,7 +349,7 @@ pub async fn create_listing(
         let existing_row = client
             .query_opt(
                 "
-                select id, user_id, crop_id, variety_id, title,
+                select id, user_id, crop_id, grower_crop_id, variety_id, title,
                        quantity_total::text as quantity_total,
                        quantity_remaining::text as quantity_remaining,
                        unit, available_start, available_end, status::text,
@@ -412,7 +386,7 @@ pub async fn create_listing(
         "Created surplus listing"
     );
 
-    json_response(201, &row_to_write_response(&row))
+    json_response(201, &row_to_listing_item(&row))
 }
 
 pub async fn update_listing(
@@ -499,7 +473,7 @@ pub async fn update_listing(
             "Updated surplus listing"
         );
 
-        return json_response(200, &row_to_write_response(&row));
+        return json_response(200, &row_to_listing_item(&row));
     }
 
     error_response(404, "Listing not found")
@@ -862,34 +836,6 @@ fn parse_json_body<T: serde::de::DeserializeOwned>(
         Body::Empty => Err(lambda_http::Error::from(
             "Request body is required".to_string(),
         )),
-    }
-}
-
-fn row_to_write_response(row: &Row) -> ListingWriteResponse {
-    ListingWriteResponse {
-        id: row.get::<_, Uuid>("id").to_string(),
-        user_id: row.get::<_, Uuid>("user_id").to_string(),
-        crop_id: row.get::<_, Uuid>("crop_id").to_string(),
-        variety_id: row
-            .get::<_, Option<Uuid>>("variety_id")
-            .map(|v| v.to_string()),
-        title: row.get("title"),
-        quantity_total: row.get("quantity_total"),
-        quantity_remaining: row.get("quantity_remaining"),
-        unit: row.get("unit"),
-        available_start: row.get::<_, DateTime<Utc>>("available_start").to_rfc3339(),
-        available_end: row.get::<_, DateTime<Utc>>("available_end").to_rfc3339(),
-        status: row.get("status"),
-        pickup_location_text: row.get("pickup_location_text"),
-        pickup_address: row.get("pickup_address"),
-        effective_pickup_address: row.get("effective_pickup_address"),
-        pickup_disclosure_policy: row.get("pickup_disclosure_policy"),
-        pickup_notes: row.get("pickup_notes"),
-        contact_pref: row.get("contact_pref"),
-        geo_key: row.get("geo_key"),
-        lat: location::round_for_response(row.get("lat")),
-        lng: location::round_for_response(row.get("lng")),
-        created_at: row.get::<_, DateTime<Utc>>("created_at").to_rfc3339(),
     }
 }
 

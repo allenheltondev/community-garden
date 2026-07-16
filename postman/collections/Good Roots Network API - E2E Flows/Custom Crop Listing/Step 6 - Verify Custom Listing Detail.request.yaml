@@ -1,0 +1,27 @@
+$kind: http-request
+name: 'Step 6 - Verify Custom Listing Detail'
+description: Verifies the custom-crop link through the owner listing read endpoint.
+method: GET
+url: '{{baseUrl}}/my/listings/:listingId'
+order: 6000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: listingId
+    value: '{{customCropE2eListingId}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Owner read preserves the custom-crop link", function () {
+          const listing = pm.response.json();
+          pm.expect(listing).to.have.property("id", pm.collectionVariables.get("customCropE2eListingId"));
+          pm.expect(listing).to.have.property("growerCropId", pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(listing).to.have.property("cropId", null);
+          pm.expect(listing).to.have.property("title", pm.collectionVariables.get("customCropE2eListingTitle"));
+      });

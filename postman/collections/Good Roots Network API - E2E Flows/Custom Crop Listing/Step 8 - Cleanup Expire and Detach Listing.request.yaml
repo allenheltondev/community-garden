@@ -1,0 +1,66 @@
+$kind: http-request
+name: 'Step 8 - Cleanup Expire and Detach Listing'
+description: |-
+  Removes the listing from active discovery and replaces its custom-crop link
+  with a catalog link so the temporary custom crop can be deleted safely.
+method: PUT
+url: '{{baseUrl}}/listings/:listingId'
+order: 8000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: listingId
+    value: '{{customCropE2eListingId}}'
+body:
+  type: json
+  content: |-
+    {
+      "title": "{{customCropE2eListingTitle}} cleanup",
+      "cropId": "{{catalogCropId}}",
+      "quantityTotal": 3,
+      "unit": "bunch",
+      "availableStart": "{{customCropE2eAvailableStart}}",
+      "availableEnd": "{{customCropE2eAvailableEnd}}",
+      "pickupLocationText": "Front porch",
+      "pickupAddress": "1100 Congress Ave, Austin, TX 78701",
+      "pickupDisclosurePolicy": "after_confirmed",
+      "pickupNotes": "Expired by custom crop E2E cleanup",
+      "contactPref": "app_message",
+      "status": "expired"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      let cropId = pm.collectionVariables.get("catalogCropId");
+      const fallbackCropId = pm.collectionVariables.get("defaultCatalogCropId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if ((!cropId || !uuidRe.test(cropId)) && fallbackCropId && uuidRe.test(fallbackCropId)) {
+          cropId = fallbackCropId;
+          pm.collectionVariables.set("catalogCropId", cropId);
+      }
+      pm.test("catalogCropId is available for cleanup", function () {
+          pm.expect(cropId).to.be.a("string");
+          pm.expect(cropId).to.match(uuidRe);
+      });
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Cleanup expires and detaches the custom-crop listing", function () {
+          const listing = pm.response.json();
+          pm.expect(listing).to.have.property("id", pm.collectionVariables.get("customCropE2eListingId"));
+          pm.expect(listing).to.have.property("status", "expired");
+          pm.expect(listing).to.have.property("cropId", pm.collectionVariables.get("catalogCropId"));
+          pm.expect(listing).to.have.property("growerCropId", null);
+      });
+
+      if (pm.response.code !== 200) {
+          pm.execution.setNextRequest(null);
+      }

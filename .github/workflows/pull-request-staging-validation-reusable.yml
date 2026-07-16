@@ -1190,7 +1190,10 @@ jobs:
   postman-api-tests:
     name: GRN Staging Postman Validation
     runs-on: ubuntu-latest
-    needs: [deploy-staging-backend, deploy-staging-frontend, staging-public-api-smoke]
+    # These suites exercise the API directly. Keeping them independent from
+    # the frontend deploy lets backend-only and Postman-only PRs run instead
+    # of being skipped when the frontend job is intentionally skipped.
+    needs: [deploy-staging-backend, staging-public-api-smoke]
     if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true'
     env:
       AWS_REGION: us-east-1

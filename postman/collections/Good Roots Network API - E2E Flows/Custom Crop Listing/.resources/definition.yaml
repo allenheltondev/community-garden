@@ -1,0 +1,4 @@
+$kind: collection
+name: Custom Crop Listing
+description: User-defined crop CRUD, custom-crop-backed listing discovery, and repeatable cleanup.
+order: 3000

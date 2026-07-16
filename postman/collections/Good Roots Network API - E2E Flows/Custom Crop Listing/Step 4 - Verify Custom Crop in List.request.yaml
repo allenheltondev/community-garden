@@ -1,0 +1,27 @@
+$kind: http-request
+name: 'Step 4 - Verify Custom Crop in List'
+description: Verifies read-your-write behavior through the crop-library list endpoint.
+method: GET
+url: '{{baseUrl}}/crops'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Updated custom crop appears in the library list", function () {
+          const body = pm.response.json();
+          const items = Array.isArray(body) ? body : (body.items || []);
+          const crop = items.find((item) => item.id === pm.collectionVariables.get("customCropE2eId"));
+          pm.expect(crop, "Custom crop not found in crop-library list").to.not.be.undefined;
+          pm.expect(crop.canonical_id).to.be.null;
+          pm.expect(crop.crop_name).to.eql(pm.collectionVariables.get("customCropE2eName"));
+          pm.expect(crop.nickname).to.eql(pm.collectionVariables.get("customCropE2eNickname"));
+          pm.expect(crop.status).to.eql("growing");
+      });

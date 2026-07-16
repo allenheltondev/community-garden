@@ -1,0 +1,53 @@
+$kind: http-request
+name: 'Step 1 - Create Custom Crop'
+description: |-
+  Creates a user-defined crop with a free-text name and no catalog link.
+
+  **Chaining**: Captures `customCropE2eId` for the remaining flow.
+method: POST
+url: '{{baseUrl}}/crops'
+order: 1000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "crop_name": "{{customCropE2eName}}",
+      "status": "planning",
+      "visibility": "local",
+      "surplus_enabled": false,
+      "nickname": "{{customCropE2eNickname}}",
+      "default_unit": "bunch",
+      "notes": "Custom crop E2E create"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+
+      pm.test("Created crop is user-defined and preserves its name", function () {
+          const crop = pm.response.json();
+          pm.expect(crop).to.have.property("id");
+          pm.expect(crop).to.have.property("canonical_id", null);
+          pm.expect(crop).to.have.property("crop_id", null);
+          pm.expect(crop).to.have.property("crop_name", pm.collectionVariables.get("customCropE2eName"));
+          pm.expect(crop).to.have.property("status", "planning");
+          pm.expect(crop).to.have.property("surplus_enabled", false);
+      });
+
+      if (pm.response.code === 201) {
+          const crop = pm.response.json();
+          if (!crop.id) {
+              pm.expect.fail("Missing crop.id; aborting custom-crop flow.");
+              pm.execution.setNextRequest(null);
+          } else {
+              pm.collectionVariables.set("customCropE2eId", crop.id);
+          }
+      }

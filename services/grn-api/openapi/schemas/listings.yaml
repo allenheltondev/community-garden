@@ -1,6 +1,6 @@
 ListingItem:
   type: object
-  required: [id, userId, cropId, status, pickupDisclosurePolicy, contactPref, createdAt]
+  required: [id, userId, growerCropId, cropId, status, pickupDisclosurePolicy, contactPref, createdAt]
   properties:
     id:
       type: string
@@ -15,6 +15,7 @@ ListingItem:
     cropId:
       type: string
       format: uuid
+      nullable: true
     varietyId:
       type: string
       format: uuid
@@ -41,7 +42,7 @@ ListingItem:
       nullable: true
     status:
       type: string
-      enum: [active, claimed, expired]
+      enum: [active, pending, claimed, expired, completed]
     pickupLocationText:
       type: string
       nullable: true
@@ -53,13 +54,13 @@ ListingItem:
       nullable: true
     pickupDisclosurePolicy:
       type: string
-      enum: [address_visible, after_confirmed, never]
+      enum: [immediate, after_confirmed, after_accepted]
     pickupNotes:
       type: string
       nullable: true
     contactPref:
       type: string
-      enum: [in_app, email, either]
+      enum: [app_message, phone, knock]
     geoKey:
       type: string
       nullable: true
@@ -77,11 +78,21 @@ ListingItem:
 
 UpsertListingRequest:
   type: object
-  required: [title, cropId, quantityTotal, unit, availableStart, availableEnd]
+  description: |
+    Create or update a surplus listing. Either `cropId` or `growerCropId`
+    must be provided. User-defined crops use `growerCropId` without a
+    catalog `cropId`.
+  required: [title, quantityTotal, unit, availableStart, availableEnd]
+  anyOf:
+    - required: [cropId]
+    - required: [growerCropId]
   properties:
     title:
       type: string
     cropId:
+      type: string
+      format: uuid
+    growerCropId:
       type: string
       format: uuid
     varietyId:
@@ -108,18 +119,18 @@ UpsertListingRequest:
       nullable: true
     pickupDisclosurePolicy:
       type: string
-      enum: [address_visible, after_confirmed, never]
+      enum: [immediate, after_confirmed, after_accepted]
       nullable: true
     pickupNotes:
       type: string
       nullable: true
     contactPref:
       type: string
-      enum: [in_app, email, either]
+      enum: [app_message, phone, knock]
       nullable: true
     status:
       type: string
-      enum: [active]
+      enum: [active, pending, claimed, expired, completed]
       nullable: true
 
 PaginatedListings:

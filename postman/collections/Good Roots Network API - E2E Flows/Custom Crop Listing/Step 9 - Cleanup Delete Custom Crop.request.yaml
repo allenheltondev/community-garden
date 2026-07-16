@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Step 9 - Cleanup Delete Custom Crop'
+description: Deletes the temporary custom crop after its listing has been detached.
+method: DELETE
+url: '{{baseUrl}}/crops/:cropLibraryId'
+order: 9000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+pathVariables:
+  - key: cropLibraryId
+    value: '{{customCropE2eId}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204", function () {
+          pm.response.to.have.status(204);
+      });
