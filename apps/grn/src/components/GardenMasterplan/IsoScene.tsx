@@ -35,6 +35,7 @@ import {
   scaleFootprint,
   screenDeltaToWorld,
   smoothClosedPath,
+  unprojectGround,
   type ScreenPoint,
   type WorldPoint,
 } from './iso';
@@ -318,6 +319,8 @@ interface IsoSceneProps {
   onUpdateBedPoints?: (bedId: string, points: BedPolygonPoint[]) => void;
   /** Double-click a custom-shape bed to jump straight into vertex editing. */
   onRequestVertexEdit?: (bedId: string) => void;
+  /** Double-click the background (empty space) to create a new bed at that world position. */
+  onDoubleClickBackground?: (worldPosition: WorldPoint) => void;
 }
 
 // The selected element's geometry while a resize/rotate gesture is live, so
@@ -380,6 +383,7 @@ export const IsoScene = memo(function IsoScene({
   onResizeAnnotation,
   onUpdateBedPoints,
   onRequestVertexEdit,
+  onDoubleClickBackground,
 }: IsoSceneProps) {
   const metrics = sceneMetrics(canvas);
   const w = canvas.widthInches;
@@ -606,6 +610,29 @@ export const IsoScene = memo(function IsoScene({
     onSelect(null);
   }
 
+  function handleBackgroundDoubleClick(event: MouseEvent<SVGSVGElement>) {
+    if (!onDoubleClickBackground) return;
+    event.stopPropagation();
+    const svg = event.currentTarget;
+    let inverse: DOMMatrix | null = null;
+    try {
+      const ctm = svg.getScreenCTM();
+      inverse = ctm ? ctm.inverse() : null;
+    } catch {
+      // fallback below
+    }
+    if (!inverse) return;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const scene = point.matrixTransform(inverse);
+    const world = unprojectGround({ x: scene.x, y: scene.y });
+    // Only create if within the canvas bounds.
+    if (world.x >= 0 && world.y >= 0 && world.x <= w && world.y <= h) {
+      onDoubleClickBackground(world);
+    }
+  }
+
   // Editing overlay for the current selection: per-vertex reshaping for a
   // custom-shape bed in vertex mode, otherwise resize + rotate handles.
   const selectedBed =
@@ -704,6 +731,7 @@ export const IsoScene = memo(function IsoScene({
       role="group"
       aria-label="Garden masterplan map"
       onClick={handleBackgroundClick}
+      onDoubleClick={handleBackgroundDoubleClick}
     >
       <g className="mp-ground" aria-hidden="true">
         <path d={ground.shadow} fill={SCENE.groundShadow} />
@@ -726,6 +754,26 @@ export const IsoScene = memo(function IsoScene({
           strokeLinecap="round"
         />
       </g>
+      {editable && snapInches > 0 && (w / snapInches) <= 40 && (h / snapInches) <= 40 && (
+        <g className="mp-grid" aria-hidden="true">
+          {Array.from({ length: Math.floor(w / snapInches) + 1 }, (_, i) => {
+            const x = i * snapInches;
+            const a = project(x, 0, 0);
+            const b = project(x, h, 0);
+            return (
+              <line key={`gx-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+            );
+          })}
+          {Array.from({ length: Math.floor(h / snapInches) + 1 }, (_, i) => {
+            const y = i * snapInches;
+            const a = project(0, y, 0);
+            const b = project(w, y, 0);
+            return (
+              <line key={`gy-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+            );
+          })}
+        </g>
+      )}
       {sunShadowPath && (
         <g className="mp-sun-shadows" aria-hidden="true" data-testid="sun-shadows">
           <path d={sunShadowPath} fill={SCENE.elementShadow} fillRule="nonzero" />

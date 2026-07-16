@@ -106,7 +106,7 @@ export interface UseGardenDesignerResult {
   isEditable: boolean;
   isSaving: boolean;
   saveError: string | null;
-  addBed: (shape: BedShape) => Promise<void>;
+  addBed: (shape: BedShape, position?: { x: number; y: number }) => Promise<void>;
   addCrop: (input: QuickAddCropPayload) => Promise<void>;
   duplicateSelected: () => Promise<void>;
   applyTemplate: (templateId: string) => Promise<void>;
@@ -661,16 +661,20 @@ export function useGardenDesigner(): UseGardenDesignerResult {
   const isEditable = true;
 
   const addBed = useCallback(
-    async (shape: BedShape) => {
+    async (shape: BedShape, position?: { x: number; y: number }) => {
       if (!isEditable) return;
       const defaults = shapeDefaults(shape);
       const canvas = canvasQuery.data;
-      const positionX = canvas
-        ? Math.max(0, Math.round((canvas.widthInches - defaults.lengthInches) / 2))
-        : 12;
-      const positionY = canvas
-        ? Math.max(0, Math.round((canvas.heightInches - defaults.widthInches) / 2))
-        : 12;
+      const positionX = position
+        ? Math.max(0, Math.round(position.x - defaults.lengthInches / 2))
+        : canvas
+          ? Math.max(0, Math.round((canvas.widthInches - defaults.lengthInches) / 2))
+          : 12;
+      const positionY = position
+        ? Math.max(0, Math.round(position.y - defaults.widthInches / 2))
+        : canvas
+          ? Math.max(0, Math.round((canvas.heightInches - defaults.widthInches) / 2))
+          : 12;
       // New beds default to bed_type='raised' since "raised" is the most
       // common starting point. Users change it via the inspector.
       const created = await createBedMutation.mutateAsync({
@@ -1462,6 +1466,15 @@ export function useGardenDesigner(): UseGardenDesignerResult {
         return;
       }
 
+      // B = quick-add a raised bed (no modifier keys, not while editing text).
+      if ((event.key === 'b' || event.key === 'B') && !meta && !event.altKey) {
+        if (isEditable && mode !== 'editing-vertices') {
+          event.preventDefault();
+          void addBed('rect');
+        }
+        return;
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         // While reshaping, Delete is too close to "remove that vertex" to
         // risk it nuking the whole bed.
@@ -1502,6 +1515,7 @@ export function useGardenDesigner(): UseGardenDesignerResult {
     selectedBed,
     selectedAnnotation,
     isEditable,
+    addBed,
     deleteBed,
     deleteAnnotation,
     deleteSelectedGroup,

@@ -66,7 +66,8 @@ export function useMapViewport(
   contentWidth: number,
   contentHeight: number,
   contentOriginX = 0,
-  contentOriginY = 0
+  contentOriginY = 0,
+  options?: { disableDoubleClickZoom?: boolean }
 ): MapViewport {
   const [transform, setTransform] = useState<ViewportTransform>({ scale: 1, x: 0, y: 0 });
   // Latest-value mirror for gesture handlers. Synced in an effect (not
@@ -94,6 +95,9 @@ export function useMapViewport(
     startMid: { x: number; y: number };
     start: ViewportTransform;
   } | null>(null);
+  // Velocity tracking for pan inertia (px/ms).
+  const velocityRef = useRef({ vx: 0, vy: 0, t: 0 });
+  const inertiaRef = useRef<number | null>(null);
 
   const clampTransform = useCallback(
     (next: ViewportTransform): ViewportTransform => {
@@ -173,6 +177,50 @@ export function useMapViewport(
     [zoomAt]
   );
 
+  // Inertia: after a pan release with velocity, coast to a stop with
+  // exponential decay. Runs a rAF loop that fades out over ~400ms. Any
+  // new interaction cancels the animation immediately.
+  const INERTIA_FRICTION = 5; // decay constant (higher = shorter coast)
+  const INERTIA_MIN_SPEED = 20; // px/s stop threshold
+
+  const cancelInertia = useCallback(() => {
+    if (inertiaRef.current !== null) {
+      cancelAnimationFrame(inertiaRef.current);
+      inertiaRef.current = null;
+    }
+  }, []);
+
+  const startInertia = useCallback(
+    (vx: number, vy: number) => {
+      cancelInertia();
+      let lastTime = performance.now();
+      let velX = vx;
+      let velY = vy;
+      function step() {
+        const now = performance.now();
+        const dt = (now - lastTime) / 1000; // seconds
+        lastTime = now;
+        velX *= Math.exp(-INERTIA_FRICTION * dt);
+        velY *= Math.exp(-INERTIA_FRICTION * dt);
+        if (Math.hypot(velX, velY) < INERTIA_MIN_SPEED) {
+          inertiaRef.current = null;
+          return;
+        }
+        const current = transformRef.current;
+        setTransform(
+          clampTransform({
+            ...current,
+            x: current.x + velX * dt,
+            y: current.y + velY * dt,
+          })
+        );
+        inertiaRef.current = requestAnimationFrame(step);
+      }
+      inertiaRef.current = requestAnimationFrame(step);
+    },
+    [cancelInertia, clampTransform]
+  );
+
   // Callback ref so wheel (non-passive) + ResizeObserver bind to whatever
   // node React gives us, including remounts.
   const containerRef = useCallback(
@@ -201,6 +249,7 @@ export function useMapViewport(
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault();
+        cancelInertia();
         const rect = node.getBoundingClientRect();
         // Trackpad pinches arrive as ctrl+wheel with fine deltas;
         // discrete mouse wheels send large deltas. Normalize both to a
@@ -212,15 +261,16 @@ export function useMapViewport(
       node.addEventListener('wheel', onWheel, { passive: false });
       wheelCleanupRef.current = () => node.removeEventListener('wheel', onWheel);
     },
-    [fitToScreen, zoomAt]
+    [cancelInertia, fitToScreen, zoomAt]
   );
 
   useEffect(
     () => () => {
       observerRef.current?.disconnect();
       wheelCleanupRef.current?.();
+      cancelInertia();
     },
-    []
+    [cancelInertia]
   );
 
   function localPoint(event: ReactPointerEvent<HTMLDivElement>) {
@@ -229,9 +279,11 @@ export function useMapViewport(
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    cancelInertia();
     const p = localPoint(event);
     pointersRef.current.set(event.pointerId, p);
     draggedRef.current = false;
+    velocityRef.current = { vx: 0, vy: 0, t: performance.now() };
     if (pointersRef.current.size === 1) {
       // Don't capture yet: capturing on pointerdown would retarget the
       // eventual click to this container and break element selection.
@@ -285,6 +337,19 @@ export function useMapViewport(
       }
       draggedRef.current = true;
       lastPanRef.current = p;
+      const now = performance.now();
+      const dt = now - velocityRef.current.t;
+      if (dt > 0 && dt < 100) {
+        // Exponential smoothing to avoid jitter on the last frame.
+        const alpha = 0.4;
+        velocityRef.current = {
+          vx: alpha * (dx / dt) + (1 - alpha) * velocityRef.current.vx,
+          vy: alpha * (dy / dt) + (1 - alpha) * velocityRef.current.vy,
+          t: now,
+        };
+      } else {
+        velocityRef.current = { vx: dx / Math.max(dt, 1), vy: dy / Math.max(dt, 1), t: now };
+      }
       const current = transformRef.current;
       setTransform(clampTransform({ ...current, x: current.x + dx, y: current.y + dy }));
     }
@@ -297,10 +362,18 @@ export function useMapViewport(
       lastPanRef.current = [...pointersRef.current.values()][0];
     } else if (pointersRef.current.size === 0) {
       lastPanRef.current = null;
+      // Apply pan inertia if the gesture had meaningful velocity.
+      const { vx, vy, t } = velocityRef.current;
+      const age = performance.now() - t;
+      const speed = Math.hypot(vx, vy);
+      if (draggedRef.current && speed > 0.15 && age < 80) {
+        startInertia(vx * 1000, vy * 1000); // convert px/ms → px/s
+      }
     }
   }
 
   function onDoubleClick(event: ReactPointerEvent<HTMLDivElement>) {
+    if (options?.disableDoubleClickZoom) return;
     const p = localPoint(event);
     zoomAt(p.x, p.y, 1.6);
   }

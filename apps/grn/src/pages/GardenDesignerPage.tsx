@@ -212,8 +212,8 @@ export function GardenDesignerPage() {
                 onResizeBed: designer.resizeBed,
                 onResizeAnnotation: designer.resizeAnnotation,
                 onUpdateBedPoints: designer.updateBedPoints,
-                onAddBed: (shape) => {
-                  void designer.addBed(shape);
+                onAddBed: (shape, position) => {
+                  void designer.addBed(shape, position);
                 },
                 onAddAnnotation: (presetId) => {
                   void designer.addAnnotation(presetId);

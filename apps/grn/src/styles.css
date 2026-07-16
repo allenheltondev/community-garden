@@ -3950,6 +3950,17 @@ body {
   cursor: grabbing;
 }
 
+/* In edit mode the SVG scene shows a crosshair cursor so the user knows
+   they can place elements by double-clicking. Elements override this with
+   their own grab cursor via .mp-el--draggable. */
+.mp-explorer__viewport--editable .mp-scene {
+  cursor: crosshair;
+}
+
+.mp-explorer__viewport--editable .mp-scene:active {
+  cursor: grabbing;
+}
+
 @media (max-width: 768px) {
   .mp-explorer__viewport {
     min-height: 68vh;
@@ -4103,6 +4114,18 @@ body {
 .mp-explorer__export-btn:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__export {
+    gap: 0.25rem;
+  }
+
+  .mp-explorer__export-btn {
+    min-height: 44px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.82rem;
+  }
 }
 
 /* --- Masterplan design bar (editable plan) ------------------------------- */
@@ -4374,6 +4397,12 @@ body {
 }
 
 /* --- Masterplan alignment guides ----------------------------------------- */
+
+.mp-grid line {
+  stroke: rgba(86, 96, 64, 0.08);
+  stroke-width: 0.5;
+  pointer-events: none;
+}
 
 .mp-align__guide {
   stroke: #d6564f;
@@ -4723,6 +4752,77 @@ body {
   border-radius: 999px;
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Floating mode banner shown during vertex editing so the user knows they
+   can press Esc or tap "Done" to leave reshaping mode. */
+.mp-explorer__mode-banner {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  background: var(--og-color-leaf, #3a7e5a);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  animation: mp-banner-in 180ms var(--easing-out);
+}
+
+@keyframes mp-banner-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.mp-explorer__mode-exit {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+  cursor: pointer;
+}
+
+.mp-explorer__mode-exit:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.mp-explorer__mode-kbd {
+  font-family: var(--og-font-body);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+  .mp-explorer__mode-banner {
+    top: auto;
+    bottom: 4.2rem;
+    font-size: 0.78rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .mp-explorer__mode-kbd {
+    display: none;
+  }
 }
 
 /* A quiet orientation card that only appears when the editable map has no
@@ -5336,6 +5436,7 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 
 .mp-season::-webkit-scrollbar {
@@ -5394,7 +5495,8 @@ body {
   }
   .mp-season__btn,
   .mp-sun__btn {
-    padding: 0.42rem 0.6rem;
+    padding: 0.52rem 0.65rem;
+    min-height: 36px;
   }
 }
 

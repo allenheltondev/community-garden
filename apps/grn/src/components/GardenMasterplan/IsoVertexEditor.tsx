@@ -173,7 +173,7 @@ export function IsoVertexEditor({ bed, snapInches, onCommit }: IsoVertexEditorPr
   };
 
   return (
-    <g className="mp-vertex">
+    <g className="mp-vertex" onClick={(e) => e.stopPropagation()}>
       <path
         className="mp-vertex__outline"
         d={`M${screenPoints.map((p) => `${p.x} ${p.y}`).join(' L')} Z`}
