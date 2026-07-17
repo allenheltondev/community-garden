@@ -78,14 +78,32 @@ export function SiteHeader({
   const avatarLabel = authSession
     ? authSession.user.name ?? authSession.user.email ?? 'Signed-in account'
     : 'Go to login page';
-  const marketingNavItems = navRoutes.map((route) => ({
-    id: route.path,
-    label: route.label,
-    href: route.path,
-    active: pathname === route.path,
-    accent: route.path === '/donate',
-    onSelect: () => onNavigate(route.path),
-  }));
+  const marketingNavItems = navRoutes.map((route) => {
+    // Learn vs. launch: the marketing page at /good-roots is the front door for
+    // people who don't have an account yet. Once someone is signed in they've
+    // already "learned" what the network is, so the same nav item launches them
+    // straight into the app instead of showing marketing copy again. This keeps
+    // "Good Roots Network" meaning exactly one thing within a given auth state
+    // and matches the app launcher in the account menu.
+    if (route.path === '/good-roots' && authSession) {
+      return {
+        id: route.path,
+        label: route.label,
+        // No onSelect → the shared header renders a plain anchor and follows the
+        // href, performing a real cross-app navigation rather than SPA routing.
+        href: buildCrossAppUrl(goodRootsNetworkUrl, authSession),
+      };
+    }
+
+    return {
+      id: route.path,
+      label: route.label,
+      href: route.path,
+      active: pathname === route.path,
+      accent: route.path === '/donate',
+      onSelect: () => onNavigate(route.path),
+    };
+  });
 
   const accountMobileItems = authSession
     ? [
