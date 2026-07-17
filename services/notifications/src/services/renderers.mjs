@@ -23,10 +23,11 @@ function adminUrl(suffix) {
 
 function orgTypeLabel(type) {
   const map = {
-    'food-pantry': 'Food pantry',
+    'community-garden': 'Community garden',
+    'food-pantry': 'Food pantry or shelter',
     shelter: 'Shelter',
     school: 'School or youth program',
-    'mutual-aid': 'Mutual aid / community fridge',
+    'mutual-aid': 'Nonprofit or mutual aid',
     faith: 'Faith community',
     other: 'Other'
   };

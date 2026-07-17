@@ -1091,11 +1091,11 @@ export function TermsOfServicePage() {
 }
 
 const ORG_TYPE_OPTIONS = [
-  { value: 'food-pantry', label: 'Food pantry' },
-  { value: 'shelter', label: 'Shelter' },
+  { value: 'community-garden', label: 'Community garden' },
   { value: 'school', label: 'School or youth program' },
-  { value: 'mutual-aid', label: 'Mutual aid / community fridge' },
   { value: 'faith', label: 'Faith community' },
+  { value: 'mutual-aid', label: 'Nonprofit or mutual aid' },
+  { value: 'food-pantry', label: 'Food pantry or shelter' },
   { value: 'other', label: 'Something else' },
 ];
 
@@ -1109,8 +1109,8 @@ interface GoodRootsHeroCopy {
 function heroForSession(session: AuthSession | null): GoodRootsHeroCopy {
   if (!session) {
     return {
-      title: 'A local food network starts with neighbors.',
-      body: "The Good Roots Network helps gardeners, families, food pantries, schools, and community groups see what is growing nearby and share fresh food while it is still at its best.",
+      title: 'Plan a garden you can actually keep up with.',
+      body: 'The Good Roots Network helps you decide what to plant, lay out your beds, and stay on top of watering and harvest all season long. When your garden gives you more than you can use, sharing it with neighbors is built right in.',
       primary: { label: 'Create your account', href: '/login', signup: true, internal: true },
       secondary: { label: 'See how it works', href: '#how-it-works', internal: true },
     };
@@ -1119,8 +1119,8 @@ function heroForSession(session: AuthSession | null): GoodRootsHeroCopy {
   const appHref = buildCrossAppUrl(goodRootsNetworkUrl, session);
 
   return {
-    title: 'A local food network starts with neighbors.',
-    body: 'The Good Roots Network helps gardeners, families, food pantries, schools, and community groups see what is growing nearby and share fresh food while it is still at its best.',
+    title: 'Plan a garden you can actually keep up with.',
+    body: 'The Good Roots Network helps you decide what to plant, lay out your beds, and stay on top of watering and harvest all season long. When your garden gives you more than you can use, sharing it with neighbors is built right in.',
     primary: { label: 'Open the Good Roots Network', href: appHref },
   };
 }
@@ -1408,38 +1408,38 @@ export function GoodRootsPage({
       <section className="home-mission-band good-roots-mission" aria-label="Mission">
         <div className="home-mission-band__copy">
           <p className="home-mission-band__eyebrow">What it is</p>
-          <h2>More food, grown closer to home, shared with the people around you.</h2>
+          <h2>Everything you need to plan and grow a better garden.</h2>
           <p>
-            The Good Roots Network is a living map of the gardens in your area and the people who want to eat
-            from them. Register your garden, watch the local picture take shape, and turn your extra harvest
-            into something your neighbors will thank you for. And because it's built around real gardens
-            run by real people, every season you spend in the network is a season you get better. Follow
-            growers near you, see what worked for them, and borrow those lessons for next year.
+            The Good Roots Network gives you one place to plan each season, design your beds, track what
+            you've planted, and get reminders so nothing slips through the cracks. Because it's built
+            around real gardens run by real people near you, you can see what grows well in your area and
+            carry those lessons into next year. And when a crop comes in heavy, passing the extra along to
+            a neighbor is right there whenever you want it.
           </p>
         </div>
       </section>
 
-      <Section id="how-it-works" title="How it works" intro="Four steps. No middle layer between the people growing food and the people eating it.">
+      <Section id="how-it-works" title="How it works" intro="From an empty bed to a season you can actually keep up with.">
         <div className="good-roots-steps">
           <article className="good-roots-step">
             <span className="good-roots-step__number">01</span>
-            <h3>Register your garden</h3>
-            <p>Tell us where you are and what you're planting this season.</p>
+            <h3>Set up your garden</h3>
+            <p>Tell us where you garden and add the beds you're working with this season.</p>
           </article>
           <article className="good-roots-step">
             <span className="good-roots-step__number">02</span>
-            <h3>See the local picture</h3>
-            <p>We map every garden in the network so you can spot what's over-planted and what's missing.</p>
+            <h3>Plan what to plant</h3>
+            <p>Build a season plan with crops suited to your space, and see what grows well nearby.</p>
           </article>
           <article className="good-roots-step">
             <span className="good-roots-step__number">03</span>
-            <h3>List what's extra</h3>
-            <p>When a crop comes in heavy, post it for neighbors or local organizations to claim.</p>
+            <h3>Stay on track</h3>
+            <p>Get watering, fertilizer, and harvest reminders so the day-to-day never piles up.</p>
           </article>
           <article className="good-roots-step">
             <span className="good-roots-step__number">04</span>
-            <h3>Gather what you need</h3>
-            <p>Browse nearby listings, claim what you'll use, and pick it up from the grower.</p>
+            <h3>Share the extra</h3>
+            <p>When a crop comes in heavy, offer the surplus to neighbors who can use it.</p>
           </article>
         </div>
       </Section>
@@ -1448,21 +1448,18 @@ export function GoodRootsPage({
         <div className="good-roots-persona">
           <div className="good-roots-persona__media" aria-hidden="true" />
           <div className="good-roots-persona__copy">
-            <p className="page-eyebrow">For growers</p>
-            <h2>Plant with purpose.</h2>
+            <p className="page-eyebrow">Plan your season</p>
+            <h2>Know what to plant, and where.</h2>
             <p>
-              Most home gardens end in a pile of zucchini no one can keep up with. The Good Roots Network helps you plan
-              around what your community actually needs. It also turns surplus into something your neighbors
-              will thank you for. Whether you're growing at home, on church land, at a school, or in a
-              community garden, you can join as a grower, track your beds, set watering and harvest reminders,
-              and watch your patch of ground become part of something bigger.
+              Most gardens start with good intentions and a pile of seed packets. The Good Roots Network
+              helps you turn that into an actual plan: pick crops that fit your space and your climate, lay
+              them out bed by bed, and keep track of everything from "thinking about it" to "in the ground."
             </p>
             <ul className="site-list">
-              <li>Garden planner with what-to-plant-when</li>
-              <li>Watering, fertilizer, and harvest reminders</li>
-              <li>Listings for surplus produce</li>
-              <li>Organization growers can show who they grow on behalf of</li>
-              <li>A running picture of what's growing nearby</li>
+              <li>Season planner with what-to-plant-when</li>
+              <li>Bed-by-bed garden designer</li>
+              <li>A plant library that tracks every crop's status</li>
+              <li>Local planting context so you can see what does well nearby</li>
             </ul>
           </div>
         </div>
@@ -1470,26 +1467,27 @@ export function GoodRootsPage({
         <div className="good-roots-persona good-roots-persona--reverse">
           <div className="good-roots-persona__media" aria-hidden="true" />
           <div className="good-roots-persona__copy">
-            <p className="page-eyebrow">For gatherers</p>
-            <h2>Eat closer to home.</h2>
+            <p className="page-eyebrow">Keep it going</p>
+            <h2>Stay on top of the day-to-day.</h2>
             <p>
-              Whether you're a family looking for fresh produce or a food pantry, shelter, or community
-              kitchen trying to feed more people, the Good Roots Network connects you to gardens in your area. Claim
-              what's ready, meet the growers, and build a food system that doesn't start in a warehouse.
+              A garden is a hundred small tasks spread across a season. The Good Roots Network keeps them
+              from slipping: reminders for the things that matter, a journal for what you've harvested and
+              learned, and a simple daily view of what needs doing. And if you end up with more than you
+              need, sharing it with a neighbor is only a tap away.
             </p>
             <ul className="site-list">
-              <li>Search listings by crop, distance, and availability</li>
-              <li>Claim produce in a few taps</li>
-              <li>Direct pickup from the grower, with no middle layer</li>
-              <li>Free to use for individuals and community organizations</li>
+              <li>Watering, fertilizer, and harvest reminders</li>
+              <li>A garden journal for harvests and notes</li>
+              <li>A daily view of what needs doing today</li>
+              <li>Share surplus with neighbors whenever you have extra</li>
             </ul>
           </div>
         </div>
       </section>
 
       <Section
-        title="Know what your neighborhood is growing."
-        intro="The Good Roots Network tracks and consolidates every registered garden into a living map of local abundance and scarcity. If everyone on your block is growing tomatoes and nobody has greens, we'll tell you. Plant into the gap and you'll always have a home for your harvest."
+        title="Learn from the gardens around you."
+        intro="Every garden in the network adds to a living picture of what people nearby are planting and how it's doing. Use it to choose crops that thrive in your area, time your plantings with the seasons, and — when you want to — see where your extra harvest could do the most good."
         className="good-roots-map-section"
       >
         <div className="good-roots-map-placeholder" aria-hidden="true" />
@@ -1503,10 +1501,10 @@ export function GoodRootsPage({
               <p className="good-roots-tier__price">$0</p>
             </header>
             <ul className="site-list">
-              <li>Register one garden</li>
-              <li>Basic planner and reminders</li>
-              <li>Browse local listings and claim produce</li>
-              <li>See what is not being grown nearby so you can plant into the gaps</li>
+              <li>Plan and design one garden</li>
+              <li>Crop tracking and planting suggestions</li>
+              <li>Watering, fertilizer, and harvest reminders</li>
+              <li>Share surplus with neighbors when you have extra</li>
             </ul>
           </article>
 
@@ -1516,9 +1514,9 @@ export function GoodRootsPage({
               <p className="good-roots-tier__price">In the works</p>
             </header>
             <p>
-              We're building out the paid tiers that will keep the network free for families and food
-              organizations, with extras like AI planting recommendations, local gap signals, and
-              multi-garden tracking. Get on the list and we'll email you the moment they open.
+              We're building paid tiers that keep the core planning tools free for home gardeners, with
+              extras like richer planting recommendations, multi-garden planning, and deeper local growing
+              insights. Get on the list and we'll email you the moment they open.
             </p>
             <TierInterestForm tier="either" source="good-roots-tiers" />
           </article>
@@ -1527,24 +1525,24 @@ export function GoodRootsPage({
 
       <Section
         id="organizations"
-        title="Feeding a community? Let's make it easier."
-        intro="Community gardens, schools, churches, food pantries, shelters, and mutual-aid groups can now join the Good Roots Network directly as growers or gatherers. If you're coordinating shared community plots or regular local pickups, we'll help you choose the right starting setup."
+        title="Gardening as a group?"
+        intro="Community gardens, schools, churches, and other groups can use the Good Roots Network to plan shared plots, keep track of who's tending what, and stay organized across a season with a lot of hands. If your group grows more than it needs, sharing the surplus locally comes built in."
         className="good-roots-orgs-section"
       >
         <div className="good-roots-orgs">
-          <Card title="How organizations can use the Good Roots Network" className="good-roots-orgs__perks">
+          <Card title="How groups use the Good Roots Network" className="good-roots-orgs__perks">
             <ul className="site-list">
-              <li>Grower onboarding for shared gardens and community plots</li>
-              <li>Organization name visible in the app for grower accounts</li>
-              <li>Gatherer onboarding for food pantries, shelters, schools, and mutual-aid groups</li>
-              <li>Direct coordination with local growers through the existing listing flow</li>
+              <li>Plan and design shared gardens and community plots</li>
+              <li>Keep track of who is growing what across your group</li>
+              <li>Your organization's name shown on member garden profiles</li>
+              <li>Share surplus harvest with the people you serve</li>
               <li>Light-touch onboarding guidance from our team when you need it</li>
             </ul>
           </Card>
           <Card title="Apply for organization access" className="good-roots-orgs__form">
-            <p className="contact-card__eyebrow">Tell us about your org</p>
+            <p className="contact-card__eyebrow">Tell us about your group</p>
             <p>
-              Share a few details and we'll reach out to help you get set up in the right role for how your organization participates.
+              Share a few details and we'll reach out to help your group get set up in the Good Roots Network.
             </p>
             <OrganizationInquiryForm />
           </Card>
@@ -1555,8 +1553,9 @@ export function GoodRootsPage({
         <div className="good-roots-closing__copy">
           <h2>Roots grow where hands meet dirt.</h2>
           <p>
-            Whether you have a half-acre or a few pots on a balcony, the Good Roots Network has a place for you.
-            Start with one garden, one listing, or one pickup and let the local picture grow from there.
+            Whether you have a half-acre or a few pots on a balcony, the Good Roots Network helps you plan
+            it, grow it, and make the most of everything it gives you. Start with a single bed and let it
+            grow from there.
           </p>
           {authSession ? (
             <CtaButton href={buildCrossAppUrl(goodRootsNetworkUrl, authSession)}>
