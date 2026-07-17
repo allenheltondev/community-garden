@@ -100,6 +100,12 @@ pub async fn get_derived_feed(
         .map_err(db_error)?;
 
     let (signal_rows, freshness) = if fresh_rows.is_empty() {
+        // The `window_days` column is `smallint`, so Postgres infers `$2` in
+        // `window_days = $2` as int2. tokio_postgres will not serialize an i32
+        // into an int2 parameter (it fails with `error serializing parameter 1`),
+        // so bind the window as i16. See garden_canvas.rs for the same pattern.
+        let window_days_smallint = i16::try_from(query.window_days)
+            .map_err(|_| lambda_http::Error::from("windowDays must be one of: 7, 14, 30"))?;
         let fallback_rows = client
             .query(
                 "
@@ -122,7 +128,7 @@ pub async fn get_derived_feed(
                 order by geo_boundary_key, crop_scope_id, computed_at desc, id desc
                 limit 50
                 ",
-                &[&geo_pattern, &query.window_days],
+                &[&geo_pattern, &window_days_smallint],
             )
             .await
             .map_err(db_error)?;
@@ -486,6 +492,11 @@ async fn load_or_generate_ai_summary(
     }
 
     let now = Utc::now();
+    // `derived_signal_summaries.window_days` is `smallint`; bind as i16 so
+    // Postgres' inferred int2 parameter type matches (an i32 would fail with
+    // `error serializing parameter 1`).
+    let window_days_smallint = i16::try_from(window_days)
+        .map_err(|_| lambda_http::Error::from("windowDays must be one of: 7, 14, 30"))?;
     let cached_row = client
         .query_opt(
             "
@@ -498,7 +509,7 @@ async fn load_or_generate_ai_summary(
             order by generated_at desc, id desc
             limit 1
             ",
-            &[&geo_prefix, &window_days, &now],
+            &[&geo_prefix, &window_days_smallint, &now],
         )
         .await
         .map_err(db_error)?;
@@ -539,6 +550,12 @@ async fn persist_ai_summary(
         lambda_http::Error::from(format!("Failed to serialize signal snapshot: {error}"))
     })?;
 
+    // `window_days` is a `smallint` column, so bind it as i16 to match the
+    // int2 parameter Postgres infers for the insert (an i32 would fail with
+    // `error serializing parameter 2`).
+    let window_days_smallint = i16::try_from(window_days)
+        .map_err(|_| lambda_http::Error::from("windowDays must be one of: 7, 14, 30"))?;
+
     client
         .execute(
             "
@@ -569,7 +586,7 @@ async fn persist_ai_summary(
             &[
                 &1,
                 &geo_prefix,
-                &window_days,
+                &window_days_smallint,
                 &artifact.summary_text,
                 &artifact.model_id,
                 &artifact.model_version,
