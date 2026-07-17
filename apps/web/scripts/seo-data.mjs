@@ -134,7 +134,7 @@ export const seoRoutes = [
       <h2>Programs and ways to take part</h2>
       <ul>
         <li><a href="/okra">The Okra Project</a> &mdash; request free okra seeds from Olivia's own seed line, and add your garden to the project map.</li>
-        <li><a href="/good-roots">Good Roots Network</a> &mdash; a community platform connecting home growers with neighbors and organizations who need fresh food.</li>
+        <li><a href="/good-roots">Good Roots Network</a> &mdash; a garden planning app for deciding what to plant, designing your beds, and staying on top of the season, with neighbor-to-neighbor food sharing built in.</li>
         <li><a href="/get-involved">Get involved</a> &mdash; volunteer at work days, request seeds, or join workshops as they launch.</li>
         <li><a href="/donate">Donate</a> &mdash; one-time gifts and Garden Club recurring support, with a permanent named marker placed in the memorial garden for every donor.</li>
         <li><a href="/about">About Olivia's Garden</a> &mdash; the story behind the foundation and the family who runs it.</li>
@@ -371,7 +371,7 @@ export const seoRoutes = [
     path: '/good-roots',
     title: 'Good Roots Network',
     description:
-      'A community platform that connects home growers with neighbors and organizations who need fresh food. Plan your garden, see local food gaps, and share what you have extra.',
+      'A garden planning app that helps you decide what to plant, design your beds, and stay on top of watering and harvest — then share your extra harvest with neighbors when you have it.',
     seoImage: defaultImage,
     allowIndex: false,
     prerender: true,
@@ -379,21 +379,21 @@ export const seoRoutes = [
     bodyFallback: `
       <h1>Good Roots Network</h1>
       <p>
-        Good Roots Network is part of Olivia's Garden Foundation. It's a community platform that
-        connects home growers with the people and organizations who need fresh food: families,
-        food pantries, shelters, schools, and mutual-aid groups.
+        Good Roots Network is part of Olivia's Garden Foundation. It's a garden planning app that
+        helps home gardeners decide what to plant, design their beds, and keep up with the season.
+        When your garden gives you more than you can use, sharing the extra with neighbors is built in.
       </p>
       <h2>How it works</h2>
       <ol>
-        <li>Register your garden and tell the network what you're planting this season.</li>
-        <li>See the local picture &mdash; every garden in the network shows up on a map so you can spot what's over-planted and what's missing.</li>
-        <li>List what's extra when a crop comes in heavy.</li>
-        <li>Gather what you need from nearby listings, claim it, and pick it up directly from the grower.</li>
+        <li>Set up your garden and add the beds you're working with this season.</li>
+        <li>Plan what to plant with crops suited to your space, and see what grows well nearby.</li>
+        <li>Stay on track with watering, fertilizer, and harvest reminders.</li>
+        <li>Share the extra when a crop comes in heavy by offering the surplus to neighbors who can use it.</li>
       </ol>
       <p>
-        Free is live today: one garden, basic planner, browsing, and your neighborhood food map.
-        Paid Supporter and Pro tiers are in the works and will add things like multiple gardens,
-        season history, advanced planning, and AI planting recommendations based on local gaps.
+        Free is live today: plan and design one garden, track your crops, and get reminders, with
+        neighbor food sharing included. Paid Supporter and Pro tiers are in the works and will add
+        things like multi-garden planning, season history, and richer planting recommendations.
         Sign up on the page to be notified when they open.
       </p>
     `,

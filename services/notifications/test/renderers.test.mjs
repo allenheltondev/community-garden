@@ -140,7 +140,7 @@ describe('renderEvent', () => {
   it('renders Good Roots org inquiries with org-type label and optional fields', () => {
     const result = renderEvent('ogf.contact', 'org-inquiry.received', {
       orgName: 'Harvest House',
-      orgType: 'food-pantry',
+      orgType: 'community-garden',
       contactName: 'Jordan Rivers',
       email: 'jordan@harvesthouse.org',
       city: 'McKinney',
@@ -149,7 +149,7 @@ describe('renderEvent', () => {
     });
 
     expect(result.summary).toBe('Good Roots inquiry from Harvest House');
-    expect(result.slack.text).toContain('Organization: Harvest House (Food pantry)');
+    expect(result.slack.text).toContain('Organization: Harvest House (Community garden)');
     expect(result.slack.text).toContain('Location: McKinney, TX');
     expect(result.slack.text).toContain('We feed 200 families a week.');
   });

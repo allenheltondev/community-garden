@@ -111,8 +111,9 @@ export function TransparencyPage() {
             preparation, animal care, food preservation, and related practical skills.
           </li>
           <li>
-            <strong>The Good Roots Network</strong> &mdash; an online platform that
-            connects home growers with neighbors and organizations who need fresh food.
+            <strong>The Good Roots Network</strong> &mdash; a garden planning app that
+            helps home gardeners plan and grow more food, with neighbor-to-neighbor
+            food sharing built in.
           </li>
           <li>
             <strong>Community workdays</strong> &mdash; regular volunteer days on the

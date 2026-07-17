@@ -71,7 +71,7 @@ export const routes: AppRoute[] = [
     label: 'Good Roots Network',
     showInNav: true,
     title: 'Good Roots Network',
-    description: 'A community platform that connects home growers with neighbors and organizations who need fresh food. Plan your garden, see local food gaps, and share what you have extra.',
+    description: 'A garden planning app that helps you decide what to plant, design your beds, and stay on top of watering and harvest — then share your extra harvest with neighbors when you have it.',
     seoImage: socialShareImage,
     allowIndex: false,
     prerender: true,
