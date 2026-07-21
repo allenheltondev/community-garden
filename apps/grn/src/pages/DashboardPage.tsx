@@ -9,6 +9,7 @@ import { PlantLoader } from '../components/branding/PlantLoader';
 import { createLogger } from '../utils/logging';
 import { recordTodayActionOpen } from '../utils/todayActionTracking';
 import { buildTodayActions } from './todayActions';
+import { SeasonalGuide } from '../components/Seasonality/SeasonalGuide';
 
 const logger = createLogger('today');
 
@@ -134,6 +135,8 @@ export function DashboardPage({ user }: DashboardPageProps) {
         title={`Today, ${greetingName}`}
         body="A short, prioritized list of what will help your garden most right now."
       />
+
+      <SeasonalGuide growerProfile={user?.growerProfile} crops={crops} />
 
       {!isOnline ? (
         <div className="grn-today-notice" role="status">

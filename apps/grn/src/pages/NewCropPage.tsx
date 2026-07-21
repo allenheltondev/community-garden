@@ -18,6 +18,7 @@ export function NewCropPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedBedId = searchParams.get('bedId');
+  const suggestedCropName = searchParams.get('suggestion');
 
   const { data: profile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['userProfile'],
@@ -61,6 +62,7 @@ export function NewCropPage() {
       <CropForm
         lockedBed={lockedBed}
         initialBedId={requestedBedId}
+        initialCropName={suggestedCropName}
         onCancel={() => navigate('/garden/plants')}
         onSuccess={() => {
           completeTodayAction('start');
