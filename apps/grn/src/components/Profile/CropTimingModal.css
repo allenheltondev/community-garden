@@ -1,0 +1,183 @@
+.grn-timing-modal {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(38, 27, 20, 0.52);
+  backdrop-filter: blur(3px);
+}
+
+.grn-timing-modal__dialog {
+  width: min(34rem, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  border: 1px solid rgba(79, 56, 37, 0.14);
+  border-radius: 1.15rem;
+  background: #fffdf8;
+  box-shadow: 0 24px 70px rgba(35, 24, 17, 0.24);
+}
+
+.grn-timing-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem 0.95rem;
+  border-bottom: 1px solid rgba(79, 56, 37, 0.1);
+  background: linear-gradient(135deg, rgba(225, 181, 83, 0.13), rgba(66, 107, 63, 0.08));
+}
+
+.grn-timing-modal__header span {
+  color: var(--og-color-moss);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.grn-timing-modal__header h2 {
+  margin: 0.2rem 0 0;
+  color: var(--og-color-soil);
+  font-size: 1.2rem;
+  letter-spacing: normal;
+}
+
+.grn-timing-modal__header > button {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--og-color-soil);
+  font: inherit;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.grn-timing-modal form {
+  padding: 1.15rem 1.2rem 1.2rem;
+}
+
+.grn-timing-modal__intro {
+  margin: 0 0 1rem;
+  color: rgba(79, 56, 37, 0.76);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.grn-timing-modal__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.grn-timing-modal__fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--og-color-soil);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.grn-timing-modal__fields input {
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(79, 56, 37, 0.22);
+  border-radius: 0.65rem;
+  background: white;
+  color: var(--og-color-soil);
+  font: inherit;
+}
+
+.grn-timing-modal__fields input:focus-visible {
+  border-color: var(--og-color-moss);
+  outline: 2px solid color-mix(in srgb, var(--og-color-moss) 26%, transparent);
+  outline-offset: 1px;
+}
+
+.grn-timing-modal__quick-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+}
+
+.grn-timing-modal__quick-picks > span {
+  margin-right: 0.15rem;
+  color: rgba(79, 56, 37, 0.68);
+  font-size: 0.75rem;
+}
+
+.grn-timing-modal__quick-picks button {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(66, 107, 63, 0.2);
+  border-radius: 999px;
+  background: rgba(66, 107, 63, 0.07);
+  color: var(--og-color-moss);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grn-timing-modal__quick-picks button:hover,
+.grn-timing-modal__quick-picks button:focus-visible {
+  border-color: rgba(66, 107, 63, 0.45);
+  background: rgba(66, 107, 63, 0.13);
+  outline: none;
+}
+
+.grn-timing-modal__hint,
+.grn-timing-modal__error {
+  margin: 0.8rem 0 0;
+  font-size: 0.8rem;
+}
+
+.grn-timing-modal__hint {
+  color: var(--og-color-moss);
+}
+
+.grn-timing-modal__error {
+  color: #a12b23;
+}
+
+.grn-timing-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(79, 56, 37, 0.1);
+}
+
+@media (max-width: 520px) {
+  .grn-timing-modal {
+    align-items: end;
+    padding: 0;
+  }
+
+  .grn-timing-modal__dialog {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 1.15rem 1.15rem 0 0;
+  }
+
+  .grn-timing-modal__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grn-timing-modal,
+  .grn-timing-modal * {
+    transition: none !important;
+  }
+}

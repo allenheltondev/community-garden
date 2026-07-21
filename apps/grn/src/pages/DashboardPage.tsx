@@ -10,6 +10,7 @@ import { createLogger } from '../utils/logging';
 import { recordTodayActionOpen } from '../utils/todayActionTracking';
 import { buildTodayActions } from './todayActions';
 import { SeasonalGuide } from '../components/Seasonality/SeasonalGuide';
+import { HarvestTimeline } from '../components/HarvestTimeline/HarvestTimeline';
 
 const logger = createLogger('today');
 
@@ -186,6 +187,8 @@ export function DashboardPage({ user }: DashboardPageProps) {
           ))}
         </ol>
       )}
+
+      {cropsQuery.data !== undefined ? <HarvestTimeline crops={crops} /> : null}
 
       {cropsQuery.data !== undefined ? (
         <section className="grn-dashboard__glance" aria-labelledby="garden-glance-heading">
