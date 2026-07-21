@@ -1,0 +1,468 @@
+.grn-season-guide {
+  --season-sky-top: #d7ead7;
+  --season-sky-bottom: #f5d998;
+  --season-sun: #edb649;
+  --season-far-hill: #8da86c;
+  --season-near-hill: #567848;
+  --season-soil: #705239;
+  --season-plant: #355d37;
+  overflow: hidden;
+  border: 1px solid rgba(79, 56, 37, 0.14);
+  border-radius: 1.4rem;
+  background: rgba(255, 252, 246, 0.92);
+  box-shadow: 0 18px 44px rgba(49, 34, 22, 0.09);
+}
+
+.grn-season-guide--spring {
+  --season-sky-top: #cfe8db;
+  --season-sky-bottom: #f7e4aa;
+  --season-sun: #f1bd50;
+  --season-far-hill: #97b77a;
+  --season-near-hill: #5f8a50;
+  --season-soil: #79583c;
+  --season-plant: #3f7141;
+}
+
+.grn-season-guide--summer {
+  --season-sky-top: #b9dce8;
+  --season-sky-bottom: #f8dea0;
+  --season-sun: #f0ae35;
+  --season-far-hill: #789856;
+  --season-near-hill: #476f40;
+  --season-soil: #6e4c31;
+  --season-plant: #294f31;
+}
+
+.grn-season-guide--fall {
+  --season-sky-top: #e8c9aa;
+  --season-sky-bottom: #f2d49a;
+  --season-sun: #d97836;
+  --season-far-hill: #a17548;
+  --season-near-hill: #72533a;
+  --season-soil: #62452f;
+  --season-plant: #7d4b2c;
+}
+
+.grn-season-guide--winter {
+  --season-sky-top: #cfdfe2;
+  --season-sky-bottom: #ecede5;
+  --season-sun: #d9c98e;
+  --season-far-hill: #96a59a;
+  --season-near-hill: #63756d;
+  --season-soil: #63584d;
+  --season-plant: #4c5a4f;
+}
+
+.grn-season-guide--unset {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
+  gap: 1rem;
+  padding: 1.1rem;
+  background: linear-gradient(135deg, rgba(255, 252, 246, 0.98), rgba(229, 239, 218, 0.92));
+}
+
+.grn-season-guide__empty-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(0.35rem, 1.5vw, 1.2rem);
+}
+
+.grn-season-guide__empty-copy h2,
+.grn-season-guide__copy h2 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: normal;
+}
+
+.grn-season-guide__empty-copy p,
+.grn-season-guide__copy p {
+  max-width: 58ch;
+  margin: 0.7rem 0 1rem;
+  color: rgba(79, 56, 37, 0.82);
+  line-height: 1.55;
+}
+
+.grn-season-guide__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+  min-height: 13rem;
+  padding: 1.1rem;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.7), transparent 38%),
+    linear-gradient(135deg, color-mix(in srgb, var(--season-sky-bottom) 42%, white), rgba(255, 252, 246, 0.92));
+}
+
+.grn-season-guide__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(0.35rem, 1.5vw, 1.2rem);
+}
+
+.grn-season-guide__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+  color: var(--og-color-moss);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.grn-season-scene {
+  position: relative;
+  isolation: isolate;
+  min-height: 11rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 1.15rem;
+  background: linear-gradient(180deg, var(--season-sky-top), var(--season-sky-bottom));
+  box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.3), 0 12px 28px rgba(65, 48, 31, 0.12);
+}
+
+.grn-season-scene::after {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.1rem;
+  background: linear-gradient(180deg, var(--season-soil), color-mix(in srgb, var(--season-soil) 78%, black));
+  content: '';
+}
+
+.grn-season-scene__sun {
+  position: absolute;
+  z-index: 1;
+  top: 1.2rem;
+  right: 15%;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  background: var(--season-sun);
+  box-shadow: 0 0 0 0.7rem color-mix(in srgb, var(--season-sun) 24%, transparent),
+              0 0 2.2rem color-mix(in srgb, var(--season-sun) 58%, transparent);
+}
+
+.grn-season-scene__cloud {
+  position: absolute;
+  z-index: 2;
+  width: 3.4rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0.8rem -0.35rem 0 -0.08rem rgba(255, 255, 255, 0.66),
+              1.65rem 0.03rem 0 -0.08rem rgba(255, 255, 255, 0.66);
+}
+
+.grn-season-scene__cloud--one {
+  top: 2rem;
+  left: 12%;
+}
+
+.grn-season-scene__cloud--two {
+  top: 4.5rem;
+  left: 47%;
+  scale: 0.65;
+  opacity: 0.72;
+}
+
+.grn-season-scene__hill {
+  position: absolute;
+  border-radius: 50% 50% 0 0;
+  transform-origin: bottom;
+}
+
+.grn-season-scene__hill--far {
+  z-index: 3;
+  right: -13%;
+  bottom: 2.7rem;
+  width: 78%;
+  height: 6.2rem;
+  background: var(--season-far-hill);
+  transform: rotate(4deg);
+}
+
+.grn-season-scene__hill--near {
+  z-index: 4;
+  bottom: 0.9rem;
+  left: -18%;
+  width: 90%;
+  height: 6.8rem;
+  background: var(--season-near-hill);
+  transform: rotate(-3deg);
+}
+
+.grn-season-scene__row {
+  position: absolute;
+  z-index: 5;
+  right: -4%;
+  bottom: 1rem;
+  width: 72%;
+  height: 3.8rem;
+  border-radius: 65% 0 0;
+  background: repeating-linear-gradient(
+    102deg,
+    color-mix(in srgb, var(--season-soil) 94%, white) 0 0.55rem,
+    color-mix(in srgb, var(--season-soil) 73%, black) 0.55rem 0.85rem
+  );
+  opacity: 0.88;
+  transform: skewY(-4deg);
+}
+
+.grn-season-scene__plant {
+  position: absolute;
+  z-index: 7;
+  bottom: 1.05rem;
+  width: 0.2rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--season-plant);
+  transform-origin: bottom;
+}
+
+.grn-season-scene__plant::before,
+.grn-season-scene__plant::after {
+  position: absolute;
+  width: 1.2rem;
+  height: 0.62rem;
+  border-radius: 100% 0 100% 0;
+  background: var(--season-plant);
+  content: '';
+}
+
+.grn-season-scene__plant::before {
+  top: 0.55rem;
+  right: 0.1rem;
+  transform: rotate(18deg);
+}
+
+.grn-season-scene__plant::after {
+  top: 1.15rem;
+  left: 0.1rem;
+  transform: scaleX(-1) rotate(18deg);
+}
+
+.grn-season-scene__plant--one {
+  left: 21%;
+  height: 2.7rem;
+  transform: rotate(-5deg);
+}
+
+.grn-season-scene__plant--two {
+  left: 36%;
+  height: 3.4rem;
+}
+
+.grn-season-scene__plant--three {
+  left: 53%;
+  height: 2.35rem;
+  transform: rotate(5deg);
+}
+
+.grn-season-scene__spark {
+  display: none;
+  position: absolute;
+  z-index: 6;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 1.8rem 2.4rem 0 rgba(255, 255, 255, 0.78),
+              4.2rem 0.8rem 0 rgba(255, 255, 255, 0.72);
+}
+
+.grn-season-scene__spark--one { top: 1.2rem; left: 8%; }
+.grn-season-scene__spark--two { top: 3.7rem; left: 54%; scale: 0.7; }
+.grn-season-scene__spark--three { top: 2rem; left: 72%; scale: 0.5; }
+
+.grn-season-scene--winter .grn-season-scene__spark {
+  display: block;
+}
+
+.grn-season-scene--winter .grn-season-scene__plant::before,
+.grn-season-scene--winter .grn-season-scene__plant::after {
+  width: 0.85rem;
+  height: 0.18rem;
+}
+
+.grn-season-guide__suggestions {
+  padding: 1.1rem clamp(1rem, 2vw, 1.5rem) 1.25rem;
+  border-top: 1px solid rgba(79, 56, 37, 0.1);
+}
+
+.grn-season-guide__suggestion-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.grn-season-guide__suggestion-heading h3 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-size: 1.05rem;
+  letter-spacing: normal;
+}
+
+.grn-season-guide__suggestion-heading span {
+  color: rgba(79, 56, 37, 0.68);
+  font-size: 0.8rem;
+}
+
+.grn-season-guide__crop-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grn-season-crop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(79, 56, 37, 0.11);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.grn-season-crop__icon {
+  display: grid;
+  place-items: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--season-crop-accent) 16%, white);
+  color: var(--season-crop-accent);
+}
+
+.grn-season-crop__copy {
+  min-width: 0;
+}
+
+.grn-season-crop__topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.25rem;
+}
+
+.grn-season-crop__action,
+.grn-season-crop__owned {
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.grn-season-crop__action {
+  color: var(--og-color-moss);
+}
+
+.grn-season-crop__owned {
+  padding: 0.12rem 0.36rem;
+  border-radius: 999px;
+  background: rgba(216, 167, 65, 0.18);
+  color: #795b20;
+}
+
+.grn-season-crop h4 {
+  margin: 0.18rem 0 0.28rem;
+  color: var(--og-color-soil);
+  font-size: 0.98rem;
+  line-height: 1.25;
+  letter-spacing: normal;
+}
+
+.grn-season-crop p {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.73);
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.grn-season-crop__link {
+  min-height: 2.3rem;
+  margin: 0.45rem 0 -0.4rem;
+  padding: 0.35rem 0;
+  border: none;
+  background: transparent;
+  color: var(--og-color-moss);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.grn-season-crop__link:hover,
+.grn-season-crop__link:focus-visible {
+  color: color-mix(in srgb, var(--og-color-moss) 78%, black);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+  outline: none;
+}
+
+.grn-season-guide__note {
+  margin: 0.85rem 0 0;
+  color: rgba(79, 56, 37, 0.66);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .grn-season-guide__intro,
+  .grn-season-guide--unset {
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.8fr);
+  }
+
+  .grn-season-guide__crop-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .grn-season-guide__intro,
+  .grn-season-guide--unset {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+  }
+
+  .grn-season-guide__copy,
+  .grn-season-guide__empty-copy {
+    padding: 0.65rem 0.5rem 0.25rem;
+  }
+
+  .grn-season-scene {
+    min-height: 9rem;
+  }
+
+  .grn-season-guide__suggestion-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grn-season-guide *,
+  .grn-season-guide *::before,
+  .grn-season-guide *::after {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}

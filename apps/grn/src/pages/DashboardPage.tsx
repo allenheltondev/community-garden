@@ -9,6 +9,8 @@ import { PlantLoader } from '../components/branding/PlantLoader';
 import { createLogger } from '../utils/logging';
 import { recordTodayActionOpen } from '../utils/todayActionTracking';
 import { buildTodayActions } from './todayActions';
+import { SeasonalGuide } from '../components/Seasonality/SeasonalGuide';
+import { HarvestTimeline } from '../components/HarvestTimeline/HarvestTimeline';
 
 const logger = createLogger('today');
 
@@ -135,6 +137,8 @@ export function DashboardPage({ user }: DashboardPageProps) {
         body="A short, prioritized list of what will help your garden most right now."
       />
 
+      <SeasonalGuide growerProfile={user?.growerProfile} crops={crops} />
+
       {!isOnline ? (
         <div className="grn-today-notice" role="status">
           You are offline. Showing the latest garden information saved on this device.
@@ -183,6 +187,8 @@ export function DashboardPage({ user }: DashboardPageProps) {
           ))}
         </ol>
       )}
+
+      {cropsQuery.data !== undefined ? <HarvestTimeline crops={crops} /> : null}
 
       {cropsQuery.data !== undefined ? (
         <section className="grn-dashboard__glance" aria-labelledby="garden-glance-heading">

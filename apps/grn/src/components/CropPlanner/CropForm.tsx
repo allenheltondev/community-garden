@@ -74,6 +74,8 @@ export interface CropFormProps {
   lockedBed?: GardenBed | null;
   /** Initial bed selection when the bed selector is shown. */
   initialBedId?: string | null;
+  /** Initial crop name from a trusted in-app suggestion. */
+  initialCropName?: string | null;
   /** Called after the crop is created successfully. */
   onSuccess: (created: GrowerCropItem) => void;
   /** Called when the user clicks Cancel. */
@@ -92,6 +94,7 @@ export interface CropFormProps {
 export function CropForm({
   lockedBed = null,
   initialBedId = null,
+  initialCropName = null,
   onSuccess,
   onCancel,
   submitLabel = 'Add to my garden',
@@ -112,7 +115,12 @@ export function CropForm({
 
   const growerSignals = useGrowerCropSignals();
 
-  const [selection, setSelection] = useState<CropPickerSelection | null>(null);
+  const trimmedInitialCropName = initialCropName?.trim() ?? '';
+  const [selection, setSelection] = useState<CropPickerSelection | null>(() =>
+    trimmedInitialCropName
+      ? { catalogCropId: null, cropName: trimmedInitialCropName, category: null }
+      : null
+  );
   const [planting, setPlanting] = useState<PlantingDetails>({
     bedId: lockedBed?.id ?? initialBedId,
     plantingDate: '',
@@ -131,9 +139,28 @@ export function CropForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Resolve a route-provided name to its catalog identity without adding a
+  // synchronization render. If the grower changes the field, their selection
+  // takes precedence immediately.
+  const resolvedSelection = useMemo<CropPickerSelection | null>(() => {
+    if (!trimmedInitialCropName || selection?.catalogCropId || !catalog.length) return selection;
+    if (selection?.cropName.toLocaleLowerCase() !== trimmedInitialCropName.toLocaleLowerCase()) {
+      return selection;
+    }
+    const catalogMatch = catalog.find(
+      (crop) => crop.commonName.toLocaleLowerCase() === trimmedInitialCropName.toLocaleLowerCase()
+    );
+    if (!catalogMatch) return selection;
+    return {
+      catalogCropId: catalogMatch.id,
+      cropName: catalogMatch.commonName,
+      category: catalogMatch.category,
+    };
+  }, [catalog, selection, trimmedInitialCropName]);
+
   const visual = useMemo(
-    () => visualForCrop(selection?.cropName, selection?.category),
-    [selection]
+    () => visualForCrop(resolvedSelection?.cropName, resolvedSelection?.category),
+    [resolvedSelection]
   );
 
   const daysToHarvest = useMemo(
@@ -155,18 +182,18 @@ export function CropForm({
   });
 
   const canSubmit =
-    selection !== null &&
-    selection.cropName.trim().length > 0 &&
+    resolvedSelection !== null &&
+    resolvedSelection.cropName.trim().length > 0 &&
     !createMutation.isPending;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitError(null);
-    if (!selection) {
+    if (!resolvedSelection) {
       setSubmitError('Pick a crop first.');
       return;
     }
-    const trimmedName = selection.cropName.trim();
+    const trimmedName = resolvedSelection.cropName.trim();
     if (!trimmedName) {
       setSubmitError('Crop needs a name.');
       return;
@@ -174,7 +201,7 @@ export function CropForm({
 
     const payload: UpsertGrowerCropRequest = {
       cropName: trimmedName,
-      canonicalId: selection.catalogCropId ?? undefined,
+      canonicalId: resolvedSelection.catalogCropId ?? undefined,
       status: planting.status,
       visibility: advanced.visibility,
       surplusEnabled: advanced.surplusEnabled,
@@ -198,7 +225,7 @@ export function CropForm({
         catalog={catalog}
         isLoading={isLoadingCatalog || growerSignals.isLoading}
         onSelect={setSelection}
-        selectedCatalogCropId={selection?.catalogCropId ?? null}
+        selectedCatalogCropId={resolvedSelection?.catalogCropId ?? null}
         growingCropIds={growerSignals.growingCatalogCropIds}
       />
       <Card className="grn-new-crop__hero" padding="6">
@@ -215,7 +242,7 @@ export function CropForm({
           <CropPicker
             catalog={catalog}
             isLoading={isLoadingCatalog}
-            value={selection}
+            value={resolvedSelection}
             onChange={setSelection}
             scarceCropIds={growerSignals.scarceCropIds}
             growingCropIds={growerSignals.growingCatalogCropIds}

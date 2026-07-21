@@ -16,6 +16,7 @@ import { visualForCrop } from '../CropPlanner/cropVisuals';
 import { CropIcon } from '../CropPlanner/cropIcons';
 import { HarvestLogModal } from '../Harvests/HarvestLogModal';
 import { daysUntil, formatDate, harvestProgress } from '../../utils/cropTiming';
+import { CropTimingModal } from './CropTimingModal';
 
 const logger = createLogger('crop-library');
 
@@ -37,7 +38,9 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'growing' | 'planning' | 'interested'>('all');
   const [harvestCrop, setHarvestCrop] = useState<GrowerCropItem | null>(null);
+  const [timingCrop, setTimingCrop] = useState<GrowerCropItem | null>(null);
   const [dismissedLinkedHarvestId, setDismissedLinkedHarvestId] = useState<string | null>(null);
+  const [dismissedLinkedTimingId, setDismissedLinkedTimingId] = useState<string | null>(null);
   const [bedUpdateError, setBedUpdateError] = useState<string | null>(null);
 
   const { data: myCrops, isLoading: isLoadingCrops } = useQuery({
@@ -58,9 +61,16 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
     if (linkedAction !== 'harvest' || !linkedCropId || !myCrops) return null;
     return myCrops.find((crop) => crop.id === linkedCropId) ?? null;
   }, [linkedAction, linkedCropId, myCrops]);
+  const linkedTimingCrop = useMemo(() => {
+    if (linkedAction !== 'timing' || !linkedCropId || !myCrops) return null;
+    return myCrops.find((crop) => crop.id === linkedCropId) ?? null;
+  }, [linkedAction, linkedCropId, myCrops]);
   const activeHarvestCrop =
     harvestCrop ??
     (linkedHarvestCrop?.id !== dismissedLinkedHarvestId ? linkedHarvestCrop : null);
+  const activeTimingCrop =
+    timingCrop ??
+    (linkedTimingCrop?.id !== dismissedLinkedTimingId ? linkedTimingCrop : null);
 
   const deleteMutation = useMutation({
     mutationFn: deleteMyCrop,
@@ -98,6 +108,33 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
     },
     onSuccess: () => {
       logger.info('Updated crop bed assignment');
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['myCrops'] });
+    },
+  });
+
+  const timingMutation = useMutation({
+    mutationFn: ({
+      crop,
+      plantingDate,
+      expectedHarvestDate,
+    }: {
+      crop: GrowerCropItem;
+      plantingDate: string | null;
+      expectedHarvestDate: string | null;
+    }) =>
+      updateMyCrop(crop.id, {
+        ...cropUpdatePayload(crop, crop.bedId),
+        plantingDate,
+        expectedHarvestDate,
+      }),
+    onSuccess: () => {
+      logger.info('Updated crop timing');
+      setTimingCrop(null);
+      if (activeTimingCrop?.id === linkedCropId) {
+        setDismissedLinkedTimingId(activeTimingCrop.id);
+      }
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['myCrops'] });
@@ -333,6 +370,16 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
                   >
                     Harvests
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      timingMutation.reset();
+                      setTimingCrop(crop);
+                    }}
+                  >
+                    Timing
+                  </Button>
                   {crop.bedId ? (
                     <Button
                       variant="ghost"
@@ -375,6 +422,28 @@ export function CropLibraryPanel({ viewerUserId }: CropLibraryPanelProps) {
             setHarvestCrop(null);
             if (activeHarvestCrop.id === linkedCropId) {
               setDismissedLinkedHarvestId(activeHarvestCrop.id);
+            }
+          }}
+        />
+      ) : null}
+
+      {activeTimingCrop ? (
+        <CropTimingModal
+          crop={activeTimingCrop}
+          isSaving={timingMutation.isPending}
+          saveError={
+            timingMutation.error instanceof Error
+              ? timingMutation.error.message
+              : timingMutation.isError
+                ? 'Could not save crop timing.'
+                : null
+          }
+          onSave={(dates) => timingMutation.mutate({ crop: activeTimingCrop, ...dates })}
+          onClose={() => {
+            setTimingCrop(null);
+            timingMutation.reset();
+            if (activeTimingCrop.id === linkedCropId) {
+              setDismissedLinkedTimingId(activeTimingCrop.id);
             }
           }}
         />

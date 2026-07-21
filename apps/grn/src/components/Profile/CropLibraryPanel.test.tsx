@@ -88,6 +88,48 @@ describe('CropLibraryPanel deep links', () => {
     expect(await screen.findByRole('dialog')).toHaveAttribute('data-highlighted-harvest', 'h1');
   });
 
+  it('opens a linked timing editor and saves the estimate onto the crop', async () => {
+    const tomato = {
+      id: 'crop-1', userId: 'grower-1', canonicalId: 'catalog-tomato', cropName: 'Tomato',
+      varietyId: null, status: 'growing', visibility: 'private', surplusEnabled: false,
+      nickname: null, defaultUnit: 'lb', notes: null, bedId: null, bedName: null,
+      plantingDate: '2026-05-20', expectedHarvestDate: null, plantCount: null,
+      spacingInches: null, pyramidTier: null, createdAt: '2026-05-20T00:00:00Z',
+      updatedAt: '2026-05-20T00:00:00Z',
+    };
+    vi.mocked(listMyBeds).mockResolvedValue([]);
+    vi.mocked(listMyCrops).mockResolvedValue([tomato]);
+    vi.mocked(updateMyCrop).mockClear();
+    vi.mocked(updateMyCrop).mockResolvedValue({
+      ...tomato,
+      expectedHarvestDate: '2026-07-19',
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/garden/plants?crop=crop-1&action=timing']}>
+          <CropLibraryPanel viewerUserId="grower-1" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByRole('dialog', { name: 'Timing for Tomato' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '60 days' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save timing' }));
+
+    await waitFor(() =>
+      expect(updateMyCrop).toHaveBeenCalledWith(
+        'crop-1',
+        expect.objectContaining({
+          cropName: 'Tomato',
+          plantingDate: '2026-05-20',
+          expectedHarvestDate: '2026-07-19',
+        })
+      )
+    );
+  });
+
   it('edits a user-defined crop without adding a catalog link', async () => {
     const customCrop = {
       id: 'crop-1',
