@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Input, Select } from '@olivias/ui';
-import { updateMe, type UpdateUserProfileRequest } from '../../services/api';
+import {
+  listMyListings,
+  updateListing,
+  updateMe,
+  type UpdateUserProfileRequest,
+} from '../../services/api';
 import type { GrowerProfile } from '../../types/user';
 import { createLogger } from '../../utils/logging';
-import { lookupHardinessZone, reverseGeocode } from '../../utils/geolocation';
+import {
+  lookupHardinessZone,
+  postcodeFromAddress,
+  reverseGeocode,
+} from '../../utils/geolocation';
+import { findInheritedListings, toRefreshPayload } from './inheritedListings';
 import {
   validateProfile,
   type ProfileFieldErrors,
@@ -45,8 +55,27 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
   const [isLocating, setIsLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [zoneSuggestion, setZoneSuggestion] = useState<{ zone: string; postcode: string } | null>(
+    null
+  );
+  const [addressMoved, setAddressMoved] = useState(false);
+  const [listingsNote, setListingsNote] = useState<string | null>(null);
 
   const saved = useMemo(() => toProfileFormValues(profile), [profile]);
+
+  // Only needed once the grower is actually editing or has just moved, so
+  // visiting Settings does not pull the listing list for everyone.
+  const listingsQuery = useQuery({
+    queryKey: ['myListings'],
+    queryFn: () => listMyListings(50, 0),
+    enabled: isEditing || addressMoved,
+    staleTime: 30 * 1000,
+  });
+
+  const inheritedListings = useMemo(
+    () => findInheritedListings(listingsQuery.data?.items ?? []),
+    [listingsQuery.data?.items]
+  );
 
   const setField = <K extends keyof ProfileFormValues>(key: K, value: ProfileFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -73,19 +102,70 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
       };
       await updateMe(payload);
     },
-    onSuccess: async () => {
-      logger.info('Grower profile updated');
+    onSuccess: async (_result, next) => {
+      const moved = next.address.trim() !== saved.address.trim();
+      logger.info('Grower profile updated', { addressChanged: moved });
       // The address drives geoKey, lat, and lng server-side, so anything
       // reading the profile has to be refetched rather than patched locally.
       await queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       await refreshUser();
       setSavedAt(new Date().toLocaleTimeString());
+      setAddressMoved(moved);
+      setListingsNote(null);
       setIsEditing(false);
     },
     onError: (error) => {
       logger.error('Failed to update grower profile', error as Error);
     },
   });
+
+  const refreshListingsMutation = useMutation({
+    mutationFn: async () => {
+      const results = await Promise.allSettled(
+        inheritedListings.map((listing) => updateListing(listing.id, toRefreshPayload(listing)))
+      );
+      return {
+        updated: results.filter((result) => result.status === 'fulfilled').length,
+        failed: results.filter((result) => result.status === 'rejected').length,
+      };
+    },
+    onSuccess: async ({ updated, failed }) => {
+      logger.info('Refreshed listing pickup addresses after a move', { updated, failed });
+      await queryClient.invalidateQueries({ queryKey: ['myListings'] });
+      setListingsNote(
+        failed === 0
+          ? `${updated} ${updated === 1 ? 'listing now points' : 'listings now point'} at your new address.`
+          : `${updated} updated, ${failed} could not be updated. Open Share to fix the rest.`
+      );
+      if (failed === 0) setAddressMoved(false);
+    },
+    onError: (error) => {
+      logger.error('Failed to refresh listing pickup addresses', error as Error);
+      setListingsNote('Those listings could not be updated. Open Share to change them directly.');
+    },
+  });
+
+  /**
+   * A typed address cannot be turned into a zone without geocoding, but most US
+   * addresses carry their zipcode — enough for the same lookup setup uses. The
+   * result is offered, never applied: a grower may keep a zone that reflects
+   * their microclimate better than the map does.
+   */
+  const checkZoneForTypedAddress = async () => {
+    const postcode = postcodeFromAddress(values.address);
+    if (!postcode || postcode === postcodeFromAddress(saved.address)) {
+      setZoneSuggestion(null);
+      return;
+    }
+
+    const zone = await lookupHardinessZone(postcode);
+    if (!zone || zone.toLowerCase() === values.homeZone.trim().toLowerCase()) {
+      setZoneSuggestion(null);
+      return;
+    }
+
+    setZoneSuggestion({ zone, postcode });
+  };
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -134,6 +214,7 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
     setValues(saved);
     setErrors({});
     setLocationNote(null);
+    setZoneSuggestion(null);
     setSavedAt(null);
     setIsEditing(true);
   };
@@ -142,9 +223,12 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
     setValues(saved);
     setErrors({});
     setLocationNote(null);
+    setZoneSuggestion(null);
     setIsEditing(false);
     mutation.reset();
   };
+
+  const addressChanged = values.address.trim() !== saved.address.trim();
 
   const submit = () => {
     const nextErrors = validateProfile(values);
@@ -179,6 +263,35 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
           </p>
         ) : null}
 
+        {addressMoved && inheritedListings.length > 0 ? (
+          <div className="grn-profile-form__listings" role="alert">
+            <p>
+              {inheritedListings.length === 1
+                ? '1 listing still sends neighbors to your old address'
+                : `${inheritedListings.length} listings still send neighbors to your old address`}
+              . They were created without their own pickup address, so they kept the one saved when
+              you posted them.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => refreshListingsMutation.mutate()}
+              loading={refreshListingsMutation.isPending}
+              disabled={refreshListingsMutation.isPending}
+            >
+              {inheritedListings.length === 1
+                ? 'Move it to my new address'
+                : `Move ${inheritedListings.length} listings to my new address`}
+            </Button>
+          </div>
+        ) : null}
+
+        {listingsNote ? (
+          <p className="grn-profile-form__saved" role="status">
+            {listingsNote}
+          </p>
+        ) : null}
+
         <Button variant="secondary" size="sm" onClick={startEditing}>
           Edit location and sharing
         </Button>
@@ -208,11 +321,21 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
         type="text"
         value={values.address}
         onChange={(event) => setField('address', event.target.value)}
+        onBlur={() => void checkZoneForTypedAddress()}
         placeholder="123 Main St, Springfield, IL"
         error={errors.address}
         disabled={isLocating || mutation.isPending}
         required
       />
+
+      {addressChanged && inheritedListings.length > 0 ? (
+        <p className="grn-profile-form__warning" role="status">
+          {inheritedListings.length === 1
+            ? '1 of your listings uses this address for pickup'
+            : `${inheritedListings.length} of your listings use this address for pickup`}
+          . Saving changes your profile only — you can move them across straight after.
+        </p>
+      ) : null}
 
       <Button
         type="button"
@@ -235,12 +358,42 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
         label="Growing zone"
         type="text"
         value={values.homeZone}
-        onChange={(event) => setField('homeZone', event.target.value)}
+        onChange={(event) => {
+          setField('homeZone', event.target.value);
+          setZoneSuggestion(null);
+        }}
         placeholder="e.g., 8a, 9b, 10"
         error={errors.homeZone}
         disabled={mutation.isPending}
         required
       />
+
+      {zoneSuggestion ? (
+        <div className="grn-profile-form__suggestion" role="status">
+          <span>
+            The hardiness map puts {zoneSuggestion.postcode} in zone {zoneSuggestion.zone}. Yours is
+            set to {values.homeZone.trim() || 'nothing yet'}.
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setField('homeZone', zoneSuggestion.zone);
+              setZoneSuggestion(null);
+            }}
+          >
+            Use zone {zoneSuggestion.zone}
+          </Button>
+        </div>
+      ) : null}
+
+      {addressChanged && !zoneSuggestion && values.homeZone.trim() === saved.homeZone.trim() ? (
+        <p className="grn-profile-form__warning" role="status">
+          Your zone is unchanged. If this move crossed into a different climate, update it too —
+          planting windows and seasonal ideas are worked out from it.
+        </p>
+      ) : null}
 
       <Input
         label="Share radius (miles)"

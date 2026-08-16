@@ -4,14 +4,58 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileForm } from './ProfileForm';
 import { validateProfile } from './profileValidation';
-import { updateMe } from '../../services/api';
+import { listMyListings, updateListing, updateMe } from '../../services/api';
+import { lookupHardinessZone } from '../../utils/geolocation';
+import type { Listing } from '../../types/listing';
 import type { GrowerProfile } from '../../types/user';
 
 vi.mock('../../services/api', () => ({
+  listMyListings: vi.fn(),
+  updateListing: vi.fn(),
   updateMe: vi.fn(),
 }));
 
+vi.mock('../../utils/geolocation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/geolocation')>()),
+  lookupHardinessZone: vi.fn(),
+  reverseGeocode: vi.fn(),
+}));
+
 const mockUpdateMe = vi.mocked(updateMe);
+const mockListMyListings = vi.mocked(listMyListings);
+const mockUpdateListing = vi.mocked(updateListing);
+const mockLookupZone = vi.mocked(lookupHardinessZone);
+
+function listing(overrides: Partial<Listing> = {}): Listing {
+  return {
+    id: 'listing-1',
+    userId: 'grower-1',
+    growerCropId: null,
+    cropId: 'crop-1',
+    varietyId: null,
+    title: 'Cherry tomatoes',
+    unit: 'lb',
+    quantityTotal: '10',
+    quantityRemaining: '10',
+    availableStart: '2026-08-01',
+    availableEnd: '2026-08-14',
+    status: 'active',
+    pickupLocationText: null,
+    pickupAddress: null,
+    pickupDisclosurePolicy: 'after_confirmed',
+    pickupNotes: null,
+    contactPref: 'app_message',
+    geoKey: '9v6kn7',
+    lat: 30.2,
+    lng: -97.7,
+    createdAt: '2026-08-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function listingsResponse(items: Listing[]) {
+  return { items, limit: 50, offset: 0, hasMore: false, nextOffset: null };
+}
 
 const profile: GrowerProfile = {
   homeZone: '8a',
@@ -69,6 +113,9 @@ describe('ProfileForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateMe.mockResolvedValue(undefined);
+    mockListMyListings.mockResolvedValue(listingsResponse([]));
+    mockUpdateListing.mockResolvedValue(listing());
+    mockLookupZone.mockResolvedValue(null);
   });
 
   it('shows the saved location before anything is edited', () => {
@@ -173,5 +220,87 @@ describe('ProfileForm', () => {
 
     expect(await screen.findByText('Organization name is required')).toBeInTheDocument();
     expect(mockUpdateMe).not.toHaveBeenCalled();
+  });
+
+  it('warns while editing that listings share the profile address', async () => {
+    mockListMyListings.mockResolvedValue(listingsResponse([listing(), listing({ id: 'listing-2' })]));
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+
+    expect(
+      await screen.findByText(/2 of your listings use this address for pickup/i)
+    ).toBeInTheDocument();
+  });
+
+  it('offers to move stranded listings after the address changes, and re-resolves them', async () => {
+    mockListMyListings.mockResolvedValue(listingsResponse([listing()]));
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Move it to my new address' })
+    );
+
+    await waitFor(() => {
+      expect(mockUpdateListing).toHaveBeenCalledWith(
+        'listing-1',
+        expect.not.objectContaining({ pickupAddress: expect.anything() })
+      );
+    });
+    expect(await screen.findByText(/1 listing now points at your new address/i)).toBeInTheDocument();
+  });
+
+  it('says nothing about listings when none inherited the address', async () => {
+    mockListMyListings.mockResolvedValue(
+      listingsResponse([listing({ pickupAddress: '55 Other St, Austin, TX' })])
+    );
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /my new address/i })).not.toBeInTheDocument();
+  });
+
+  it('offers the zone for a typed zipcode instead of overwriting the grower', async () => {
+    mockLookupZone.mockResolvedValue('9b');
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX 78701');
+    await userEvent.tab();
+
+    expect(await screen.findByText(/puts 78701 in zone 9b/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Growing zone/i)).toHaveValue('8a');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Use zone 9b' }));
+    expect(screen.getByLabelText(/Growing zone/i)).toHaveValue('9b');
+  });
+
+  it('nudges when the address moved but the zone did not', async () => {
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '12 Rue de la Paix, Paris');
+    await userEvent.tab();
+
+    expect(await screen.findByText(/Your zone is unchanged/i)).toBeInTheDocument();
   });
 });
