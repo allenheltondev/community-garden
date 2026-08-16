@@ -1,0 +1,41 @@
+$kind: http-request
+name: 'Update Profile Without Display Name (PUT /me)'
+description: |-
+  Backward-compatibility guard for a renamed grower.
+
+  A profile save that carries no displayName must leave the stored one alone.
+  The handler still derives a name from the authorizer's Cognito claims, and
+  folding that back over the stored value would silently rename anyone who had
+  chosen their own name — every time they edited their address in Settings.
+
+  Captures the name set by request 1 first, then re-saves the grower profile
+  without a displayName. Request 5 asserts the name survived.
+method: PUT
+url: '{{baseUrl}}/me'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "growerProfile": {
+        "homeZone": "US-TX-Austin",
+        "address": "1100 Congress Ave, Austin, TX 78701",
+        "shareRadiusMiles": 20,
+        "isOrganization": true,
+        "organizationName": "Profile Smoke Garden Team",
+        "units": "imperial",
+        "locale": "en-US"
+      }
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204", function () {
+          pm.response.to.have.status(204);
+      });

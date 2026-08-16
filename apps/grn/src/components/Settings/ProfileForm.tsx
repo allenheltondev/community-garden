@@ -15,6 +15,7 @@ import {
   reverseGeocode,
 } from '../../utils/geolocation';
 import { findInheritedListings, toRefreshPayload } from './inheritedListings';
+import { localeOptions } from './formattingLocales';
 import {
   validateProfile,
   type ProfileFieldErrors,
@@ -26,19 +27,26 @@ const logger = createLogger('profile-form');
 
 export interface ProfileFormProps {
   profile: GrowerProfile;
+  /** Lives on the user rather than the grower profile, but is edited here. */
+  displayName?: string | null;
   /** Reloads the signed-in user so the rest of the shell sees the new values. */
   refreshUser: () => Promise<void> | void;
 }
 
 
-function toProfileFormValues(profile: GrowerProfile): ProfileFormValues {
+function toProfileFormValues(
+  profile: GrowerProfile,
+  displayName?: string | null
+): ProfileFormValues {
   return {
+    displayName: displayName?.trim() ?? '',
     address: profile.address ?? '',
     homeZone: profile.homeZone ?? '',
     shareRadiusMiles: profile.shareRadiusMiles ?? 5,
     isOrganization: profile.isOrganization ?? false,
     organizationName: profile.organizationName ?? '',
     units: profile.units ?? 'imperial',
+    locale: profile.locale || navigator.language || 'en-US',
   };
 }
 
@@ -47,10 +55,12 @@ function toProfileFormValues(profile: GrowerProfile): ProfileFormValues {
  * and zone matter most: a grower who moves otherwise keeps planting windows
  * and neighbor distances calculated for where they used to live.
  */
-export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
+export function ProfileForm({ profile, displayName, refreshUser }: ProfileFormProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  const [values, setValues] = useState<ProfileFormValues>(() => toProfileFormValues(profile));
+  const [values, setValues] = useState<ProfileFormValues>(() =>
+    toProfileFormValues(profile, displayName)
+  );
   const [errors, setErrors] = useState<ProfileFieldErrors>({});
   const [isLocating, setIsLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
@@ -61,7 +71,10 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
   const [addressMoved, setAddressMoved] = useState(false);
   const [listingsNote, setListingsNote] = useState<string | null>(null);
 
-  const saved = useMemo(() => toProfileFormValues(profile), [profile]);
+  const saved = useMemo(
+    () => toProfileFormValues(profile, displayName),
+    [displayName, profile]
+  );
 
   // Only needed once the grower is actually editing or has just moved, so
   // visiting Settings does not pull the listing list for everyone.
@@ -85,9 +98,12 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
 
   const mutation = useMutation({
     mutationFn: async (next: ProfileFormValues) => {
-      // The whole profile goes every time; `locale` is carried through
-      // untouched because the form does not expose it.
+      // The whole profile goes every time: the API's upsert replaces the row,
+      // so anything omitted here would be blanked out.
       const payload: UpdateUserProfileRequest = {
+        // Only sent when set: the API keeps the stored name when the field is
+        // absent, and blanking it should not wipe the grower's name.
+        ...(next.displayName.trim() ? { displayName: next.displayName.trim() } : {}),
         growerProfile: {
           address: next.address.trim(),
           homeZone: next.homeZone.trim(),
@@ -97,7 +113,7 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
             ? next.organizationName.trim() || undefined
             : undefined,
           units: next.units,
-          locale: profile.locale || navigator.language || 'en-US',
+          locale: next.locale,
         },
       };
       await updateMe(payload);
@@ -241,6 +257,8 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
     return (
       <div className="grn-profile-summary">
         <dl className="grn-settings-details">
+          <dt>Display name</dt>
+          <dd>{saved.displayName || 'Not provided'}</dd>
           <dt>Address</dt>
           <dd>{saved.address || 'Not provided'}</dd>
           <dt>Growing zone</dt>
@@ -249,6 +267,8 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
           <dd>{saved.shareRadiusMiles} mi</dd>
           <dt>Units</dt>
           <dd>{saved.units === 'metric' ? 'Metric' : 'Imperial'}</dd>
+          <dt>Date formatting</dt>
+          <dd>{saved.locale}</dd>
           {saved.isOrganization ? (
             <>
               <dt>Organization</dt>
@@ -317,6 +337,16 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
       </p>
 
       <Input
+        label="Display name"
+        type="text"
+        value={values.displayName}
+        onChange={(event) => setField('displayName', event.target.value)}
+        placeholder="How neighbors see you"
+        error={errors.displayName}
+        disabled={mutation.isPending}
+      />
+
+      <Input
         label="Address"
         type="text"
         value={values.address}
@@ -328,13 +358,29 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
         required
       />
 
-      {addressChanged && inheritedListings.length > 0 ? (
-        <p className="grn-profile-form__warning" role="status">
-          {inheritedListings.length === 1
-            ? '1 of your listings uses this address for pickup'
-            : `${inheritedListings.length} of your listings use this address for pickup`}
-          . Saving changes your profile only — you can move them across straight after.
-        </p>
+      {addressChanged ? (
+        <div className="grn-profile-form__preview" role="status">
+          <h3>What changes when you save</h3>
+          <ul>
+            <li>
+              Neighbors within {values.shareRadiusMiles} miles of the new address see your
+              listings — a different set of people from before.
+            </li>
+            <li>
+              {values.homeZone.trim() === saved.homeZone.trim()
+                ? `Planting windows and seasonal ideas stay on zone ${saved.homeZone.trim() || 'your saved zone'}.`
+                : `Planting windows and seasonal ideas move to zone ${values.homeZone.trim()}.`}
+            </li>
+            {inheritedListings.length > 0 ? (
+              <li>
+                {inheritedListings.length === 1
+                  ? '1 listing uses this address for pickup and keeps the old one'
+                  : `${inheritedListings.length} listings use this address for pickup and keep the old one`}{' '}
+                until you move them — you can do that right after saving.
+              </li>
+            ) : null}
+          </ul>
+        </div>
       ) : null}
 
       <Button
@@ -415,6 +461,15 @@ export function ProfileForm({ profile, refreshUser }: ProfileFormProps) {
           { value: 'imperial', label: 'Imperial' },
           { value: 'metric', label: 'Metric' },
         ]}
+        disabled={mutation.isPending}
+        required
+      />
+
+      <Select
+        label="Date formatting"
+        value={values.locale}
+        onChange={(value) => setField('locale', value)}
+        options={localeOptions(saved.locale)}
         disabled={mutation.isPending}
         required
       />

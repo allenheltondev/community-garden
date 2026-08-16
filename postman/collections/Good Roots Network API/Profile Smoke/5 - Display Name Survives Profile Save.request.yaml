@@ -1,0 +1,29 @@
+$kind: http-request
+name: 'Display Name Survives Profile Save (GET /me)'
+description: |-
+  Asserts the outcome of request 4: the display name set earlier is still in
+  place after a profile-only save, and the profile change itself landed.
+method: GET
+url: '{{baseUrl}}/me'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      const jsonData = pm.response.json();
+
+      pm.test("Display name set earlier was not overwritten", function () {
+          pm.expect(jsonData).to.have.property("displayName", "Profile Smoke Test User");
+      });
+
+      pm.test("The profile change in the same request was applied", function () {
+          pm.expect(jsonData).to.have.property("growerProfile");
+          pm.expect(jsonData.growerProfile.shareRadiusMiles).to.eql(20);
+      });

@@ -1,12 +1,14 @@
 import type { GrowerProfile } from '../../types/user';
 
 export interface ProfileFormValues {
+  displayName: string;
   address: string;
   homeZone: string;
   shareRadiusMiles: number;
   isOrganization: boolean;
   organizationName: string;
   units: GrowerProfile['units'];
+  locale: string;
 }
 
 export type ProfileFieldErrors = Partial<Record<keyof ProfileFormValues, string>>;
@@ -18,6 +20,10 @@ export type ProfileFieldErrors = Partial<Record<keyof ProfileFormValues, string>
  */
 export function validateProfile(values: ProfileFormValues): ProfileFieldErrors {
   const errors: ProfileFieldErrors = {};
+
+  if (values.displayName.trim().length > 80) {
+    errors.displayName = 'Name must be 80 characters or fewer';
+  }
 
   if (!values.address.trim()) {
     errors.address = 'Address is required';

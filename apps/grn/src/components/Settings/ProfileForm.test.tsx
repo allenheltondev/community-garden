@@ -85,12 +85,14 @@ async function openEditor() {
 
 describe('validateProfile', () => {
   const valid = {
+    displayName: 'Ada Lovelace',
     address: '123 Main St, Springfield, IL',
     homeZone: '8a',
     shareRadiusMiles: 5,
     isOrganization: false,
     organizationName: '',
     units: 'imperial' as const,
+    locale: 'en-US',
   };
 
   it('accepts a complete profile', () => {
@@ -98,6 +100,7 @@ describe('validateProfile', () => {
   });
 
   it('mirrors the backend rules the API would reject on', () => {
+    expect(validateProfile({ ...valid, displayName: 'a'.repeat(81) }).displayName).toBeDefined();
     expect(validateProfile({ ...valid, address: '   ' }).address).toBeDefined();
     expect(validateProfile({ ...valid, homeZone: '' }).homeZone).toBeDefined();
     expect(validateProfile({ ...valid, homeZone: 'zone eight' }).homeZone).toBeDefined();
@@ -232,7 +235,7 @@ describe('ProfileForm', () => {
     await userEvent.type(address, '900 Cedar Ave, Austin, TX');
 
     expect(
-      await screen.findByText(/2 of your listings use this address for pickup/i)
+      await screen.findByText(/2 listings use this address for pickup and keep the old one/i)
     ).toBeInTheDocument();
   });
 
@@ -302,5 +305,82 @@ describe('ProfileForm', () => {
     await userEvent.tab();
 
     expect(await screen.findByText(/Your zone is unchanged/i)).toBeInTheDocument();
+  });
+
+  it('sends a renamed grower along with the profile', async () => {
+    renderForm({}, vi.fn());
+    await openEditor();
+
+    const name = screen.getByLabelText(/Display name/i);
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Ada of the Allotment');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateMe).toHaveBeenCalledWith(
+        expect.objectContaining({ displayName: 'Ada of the Allotment' })
+      );
+    });
+  });
+
+  it('omits a blanked name so the API keeps the stored one', async () => {
+    renderForm();
+    await openEditor();
+
+    await userEvent.clear(screen.getByLabelText(/Display name/i));
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalled());
+    expect(mockUpdateMe.mock.calls[0][0]).not.toHaveProperty('displayName');
+  });
+
+  it('lets the grower change how dates are formatted', async () => {
+    renderForm();
+    await openEditor();
+
+    await userEvent.selectOptions(screen.getByLabelText(/Date formatting/i), 'en-GB');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateMe).toHaveBeenCalledWith(
+        expect.objectContaining({
+          growerProfile: expect.objectContaining({ locale: 'en-GB' }),
+        })
+      );
+    });
+  });
+
+  it('spells out what a move changes before it is saved', async () => {
+    mockListMyListings.mockResolvedValue(listingsResponse([listing()]));
+    renderForm();
+    await openEditor();
+
+    expect(screen.queryByText('What changes when you save')).not.toBeInTheDocument();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+
+    const preview = await screen.findByText('What changes when you save');
+    const list = preview.parentElement as HTMLElement;
+    expect(list).toHaveTextContent(/Neighbors within 5 miles of the new address/i);
+    expect(list).toHaveTextContent(/stay on zone 8a/i);
+    expect(list).toHaveTextContent(/1 listing uses this address for pickup/i);
+  });
+
+  it('says the season moves too once the zone changes with the address', async () => {
+    renderForm();
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+    const zone = screen.getByLabelText(/Growing zone/i);
+    await userEvent.clear(zone);
+    await userEvent.type(zone, '9b');
+
+    expect(
+      await screen.findByText(/Planting windows and seasonal ideas move to zone 9b/i)
+    ).toBeInTheDocument();
   });
 });

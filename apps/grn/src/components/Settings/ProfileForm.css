@@ -99,3 +99,32 @@
   font-size: 0.86rem;
   line-height: 1.45;
 }
+
+.grn-profile-form__preview {
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.7rem;
+  background: rgba(66, 107, 63, 0.09);
+}
+
+.grn-profile-form__preview h3 {
+  margin: 0 0 0.35rem;
+  color: #35542f;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.grn-profile-form__preview ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.grn-profile-form__preview li {
+  color: rgba(79, 56, 37, 0.85);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}

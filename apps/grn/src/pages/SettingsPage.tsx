@@ -27,12 +27,9 @@ export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
         <div className="grn-settings-grid">
           <Card id="profile" padding="6" className="grn-settings-card">
             <h2>Profile</h2>
-            {/* Name and email live in the foundation account, so they stay
-                read-only here; location and sharing belong to the grower
-                profile and are editable. */}
+            {/* Email comes from the foundation account and stays read-only;
+                the display name and grower profile are editable here. */}
             <dl className="grn-settings-details">
-              <dt>Name</dt>
-              <dd>{user.displayName?.trim() || 'Not provided'}</dd>
               <dt>Email</dt>
               <dd>{user.email || 'Not provided'}</dd>
             </dl>
@@ -40,6 +37,7 @@ export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
             {user.growerProfile ? (
               <ProfileForm
                 profile={user.growerProfile}
+                displayName={user.displayName}
                 refreshUser={refreshUser ?? (() => undefined)}
               />
             ) : (
