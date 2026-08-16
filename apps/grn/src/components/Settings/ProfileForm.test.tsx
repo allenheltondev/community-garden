@@ -383,4 +383,19 @@ describe('ProfileForm', () => {
       await screen.findByText(/Planting windows and seasonal ideas move to zone 9b/i)
     ).toBeInTheDocument();
   });
+
+  it('sends the share radius as a number even when the API reported a string', async () => {
+    // GET /me returns "20.0"; PUT /me rejects anything but a number.
+    renderForm({ shareRadiusMiles: '20.0' as unknown as number });
+    await openEditor();
+
+    const address = screen.getByLabelText(/Address/i);
+    await userEvent.clear(address);
+    await userEvent.type(address, '900 Cedar Ave, Austin, TX');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalled());
+    const sent = mockUpdateMe.mock.calls[0][0].growerProfile;
+    expect(sent?.shareRadiusMiles).toBe(20);
+  });
 });

@@ -42,7 +42,9 @@ function toProfileFormValues(
     displayName: displayName?.trim() ?? '',
     address: profile.address ?? '',
     homeZone: profile.homeZone ?? '',
-    shareRadiusMiles: profile.shareRadiusMiles ?? 5,
+    // Number() as well as the API-boundary normalisation: this value is the
+    // one field the API reports as a string and rejects as one.
+    shareRadiusMiles: Number(profile.shareRadiusMiles ?? 5),
     isOrganization: profile.isOrganization ?? false,
     organizationName: profile.organizationName ?? '',
     units: profile.units ?? 'imperial',

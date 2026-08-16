@@ -25,5 +25,13 @@ scripts:
 
       pm.test("The profile change in the same request was applied", function () {
           pm.expect(jsonData).to.have.property("growerProfile");
-          pm.expect(jsonData.growerProfile.shareRadiusMiles).to.eql(20);
+          // GET /me reports shareRadiusMiles as a decimal string ("20.0") because
+          // it is stored in kilometres and converted through text, while PUT /me
+          // takes a number. Asserted numerically so this documents the asymmetry
+          // rather than pinning the exact string formatting.
+          pm.expect(Number(jsonData.growerProfile.shareRadiusMiles)).to.eql(20);
+      });
+
+      pm.test("shareRadiusMiles is still reported as a string", function () {
+          pm.expect(jsonData.growerProfile.shareRadiusMiles).to.be.a("string");
       });
