@@ -5985,6 +5985,11 @@ body {
   max-width: 46ch;
 }
 
+.grn-dashboard__grow-more {
+  background: linear-gradient(135deg, rgba(225, 181, 83, 0.16), rgba(225, 181, 83, 0.04));
+  border: 1px solid rgba(168, 104, 31, 0.22);
+}
+
 @media (max-width: 720px) {
   .grn-today-actions {
     grid-template-columns: 1fr;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Panel, SectionHeading } from '@olivias/ui';
-import { getDerivedFeed, listMyCrops, listReminders } from '../services/api';
+import { getDerivedFeed, listMyBeds, listMyCrops, listReminders } from '../services/api';
 import { listClaims } from '../services/claims';
 import type { UserProfile } from '../types/user';
 import { PlantLoader } from '../components/branding/PlantLoader';
@@ -11,6 +11,7 @@ import { recordTodayActionOpen } from '../utils/todayActionTracking';
 import { buildTodayActions } from './todayActions';
 import { SeasonalGuide } from '../components/Seasonality/SeasonalGuide';
 import { HarvestTimeline } from '../components/HarvestTimeline/HarvestTimeline';
+import { FirstStepsPanel } from '../components/FirstSteps/FirstStepsPanel';
 
 const logger = createLogger('today');
 
@@ -63,6 +64,14 @@ export function DashboardPage({ user }: DashboardPageProps) {
     queryKey: ['claims', 'today'],
     queryFn: () => listClaims({ limit: 50 }),
     staleTime: 30 * 1000,
+  });
+
+  // Only the getting-started checklist needs beds, so it stays out of the
+  // Today action sources and never blocks or fails the page.
+  const bedsQuery = useQuery({
+    queryKey: ['myBeds'],
+    queryFn: listMyBeds,
+    staleTime: 5 * 60 * 1000,
   });
 
   const geoKey = user?.growerProfile?.geoKey;
@@ -135,6 +144,14 @@ export function DashboardPage({ user }: DashboardPageProps) {
       <SectionHeading
         title={`Today, ${greetingName}`}
         body="A short, prioritized list of what will help your garden most right now."
+      />
+
+      <FirstStepsPanel
+        homeZone={user?.growerProfile?.homeZone}
+        crops={crops}
+        bedCount={bedsQuery.data?.length ?? 0}
+        reminderCount={remindersQuery.data?.items.length ?? 0}
+        ready={cropsQuery.isSuccess && remindersQuery.isSuccess && bedsQuery.isSuccess}
       />
 
       <SeasonalGuide growerProfile={user?.growerProfile} crops={crops} />
@@ -222,6 +239,19 @@ export function DashboardPage({ user }: DashboardPageProps) {
         </div>
         <Button variant="secondary" size="md" onClick={() => navigate('/share')}>
           Open Share
+        </Button>
+      </Card>
+
+      <Card padding="6" className="grn-dashboard__connect grn-dashboard__grow-more">
+        <div className="grn-dashboard__connect-copy">
+          <h2>Grow more of your own</h2>
+          <p>
+            Composting, seed saving, keeping a harvest — practices that make a garden feed you
+            further. Ideas to browse, not a checklist to finish.
+          </p>
+        </div>
+        <Button variant="secondary" size="md" onClick={() => navigate('/garden/grow-more')}>
+          Browse ideas
         </Button>
       </Card>
     </section>

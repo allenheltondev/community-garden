@@ -13,7 +13,31 @@ export interface GrowerWizardProps {
   onBack?: () => void;
 }
 
-type WizardStep = 'location' | 'zone' | 'preferences';
+type WizardStep = 'welcome' | 'location' | 'zone' | 'preferences';
+
+/**
+ * What a new grower can expect, in the order it happens. Setting expectations
+ * up front is the cheapest fix for "I signed up — now what?", and it is also
+ * where we say plainly that sharing is optional.
+ */
+const WHAT_HAPPENS_NEXT: ReadonlyArray<{ title: string; body: string }> = [
+  {
+    title: 'Tell us where you grow',
+    body: 'Your area and growing zone make planting windows and timing advice local to you. Two questions, then you are in.',
+  },
+  {
+    title: 'Add what you are growing',
+    body: 'One plant is enough to start. You can sketch beds and add more whenever you like.',
+  },
+  {
+    title: 'Check Today',
+    body: 'A short list of what will help your garden most right now — watering, harvest windows, and ideas for the season.',
+  },
+  {
+    title: 'Share extra food, only if you want to',
+    body: 'Offering surplus to neighbors is optional and always your call. Nothing is ever shared automatically.',
+  },
+];
 
 interface FormData {
   homeZone: string;
@@ -33,7 +57,7 @@ interface ValidationErrors {
 }
 
 export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
-  const [currentStep, setCurrentStep] = useState<WizardStep>('location');
+  const [currentStep, setCurrentStep] = useState<WizardStep>('welcome');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [zoneAutoFilled, setZoneAutoFilled] = useState(false);
@@ -151,7 +175,9 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   };
 
   const handleNext = () => {
-    if (currentStep === 'location') {
+    if (currentStep === 'welcome') {
+      setCurrentStep('location');
+    } else if (currentStep === 'location') {
       if (validateLocation()) {
         setCurrentStep('zone');
       }
@@ -163,7 +189,9 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   };
 
   const handleBack = () => {
-    if (currentStep === 'zone') {
+    if (currentStep === 'location') {
+      setCurrentStep('welcome');
+    } else if (currentStep === 'zone') {
       setCurrentStep('location');
     } else if (currentStep === 'preferences') {
       setCurrentStep('zone');
@@ -203,6 +231,8 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
     }
   };
 
+  // The welcome screen is orientation rather than a form step, so it sits
+  // outside the numbered progress.
   const steps: WizardStep[] = ['location', 'zone', 'preferences'];
   const currentStepIndex = steps.indexOf(currentStep);
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
@@ -210,22 +240,60 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
   return (
     <div className="w-full flex justify-center p-4">
       <Card className="w-full max-w-md" padding="8">
-        <div className="mb-6">
-          <div className="flex justify-between text-sm text-neutral-600 mb-2">
-            <span>Step {currentStepIndex + 1} of {steps.length}</span>
-            <span>{Math.round(progress)}%</span>
+        {currentStep !== 'welcome' ? (
+          <div className="mb-6">
+            <div className="flex justify-between text-sm text-neutral-600 mb-2">
+              <span>Step {currentStepIndex + 1} of {steps.length}</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className="w-full bg-neutral-200 rounded-full h-2">
+              <div
+                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              />
+            </div>
           </div>
-          <div className="w-full bg-neutral-200 rounded-full h-2">
-            <div
-              className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-              role="progressbar"
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            />
+        ) : null}
+
+        {currentStep === 'welcome' && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-neutral-900 mb-2">
+                Welcome to Good Roots
+              </h2>
+              <p className="text-neutral-600">
+                Good Roots helps you plan a garden, keep track of what is growing, and — only if
+                you want to — share extra food with neighbors nearby. Here is how it goes.
+              </p>
+            </div>
+
+            <ol className="space-y-3">
+              {WHAT_HAPPENS_NEXT.map((item, index) => (
+                <li key={item.title} className="flex gap-3">
+                  <span
+                    className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-primary-50 text-sm font-semibold text-primary-700"
+                    aria-hidden="true"
+                  >
+                    {index + 1}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium text-neutral-900">{item.title}</span>
+                    <span className="block text-sm text-neutral-600">{item.body}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <p className="text-sm text-neutral-500">
+              Setup takes about two minutes, and everything you enter can be changed later in
+              Settings.
+            </p>
           </div>
-        </div>
+        )}
 
         {currentStep === 'location' && (
           <div className="space-y-4">
@@ -324,7 +392,8 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
                 Set your preferences
               </h2>
               <p className="text-neutral-600">
-                Customize how you share with your community.
+                Last step. Nothing is shared until you create a listing yourself — this only sets
+                how far it would reach when you do.
               </p>
             </div>
 
@@ -453,7 +522,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
         )}
 
         <div className="flex gap-3 mt-8">
-          {currentStep !== 'location' || onBack ? (
+          {currentStep !== 'welcome' || onBack ? (
             <Button
               variant="outline"
               onClick={handleBack}
@@ -470,7 +539,7 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
               onClick={handleNext}
               className="flex-1"
             >
-              Next
+              {currentStep === 'welcome' ? 'Set up my garden' : 'Next'}
             </Button>
           ) : (
             <Button

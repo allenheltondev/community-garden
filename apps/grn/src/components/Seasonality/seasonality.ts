@@ -292,6 +292,19 @@ function monthName(date: Date, locale?: string | null): string {
   }
 }
 
+/**
+ * Resolve the grower's current season from the calendar date, flipping the
+ * calendar for southern-hemisphere gardens. Unlike `buildSeasonalGuide` this
+ * needs no hardiness zone, so surfaces that are useful before a zone is saved
+ * (or without one at all) can still speak in seasons.
+ */
+export function resolveSeason(input: { lat?: number | null; date?: Date }): SeasonId {
+  const date = input.date ?? new Date();
+  const isSouthernHemisphere = typeof input.lat === 'number' && input.lat < 0;
+  const seasonalMonth = isSouthernHemisphere ? (date.getMonth() + 6) % 12 : date.getMonth();
+  return seasonForMonth(seasonalMonth).season;
+}
+
 export function buildSeasonalGuide(input: {
   homeZone?: string | null;
   lat?: number | null;

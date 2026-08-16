@@ -30,6 +30,13 @@ const GARDEN_VIEWS = [
     description: 'Remember what you planted, tended, harvested, and shared.',
     end: false,
   },
+  {
+    id: 'grow-more',
+    label: 'Grow more',
+    path: '/garden/grow-more',
+    description: 'Optional practices for getting more from the garden.',
+    end: false,
+  },
 ] as const;
 
 function readOnlineStatus(): boolean {

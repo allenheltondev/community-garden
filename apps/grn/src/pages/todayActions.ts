@@ -179,32 +179,36 @@ export function buildTodayActions({
     });
   }
 
+  // An empty garden always offers the same first move rather than only when
+  // nothing else qualifies: without a crop on record, almost nothing Today can
+  // suggest is about the grower's own garden. It still sits below anything
+  // time-sensitive, since a waiting neighbor outranks orientation.
+  if (cropsLoaded && crops.length === 0) {
+    candidates.push({
+      id: 'start:first-crop',
+      kind: 'start',
+      label: 'Start here',
+      title: 'Add your first plant',
+      body: 'Tell Good Roots what you are growing — every other suggestion here is built from it.',
+      cta: 'Add a plant',
+      to: '/garden/plants/new',
+      destination: 'garden',
+      priority: 55,
+    });
+  }
+
   if (candidates.length === 0) {
-    if (cropsLoaded && crops.length === 0) {
-      candidates.push({
-        id: 'start:first-crop',
-        kind: 'start',
-        label: 'Start here',
-        title: 'Add your first crop',
-        body: 'Tell us what you are growing so Today can surface timely next steps.',
-        cta: 'Add a crop',
-        to: '/garden/plants/new',
-        destination: 'garden',
-        priority: 90,
-      });
-    } else {
-      candidates.push({
-        id: 'review:garden',
-        kind: 'review',
-        label: 'Garden',
-        title: 'Your garden is on track',
-        body: 'Nothing is urgent. Take a quick look or keep enjoying the growing season.',
-        cta: 'Open garden',
-        to: '/garden',
-        destination: 'garden',
-        priority: 90,
-      });
-    }
+    candidates.push({
+      id: 'review:garden',
+      kind: 'review',
+      label: 'Garden',
+      title: 'Your garden is on track',
+      body: 'Nothing is urgent. Take a quick look or keep enjoying the growing season.',
+      cta: 'Open garden',
+      to: '/garden',
+      destination: 'garden',
+      priority: 90,
+    });
   }
 
   return candidates

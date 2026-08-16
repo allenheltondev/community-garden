@@ -31,6 +31,9 @@ const GardenWorkspacePage = lazy(() =>
 const GardenJournalPage = lazy(() =>
   import('../pages/GardenJournalPage').then((m) => ({ default: m.GardenJournalPage }))
 );
+const GrowMorePage = lazy(() =>
+  import('../pages/GrowMorePage').then((m) => ({ default: m.GrowMorePage }))
+);
 const ListingsPage = lazy(() =>
   import('../pages/ListingsPage').then((m) => ({ default: m.ListingsPage }))
 );
@@ -83,6 +86,7 @@ export function AuthenticatedRoot() {
                 <Route path="plan" element={<PlannerPage />} />
                 <Route path="plan/recommendations" element={<RecommendationsPage />} />
                 <Route path="journal" element={<GardenJournalPage />} />
+                <Route path="grow-more" element={<GrowMorePage />} />
               </Route>
               <Route path="/share" element={<ConnectPage />} />
               <Route path="/share/listings" element={<ListingsPage />} />

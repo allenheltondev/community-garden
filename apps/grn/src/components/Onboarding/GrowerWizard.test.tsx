@@ -30,8 +30,45 @@ describe('GrowerWizard', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders address-based location step', () => {
+  /**
+   * Renders the wizard and steps past the welcome screen, which is orientation
+   * rather than a form step.
+   */
+  function renderAtSetup() {
+    const result = render(<GrowerWizard onComplete={mockOnComplete} />);
+    fireEvent.click(screen.getByRole('button', { name: /set up my garden/i }));
+    return result;
+  }
+
+  it('opens on a welcome screen that explains what happens next', () => {
     render(<GrowerWizard onComplete={mockOnComplete} />);
+
+    expect(screen.getByText('Welcome to Good Roots')).toBeInTheDocument();
+    expect(screen.getByText('Tell us where you grow')).toBeInTheDocument();
+    expect(screen.getByText('Add what you are growing')).toBeInTheDocument();
+    expect(screen.getByText('Check Today')).toBeInTheDocument();
+    expect(screen.getByText('Share extra food, only if you want to')).toBeInTheDocument();
+    // Orientation sits outside the numbered progress.
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('starts the numbered steps after the welcome screen', () => {
+    renderAtSetup();
+
+    expect(screen.getByText('Where are you growing?')).toBeInTheDocument();
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument();
+  });
+
+  it('can step back from the first question to the welcome screen', () => {
+    renderAtSetup();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Back$/i }));
+
+    expect(screen.getByText('Welcome to Good Roots')).toBeInTheDocument();
+  });
+
+  it('renders address-based location step', () => {
+    renderAtSetup();
 
     expect(screen.getByText('Where are you growing?')).toBeInTheDocument();
     expect(screen.getByLabelText(/Address/i)).toBeInTheDocument();
@@ -55,7 +92,7 @@ describe('GrowerWizard', () => {
       });
     });
 
-    render(<GrowerWizard onComplete={mockOnComplete} />);
+    renderAtSetup();
 
     fireEvent.click(screen.getByRole('button', { name: /use my current location/i }));
 
@@ -65,7 +102,7 @@ describe('GrowerWizard', () => {
   });
 
   it('submits address in grower payload', async () => {
-    render(<GrowerWizard onComplete={mockOnComplete} />);
+    renderAtSetup();
 
     const addressInput = screen.getByLabelText(/Address/i);
     fireEvent.change(addressInput, {
@@ -93,7 +130,7 @@ describe('GrowerWizard', () => {
   });
 
   it('requires organization name for organization growers', async () => {
-    render(<GrowerWizard onComplete={mockOnComplete} />);
+    renderAtSetup();
 
     fireEvent.change(screen.getByLabelText(/Address/i), {
       target: { value: '123 Main St, Springfield, IL' },
@@ -113,7 +150,7 @@ describe('GrowerWizard', () => {
   });
 
   it('submits organization grower data', async () => {
-    render(<GrowerWizard onComplete={mockOnComplete} />);
+    renderAtSetup();
 
     fireEvent.change(screen.getByLabelText(/Address/i), {
       target: { value: '800 Community Garden Way, Austin, TX 78701' },

@@ -52,8 +52,9 @@ describe('OnboardingFlow', () => {
       </MemoryRouter>
     );
 
-    // The wizard's first step is shown directly — no participation-mode picker.
-    expect(screen.getByText(/Where are you growing/i)).toBeInTheDocument();
+    // The wizard opens on its own welcome screen — no participation-mode picker.
+    expect(screen.getByText(/Welcome to Good Roots/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /set up my garden/i })).toBeInTheDocument();
   });
 
   it('does not render a dead Back button on the first step', () => {
@@ -76,7 +77,7 @@ describe('OnboardingFlow', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/Where are you growing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome to Good Roots/i)).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/');
   });
 });
