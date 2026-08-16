@@ -289,8 +289,8 @@ export function GrowerWizard({ onComplete, onBack }: GrowerWizardProps) {
             </ol>
 
             <p className="text-sm text-neutral-500">
-              Setup takes about two minutes. Your garden itself — plants, beds, and what you share
-              — stays yours to change at any time.
+              Setup takes about two minutes. Your address, growing zone, and sharing preferences can
+              be updated later in Settings, so nothing here is permanent.
             </p>
           </div>
         )}

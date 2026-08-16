@@ -686,6 +686,19 @@ body {
   margin: 0;
 }
 
+.grn-settings-card .grn-profile-summary,
+.grn-settings-card .grn-profile-form {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(79, 56, 37, 0.1);
+}
+
+.grn-settings-empty {
+  margin: 1rem 0 0;
+  color: rgba(79, 56, 37, 0.72);
+  font-size: 0.9rem;
+}
+
 .grn-settings-details dt {
   color: rgba(79, 56, 37, 0.7);
   font-weight: 600;
