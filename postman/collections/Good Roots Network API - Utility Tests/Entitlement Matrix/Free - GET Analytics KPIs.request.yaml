@@ -6,9 +6,11 @@ description: |-
 method: GET
 url: '{{baseUrl}}/analytics/pro/kpis'
 order: 5000
-headers:
-  - key: Authorization
-    value: 'Bearer {{freeAuthToken}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{freeAuthToken}}'
 scripts:
   - type: afterResponse
     language: text/javascript

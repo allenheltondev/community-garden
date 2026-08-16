@@ -6,9 +6,11 @@ description: |-
 method: GET
 url: '{{baseUrl}}/agent-tasks'
 order: 2500
-headers:
-  - key: Authorization
-    value: 'Bearer {{freeAuthToken}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{freeAuthToken}}'
 scripts:
   - type: afterResponse
     language: text/javascript

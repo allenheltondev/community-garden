@@ -6,9 +6,12 @@ description: |-
 method: POST
 url: '{{baseUrl}}/ai/copilot/weekly-plan'
 order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{freeAuthToken}}'
 headers:
-  - key: Authorization
-    value: 'Bearer {{freeAuthToken}}'
   - key: Content-Type
     value: application/json
 body:
