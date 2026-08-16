@@ -40,6 +40,7 @@ function renderPanel(props: Partial<Parameters<typeof FirstStepsPanel>[0]> = {})
   return render(
     <MemoryRouter>
       <FirstStepsPanel
+        userId="grower-1"
         homeZone="8a"
         crops={[]}
         bedCount={0}
@@ -102,6 +103,31 @@ describe('FirstStepsPanel', () => {
     unmount();
     renderPanel();
     expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+  });
+
+  it('keeps one grower\'s hidden checklist off another account on the same browser', async () => {
+    const { unmount } = renderPanel({ userId: 'grower-1' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide this' }));
+    unmount();
+
+    renderPanel({ userId: 'grower-2' });
+    expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+  });
+
+  it('re-reads the preference when the signed-in grower changes', async () => {
+    const { rerender } = renderPanel({ userId: 'grower-1' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide this' }));
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <FirstStepsPanel userId="grower-2" homeZone="8a" crops={[]} bedCount={0} reminderCount={0} ready />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
   });
 
   it('says plainly that sharing stays optional', () => {

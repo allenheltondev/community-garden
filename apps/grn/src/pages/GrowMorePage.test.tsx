@@ -101,13 +101,42 @@ describe('GrowMorePage', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not guess a season while the grower data is still loading', async () => {
+    mockGetMe.mockReturnValue(new Promise(() => undefined));
+
+    renderPage();
+
+    expect(await screen.findByText('Looking at your season and your garden…')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /worth a look this season/i })
+    ).not.toBeInTheDocument();
+    // The library itself is useful unpersonalised, so it is still all there.
+    expect(await screen.findByRole('heading', { name: 'The library' })).toBeInTheDocument();
+    expect(screen.getByText('Compost what the garden gives back')).toBeInTheDocument();
+  });
+
+  it('says the list is untailored when the grower data fails, and offers a retry', async () => {
+    mockListMyCrops.mockRejectedValue(new Error('crops unavailable'));
+
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/nothing below is tailored to your season/i);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /worth a look this season/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The library' })).toBeInTheDocument();
+  });
+
   it('reveals how a practice works on demand', async () => {
     renderPage();
 
-    const toggles = await screen.findAllByRole('button', { name: 'How it works' });
+    // Wait for personalization to settle so the click lands on the final layout.
+    await screen.findByRole('region', { name: /worth a look this season/i });
+    const toggles = screen.getAllByRole('button', { name: 'How it works' });
     await userEvent.click(toggles[0]);
 
-    expect(screen.getByText('What it opens up')).toBeInTheDocument();
+    expect(await screen.findByText('What it opens up')).toBeInTheDocument();
     expect(screen.getByText('One small start')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument();
   });

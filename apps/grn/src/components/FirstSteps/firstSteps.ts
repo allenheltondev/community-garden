@@ -62,11 +62,14 @@ export function buildFirstSteps({
     {
       id: 'zone',
       title: 'Set your growing zone',
-      body: 'Your zone is what makes planting windows, seasonal ideas, and timing advice local to you.',
+      // Setup captures the zone, and Settings only displays it today, so the
+      // unset state points at where to check rather than promising an edit
+      // screen that does not exist yet.
+      body: 'Your zone is what makes planting windows, seasonal ideas, and timing advice local to you. It is captured during setup and shown in Settings.',
       doneNote: hasZone
         ? `Zone ${homeZone?.trim()} — Today and the planner now speak in your season.`
         : 'Your zone is saved.',
-      cta: 'Add your zone',
+      cta: 'Check settings',
       doneCta: 'Review zone',
       to: '/settings#profile',
       done: hasZone,

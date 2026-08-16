@@ -147,6 +147,7 @@ export function DashboardPage({ user }: DashboardPageProps) {
       />
 
       <FirstStepsPanel
+        userId={user?.id}
         homeZone={user?.growerProfile?.homeZone}
         crops={crops}
         bedCount={bedsQuery.data?.length ?? 0}

@@ -6,10 +6,12 @@ import { createLogger } from '../../utils/logging';
 import { buildFirstSteps, type FirstStep } from './firstSteps';
 import './FirstStepsPanel.css';
 
-const HIDDEN_STORAGE_KEY = 'og-grn-first-steps-hidden';
+const HIDDEN_STORAGE_PREFIX = 'og-grn-first-steps-hidden';
 const logger = createLogger('first-steps');
 
 export interface FirstStepsPanelProps {
+  /** Scopes the hidden preference; browsers get shared between accounts. */
+  userId?: string | null;
   homeZone?: string | null;
   crops: GrowerCropItem[];
   bedCount: number;
@@ -21,10 +23,18 @@ export interface FirstStepsPanelProps {
   ready: boolean;
 }
 
-function readHidden(): boolean {
+/**
+ * One grower hiding their checklist must not hide it for the next person to
+ * sign in on the same device, so the preference is keyed per user.
+ */
+function hiddenStorageKey(userId?: string | null): string {
+  return `${HIDDEN_STORAGE_PREFIX}:${userId ?? 'unknown'}`;
+}
+
+function readHidden(userId?: string | null): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(HIDDEN_STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(hiddenStorageKey(userId)) === 'true';
   } catch {
     return false;
   }
@@ -36,6 +46,7 @@ function readHidden(): boolean {
  * be hidden at any time — it is orientation, not a gate.
  */
 export function FirstStepsPanel({
+  userId,
   homeZone,
   crops,
   bedCount,
@@ -43,7 +54,15 @@ export function FirstStepsPanel({
   ready,
 }: FirstStepsPanelProps) {
   const navigate = useNavigate();
-  const [hidden, setHidden] = useState<boolean>(() => readHidden());
+  const [hidden, setHidden] = useState<boolean>(() => readHidden(userId));
+  const [hiddenFor, setHiddenFor] = useState<string | null | undefined>(userId);
+
+  // The signed-in identity can change without this component unmounting, so
+  // re-read the preference rather than carrying the previous grower's choice.
+  if (hiddenFor !== userId) {
+    setHiddenFor(userId);
+    setHidden(readHidden(userId));
+  }
 
   const summary = useMemo(
     () => buildFirstSteps({ homeZone, crops, bedCount, reminderCount }),
@@ -54,7 +73,7 @@ export function FirstStepsPanel({
 
   const hide = () => {
     try {
-      window.localStorage.setItem(HIDDEN_STORAGE_KEY, 'true');
+      window.localStorage.setItem(hiddenStorageKey(userId), 'true');
     } catch {
       // Hiding is a convenience; a storage failure should not break Today.
     }
