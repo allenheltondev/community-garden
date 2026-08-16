@@ -144,4 +144,52 @@ describe('buildTodayActions', () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ kind: 'start', to: '/garden/plants/new' });
   });
+
+  it('keeps the start action available when an empty garden has other activity', () => {
+    const actions = buildTodayActions({
+      crops: [],
+      cropsLoaded: true,
+      reminders: [],
+      claims: [],
+      signals: [
+        {
+          cropId: 'crop-scarce',
+          cropName: 'Okra',
+          requestCount: 5,
+          listingCount: 1,
+          scarcityScore: 0.9,
+        },
+      ],
+    });
+
+    expect(actions.map((action) => action.kind)).toEqual(['start', 'local']);
+  });
+
+  it('does not push the start action ahead of a waiting neighbor', () => {
+    const actions = buildTodayActions({
+      userId: 'grower-1',
+      crops: [],
+      cropsLoaded: true,
+      reminders: [],
+      claims: [
+        {
+          id: 'claim-1',
+          listingId: 'listing-1',
+          requestId: null,
+          claimerId: 'grower-1',
+          listingOwnerId: 'neighbor',
+          quantityClaimed: '1',
+          status: 'confirmed',
+          notes: null,
+          claimedAt: '2026-07-01T00:00:00Z',
+          confirmedAt: '2026-07-02T00:00:00Z',
+          completedAt: null,
+          cancelledAt: null,
+        },
+      ],
+      signals: [],
+    });
+
+    expect(actions.map((action) => action.kind)).toEqual(['pickup', 'start']);
+  });
 });

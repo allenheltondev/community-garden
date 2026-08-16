@@ -6,9 +6,12 @@ description: |-
 method: PUT
 url: '{{baseUrl}}/agent-tasks/00000000-0000-4000-a000-000000000000'
 order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{freeAuthToken}}'
 headers:
-  - key: Authorization
-    value: 'Bearer {{freeAuthToken}}'
   - key: Content-Type
     value: application/json
 body:

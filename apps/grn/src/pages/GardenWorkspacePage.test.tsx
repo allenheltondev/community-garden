@@ -18,6 +18,7 @@ function renderWorkspace(initialEntry = '/garden') {
           <Route path="plants" element={<h2>Plants view</h2>} />
           <Route path="plan" element={<h2>Plan view</h2>} />
           <Route path="journal" element={<h2>Journal view</h2>} />
+          <Route path="grow-more" element={<h2>Grow more view</h2>} />
         </Route>
       </Routes>
       <LocationDisplay />
@@ -67,6 +68,18 @@ describe('GardenWorkspacePage', () => {
 
     expect(screen.getByRole('heading', { name: 'Journal view' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/garden/journal?season=2026');
+  });
+
+  it('offers the grow-more library as a garden view', async () => {
+    renderWorkspace('/garden');
+
+    const link = screen.getByRole('link', { name: /grow more/i });
+    expect(link).toHaveTextContent(/optional practices/i);
+
+    await userEvent.click(link);
+
+    expect(screen.getByRole('heading', { name: 'Grow more view' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/garden/grow-more');
   });
 
   it('announces offline garden behavior and clears it after reconnecting', () => {

@@ -84,6 +84,8 @@ async function ensureUser(email, password) {
   );
 }
 
+const TIER_GROUPS = ["free-tier", "supporter-tier", "pro-tier"];
+
 function tierToGroupName(tier) {
   switch (tier) {
     case "pro":
@@ -95,8 +97,37 @@ function tierToGroupName(tier) {
   }
 }
 
-async function ensureTierGroup(email, tier) {
+/**
+ * Read group names out of an AdminListGroupsForUser response.
+ *
+ * The AWS SDK v3 returns PascalCase (`Groups` / `GroupName`). Reading the
+ * snake_case shape instead silently yields an empty list, which makes the
+ * seeder look successful while never demoting a user — so CI users keep a
+ * tier group they were once given and every "free tier is blocked" assertion
+ * fails against them.
+ */
+export function groupNamesFromListResponse(response) {
+  return response?.Groups?.flatMap((group) => group.GroupName ?? []) ?? [];
+}
+
+/**
+ * Work out which tier groups to remove and whether the target group is
+ * missing. Tier groups are mutually exclusive: the authorizer resolves a tier
+ * by looking these up live, and pro wins over supporter over free, so a
+ * leftover group silently upgrades the user.
+ */
+export function planTierGroupChanges(currentGroups, tier) {
   const targetGroup = tierToGroupName(tier);
+  return {
+    targetGroup,
+    groupsToRemove: currentGroups.filter(
+      (group) => TIER_GROUPS.includes(group) && group !== targetGroup
+    ),
+    addTargetGroup: !currentGroups.includes(targetGroup),
+  };
+}
+
+async function ensureTierGroup(email, tier) {
   const response = await cognito.send(
     new AdminListGroupsForUserCommand({
       UserPoolId: USER_POOL_ID,
@@ -104,24 +135,24 @@ async function ensureTierGroup(email, tier) {
     })
   );
 
-  const currentGroups = response.groups?.flatMap((group) => group.group_name ?? []) ?? [];
-  const tierGroups = ["free-tier", "supporter-tier", "pro-tier"];
-
-  await Promise.all(
-    currentGroups
-      .filter((group) => tierGroups.includes(group) && group !== targetGroup)
-      .map((group) =>
-        cognito.send(
-          new AdminRemoveUserFromGroupCommand({
-            UserPoolId: USER_POOL_ID,
-            Username: email,
-            GroupName: group,
-          })
-        )
-      )
+  const { targetGroup, groupsToRemove, addTargetGroup } = planTierGroupChanges(
+    groupNamesFromListResponse(response),
+    tier
   );
 
-  if (!currentGroups.includes(targetGroup)) {
+  await Promise.all(
+    groupsToRemove.map((group) =>
+      cognito.send(
+        new AdminRemoveUserFromGroupCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: email,
+          GroupName: group,
+        })
+      )
+    )
+  );
+
+  if (addTargetGroup) {
     await cognito.send(
       new AdminAddUserToGroupCommand({
         UserPoolId: USER_POOL_ID,

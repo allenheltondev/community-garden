@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
-import { getDerivedFeed, listMyCrops, listReminders } from '../services/api';
+import { getDerivedFeed, listMyBeds, listMyCrops, listReminders } from '../services/api';
 import { listClaims } from '../services/claims';
 import type { GrowerCropItem } from '../types/listing';
 import type { UserProfile } from '../types/user';
 
 vi.mock('../services/api', () => ({
   getDerivedFeed: vi.fn(),
+  listMyBeds: vi.fn(),
   listMyCrops: vi.fn(),
   listReminders: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock('../services/claims', () => ({
 }));
 
 const mockGetDerivedFeed = vi.mocked(getDerivedFeed);
+const mockListMyBeds = vi.mocked(listMyBeds);
 const mockListMyCrops = vi.mocked(listMyCrops);
 const mockListReminders = vi.mocked(listReminders);
 const mockListClaims = vi.mocked(listClaims);
@@ -82,6 +84,11 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+    // React Query's online manager is a module singleton, so the offline event
+    // fired by one test would otherwise pause every query in the next one.
+    onlineManager.setOnline(true);
+    window.localStorage.clear();
+    mockListMyBeds.mockResolvedValue([]);
     mockListMyCrops.mockResolvedValue([]);
     mockListReminders.mockResolvedValue({ items: [] });
     mockListClaims.mockResolvedValue({
@@ -116,7 +123,7 @@ describe('DashboardPage', () => {
     const actionList = await screen.findByRole('list', { name: /top actions today/i });
     expect(within(actionList).getAllByRole('listitem')).toHaveLength(1);
 
-    await userEvent.click(within(actionList).getByRole('button', { name: 'Add a crop' }));
+    await userEvent.click(within(actionList).getByRole('button', { name: 'Add a plant' }));
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/garden/plants/new');
     });
@@ -204,6 +211,60 @@ describe('DashboardPage', () => {
     fireEvent(window, new Event('offline'));
     expect(await screen.findByText(/showing the latest garden information/i)).toBeInTheDocument();
     expect(screen.getByText('Check Tomato')).toBeInTheDocument();
+  });
+
+  it('shows the getting-started checklist until setup is done', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+    const stepList = screen.getByRole('list', { name: 'Setup steps' });
+    const steps = within(stepList).getAllByRole('listitem');
+    expect(steps).toHaveLength(4);
+
+    await userEvent.click(within(stepList).getByRole('button', { name: 'Add a plant' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/garden/plants/new');
+    });
+  });
+
+  it('hides the checklist once every setup step is on record', async () => {
+    mockListMyCrops.mockResolvedValue([crop({ id: 'crop-1', bedId: 'bed-1' })]);
+    mockListMyBeds.mockResolvedValue([{ id: 'bed-1' } as Awaited<ReturnType<typeof listMyBeds>>[number]]);
+    mockListReminders.mockResolvedValue({
+      items: [
+        {
+          id: 'reminder-1',
+          title: 'Water the beds',
+          reminderType: 'watering',
+          cadenceDays: 2,
+          startDate: '2026-07-01',
+          timezone: 'UTC',
+          status: 'active',
+          nextRunAt: '2999-01-01T00:00:00Z',
+          lastRunAt: null,
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Today, Ada' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('offers the grow-more library without framing it as a goal', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Grow more of your own' })).toBeInTheDocument();
+    expect(screen.getByText(/Ideas to browse, not a checklist to finish/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Browse ideas' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/garden/grow-more');
+    });
   });
 
   it('shows a focused loader while the initial action sources are pending', () => {

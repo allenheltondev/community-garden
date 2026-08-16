@@ -7,9 +7,11 @@ description: |-
 method: GET
 url: '{{baseUrl}}/feed/derived'
 order: 5500
-headers:
-  - key: Authorization
-    value: 'Bearer {{freeAuthToken}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{freeAuthToken}}'
 queryParams:
   - key: geoKey
     value: '9v6kn7'
