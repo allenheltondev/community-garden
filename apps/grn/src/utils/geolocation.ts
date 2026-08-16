@@ -63,6 +63,21 @@ export async function reverseGeocode(
 }
 
 /**
+ * Pull a US zipcode out of a typed address so the hardiness-zone lookup can
+ * run without a forward-geocoding round trip. Returns null when there is no
+ * recognisable zipcode — non-US addresses included — and callers should then
+ * leave the zone alone rather than guessing.
+ *
+ * Anchored to the end of the string because that is where a zipcode sits in a
+ * postal address; a bare house number ("5 digits" earlier in the line) is not
+ * a zipcode.
+ */
+export function postcodeFromAddress(address: string): string | null {
+  const match = /\b(\d{5})(?:-\d{4})?\s*(?:,\s*(?:usa|us|united states))?\s*$/i.exec(address.trim());
+  return match ? match[1] : null;
+}
+
+/**
  * Look up the USDA Plant Hardiness Zone for a US zipcode. Uses phzmapi.org —
  * a public, no-auth dataset of the 2023 USDA hardiness zone map. Returns null
  * for non-US postcodes or any failure; callers should fall back to manual entry.

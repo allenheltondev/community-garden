@@ -91,7 +91,10 @@ export function AuthenticatedRoot() {
               <Route path="/share" element={<ConnectPage />} />
               <Route path="/share/listings" element={<ListingsPage />} />
               <Route path="/share/find" element={<RequestsPage />} />
-              <Route path="/settings" element={<SettingsPage user={user} />} />
+              <Route
+                path="/settings"
+                element={<SettingsPage user={user} refreshUser={refreshUser} />}
+              />
               {Object.entries(LEGACY_ROUTE_REDIRECTS).map(([from, to]) => (
                 <Route key={from} path={from} element={<LegacyRouteRedirect to={to} />} />
               ))}

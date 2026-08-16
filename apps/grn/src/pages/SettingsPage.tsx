@@ -1,5 +1,6 @@
 import { Card, Panel, SectionHeading } from '@olivias/ui';
 import { ApiKeysPanel } from '../components/Settings/ApiKeysPanel';
+import { ProfileForm } from '../components/Settings/ProfileForm';
 import type { UserProfile } from '../types/user';
 
 const membershipLabels = {
@@ -10,9 +11,11 @@ const membershipLabels = {
 
 export interface SettingsPageProps {
   user: UserProfile | null;
+  /** Reloads the signed-in user after a profile edit. */
+  refreshUser?: () => Promise<void> | void;
 }
 
-export function SettingsPage({ user }: SettingsPageProps) {
+export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
   return (
     <section className="grn-section">
       <SectionHeading
@@ -24,14 +27,24 @@ export function SettingsPage({ user }: SettingsPageProps) {
         <div className="grn-settings-grid">
           <Card id="profile" padding="6" className="grn-settings-card">
             <h2>Profile</h2>
+            {/* Email comes from the foundation account and stays read-only;
+                the display name and grower profile are editable here. */}
             <dl className="grn-settings-details">
-              <dt>Name</dt>
-              <dd>{user.displayName?.trim() || 'Not provided'}</dd>
               <dt>Email</dt>
               <dd>{user.email || 'Not provided'}</dd>
-              <dt>Home zone</dt>
-              <dd>{user.growerProfile?.homeZone || 'Not provided'}</dd>
             </dl>
+
+            {user.growerProfile ? (
+              <ProfileForm
+                profile={user.growerProfile}
+                displayName={user.displayName}
+                refreshUser={refreshUser ?? (() => undefined)}
+              />
+            ) : (
+              <p className="grn-settings-empty">
+                Your growing location has not been set up yet. Finish setup to add it.
+              </p>
+            )}
           </Card>
 
           <Card id="membership" padding="6" className="grn-settings-card">

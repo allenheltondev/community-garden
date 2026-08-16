@@ -141,9 +141,28 @@ async function apiFetch<T>(
   }
 }
 
+/**
+ * `GET /me` reports `shareRadiusMiles` as a decimal string ("20.0") because the
+ * value is stored in kilometres and converted through text, while `PUT /me`
+ * expects a number. Left as-is the string flows straight back into a profile
+ * save and the API rejects the payload, so it is normalised at the boundary
+ * and the declared `number` type is true from here on.
+ */
+export function normalizeUserProfile(profile: UserProfile): UserProfile {
+  if (!profile.growerProfile) return profile;
+
+  return {
+    ...profile,
+    growerProfile: {
+      ...profile.growerProfile,
+      shareRadiusMiles: Number(profile.growerProfile.shareRadiusMiles),
+    },
+  };
+}
+
 export async function getMe(): Promise<UserProfile> {
   try {
-    return await apiFetch<UserProfile>('/me');
+    return normalizeUserProfile(await apiFetch<UserProfile>('/me'));
   } catch (error) {
     if (error instanceof ApiError) {
       throw new ApiError(

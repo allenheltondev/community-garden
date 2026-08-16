@@ -26,12 +26,19 @@ const KM_PER_MILE: f64 = 1.609_344;
 // `deleted_at = null` revives a row left in a soft-deleted/hidden state so the
 // caller always ends up with an active profile and the follow-up GET /me does
 // not 404 with "User profile not found".
+// $3 is the caller-supplied display name and $6 the one derived from the
+// authorizer's Cognito claims. They are kept apart on purpose: the identity
+// name is only a seed for a brand-new row, so the update clause reads $3
+// directly instead of `excluded.display_name`. Reading `excluded` there would
+// fold the Cognito name back in on every write, and a grower who renamed
+// themselves would silently lose that name the next time they saved anything
+// else on their profile.
 const UPSERT_USER_SQL: &str = "
             insert into users (id, email, display_name, user_type, onboarding_completed)
-            values ($1, $2, $3, $4, $5)
+            values ($1, $2, coalesce($3, $6), $4, $5)
             on conflict (id) do update
             set email = coalesce(excluded.email, users.email),
-                display_name = coalesce(excluded.display_name, users.display_name),
+                display_name = coalesce($3, users.display_name, $6),
                 user_type = coalesce(excluded.user_type, users.user_type),
                 onboarding_completed = case
                     when excluded.onboarding_completed = true then true
@@ -104,7 +111,7 @@ pub async fn upsert_current_user(
 
     let client = db::connect().await?;
     let should_complete_onboarding = should_mark_onboarding_complete(&payload);
-    let display_name = payload.display_name.or(auth_display_name);
+    let requested_display_name = normalize_display_name(payload.display_name.as_deref());
 
     // Selecting a user type (the first onboarding step) must always leave the
     // caller with an active profile. See UPSERT_USER_SQL for the revive rationale.
@@ -114,11 +121,12 @@ pub async fn upsert_current_user(
             &[
                 &user_id,
                 &auth_email,
-                &display_name,
+                &requested_display_name,
                 &payload.user_type.as_ref().map(|t| match t {
                     UserType::Grower => "grower",
                 }),
                 &should_complete_onboarding,
+                &auth_display_name,
             ],
         )
         .await
@@ -305,6 +313,16 @@ fn extract_authorizer_field(request: &Request, field_name: &str) -> Option<Strin
         .and_then(|auth| auth.fields.get(field_name))
         .and_then(|v| v.as_str())
         .map(ToString::to_string)
+}
+
+/// Treat a blank display name as "not supplied" so clearing the field falls
+/// back to the stored name rather than writing an empty string that renders as
+/// a nameless grower everywhere.
+fn normalize_display_name(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 fn extract_authorizer_display_name(request: &Request) -> Option<String> {
@@ -703,6 +721,33 @@ mod tests {
             UPSERT_USER_SQL.contains("deleted_at = null"),
             "upsert SQL must clear deleted_at so onboarding leaves an active profile"
         );
+    }
+
+    /// Regression guard for renamed growers: the update clause must read the
+    /// caller-supplied name ($3) rather than `excluded.display_name`, which
+    /// carries the Cognito fallback and would overwrite a chosen name on every
+    /// later profile save.
+    #[test]
+    fn upsert_user_sql_keeps_a_chosen_display_name() {
+        assert!(
+            UPSERT_USER_SQL.contains("display_name = coalesce($3, users.display_name, $6)"),
+            "update must prefer the request name, then the stored name, then the identity name"
+        );
+        assert!(
+            !UPSERT_USER_SQL.contains("coalesce(excluded.display_name"),
+            "update must not fold the authorizer display name back over a stored one"
+        );
+    }
+
+    #[test]
+    fn normalize_display_name_treats_blank_as_absent() {
+        assert_eq!(
+            normalize_display_name(Some("  Olivia  ")),
+            Some("Olivia".to_string())
+        );
+        assert_eq!(normalize_display_name(Some("   ")), None);
+        assert_eq!(normalize_display_name(Some("")), None);
+        assert_eq!(normalize_display_name(None), None);
     }
 
     #[test]
