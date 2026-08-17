@@ -449,8 +449,8 @@ mod tests {
     #[test]
     fn require_text_trims_and_accepts() {
         assert_eq!(
-            require_text("  Harvest Sync  ", "integrationName", 120).unwrap(),
-            "Harvest Sync"
+            require_text("  Harvest Sync  ", "integrationName", 120).ok(),
+            Some("Harvest Sync".to_string())
         );
     }
 
@@ -479,6 +479,9 @@ mod tests {
     #[test]
     fn optional_text_truncates_rather_than_rejecting() {
         let long = "a".repeat(50);
-        assert_eq!(optional_text(Some(&long), 10).unwrap().len(), 10);
+        assert_eq!(
+            optional_text(Some(&long), 10).map(|value| value.len()),
+            Some(10)
+        );
     }
 }
