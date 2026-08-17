@@ -1,8 +1,7 @@
 $kind: http-request
 name: Rename API Key
 description: |-
-  Update an API key's name. Falls back to asserting the 404 when no key was
-  issued, so renaming someone else's id is never a silent success.
+  Update an API key's name.
 method: PUT
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 4000
@@ -37,13 +36,6 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      if (pm.collectionVariables.get("apiKeyIssued") !== "true") {
-          pm.test("An id the caller does not own is a 404", function () {
-              pm.response.to.have.status(404);
-          });
-          return;
-      }
-
       pm.test("Status code is 200", function () {
           pm.response.to.have.status(200);
       });

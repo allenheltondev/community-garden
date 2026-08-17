@@ -1,9 +1,7 @@
 $kind: http-request
 name: List API Keys
 description: |-
-  List the user's active API keys and confirm secrets are never returned. The
-  list is empty for a grower whose access has not been approved, so the shape
-  is what is asserted rather than a minimum length.
+  List the user's active API keys and confirm secrets are never returned.
 method: GET
 url: '{{baseUrl}}/me/api-keys'
 order: 2000
@@ -22,9 +20,7 @@ scripts:
           const body = pm.response.json();
           pm.expect(body).to.have.property("items").that.is.an("array");
 
-          if (pm.collectionVariables.get("apiKeyIssued") === "true") {
-              pm.expect(body.items.length, "the key just created should be listed").to.be.at.least(1);
-          }
+          pm.expect(body.items.length, "the key just created should be listed").to.be.at.least(1);
 
           for (const item of body.items) {
               pm.expect(item).to.have.property("id");

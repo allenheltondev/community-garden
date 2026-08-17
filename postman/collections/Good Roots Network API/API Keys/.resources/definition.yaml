@@ -2,11 +2,10 @@ $kind: collection
 name: API Keys
 description: |-
   Key issuance and lifecycle. Minting a key consumes an approved access
-  request, so this folder runs after "API Access" and its first request asserts
-  the gate.
+  request, so this folder runs after "API Access", which leaves an approval
+  waiting via the seeded admin user.
 
-  CI signs in as a grower and there is no admin token to approve with, so the
-  expected path here is the refusal. When an approval does exist — a staging
-  environment where someone approved by hand — the folder runs the full
-  lifecycle instead. Both branches assert; neither is skipped silently.
+  Every assertion here is unconditional. An earlier version accepted "201 or
+  403" because CI had no way to approve; that let a broken approval path pass
+  as though it were the refusal branch.
 order: 11600

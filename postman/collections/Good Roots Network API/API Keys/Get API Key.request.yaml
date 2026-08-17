@@ -1,9 +1,7 @@
 $kind: http-request
 name: Get API Key
 description: |-
-  Retrieve a single API key's metadata by id. When no key was issued this runs
-  against an id that belongs to nobody and asserts the 404 instead, which keeps
-  the not-found path covered on every run.
+  Retrieve a single API key's metadata by id, for the key created above.
 method: GET
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 3000
@@ -30,13 +28,6 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      if (pm.collectionVariables.get("apiKeyIssued") !== "true") {
-          pm.test("An id the caller does not own is a 404", function () {
-              pm.response.to.have.status(404);
-          });
-          return;
-      }
-
       pm.test("Status code is 200", function () {
           pm.response.to.have.status(200);
       });

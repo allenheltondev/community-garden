@@ -1208,20 +1208,26 @@ jobs:
       matrix:
         suite:
           - id: contract
-            payload: '{"users":[{"name":"contract-grower-free","role":"grower","tier":"free"},{"name":"contract-grower-pro","role":"grower","tier":"pro"}]}'
+            # contract-admin carries the shared pool's `admin` group so the
+            # Postman suite can drive request -> approve -> create a key end to
+            # end. Without it the approval gate is only ever seen refusing.
+            payload: '{"users":[{"name":"contract-grower-free","role":"grower","tier":"free"},{"name":"contract-grower-pro","role":"grower","tier":"pro"},{"name":"contract-admin","role":"grower","tier":"pro","admin":true}]}'
             free_user_key: contract-grower-free
             pro_user_key: contract-grower-pro
             neighbor_user_key: ""
+            admin_user_key: contract-admin
           - id: utility
             payload: '{"users":[{"name":"util-grower-free","role":"grower","tier":"free"},{"name":"util-grower-pro","role":"grower","tier":"pro"},{"name":"util-grower-two","role":"grower","tier":"free"}]}'
             free_user_key: util-grower-free
             pro_user_key: util-grower-pro
             neighbor_user_key: util-grower-two
+            admin_user_key: ""
           - id: e2e
             payload: '{"users":[{"name":"e2e-grower-free","role":"grower","tier":"free"},{"name":"e2e-grower-pro","role":"grower","tier":"pro"},{"name":"e2e-grower-two","role":"grower","tier":"free"}]}'
             free_user_key: e2e-grower-free
             pro_user_key: e2e-grower-pro
             neighbor_user_key: e2e-grower-two
+            admin_user_key: ""
 
     steps:
       - name: Checkout code
@@ -1243,6 +1249,7 @@ jobs:
           free-user-key: ${{ matrix.suite.free_user_key }}
           pro-user-key: ${{ matrix.suite.pro_user_key }}
           neighbor-user-key: ${{ matrix.suite.neighbor_user_key }}
+          admin-user-key: ${{ matrix.suite.admin_user_key }}
 
       - name: Setup Postman CLI
         uses: ./.github/actions/setup-postman-cli
@@ -1255,6 +1262,7 @@ jobs:
           postman collection run "postman/collections/Good Roots Network API" \
             --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
             --env-var "authToken=${{ steps.ci-auth.outputs.pro-auth-token }}" \
+            --env-var "adminAuthToken=${{ steps.ci-auth.outputs.admin-auth-token }}" \
             --env-var "expectFeatureLocked=false"
 
           postman collection run "postman/collections/Good Roots Network API/AI Features" \

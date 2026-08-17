@@ -1,0 +1,60 @@
+$kind: http-request
+name: Admin Approves Request
+description: |-
+  Approve the request as an admin. This is what unlocks key creation in the
+  next folder, so the success path — approval, API Gateway provisioning,
+  persistence, and the 201 — is exercised on every run rather than only the
+  refusal.
+
+  Uses `adminAuthToken`, seeded from a CI user in the shared pool's `admin`
+  group. Declared as request-level auth rather than a bare header so it cannot
+  be overridden by the collection's bearer auth, which carries the grower.
+method: POST
+url: '{{baseUrl}}/admin/api-access-requests/:requestId/approve'
+order: 6000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{adminAuthToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: requestId
+    value: '{{apiAccessRequestId}}'
+    description: UUID of the pending access request
+body:
+  type: json
+  content: |-
+    {
+      "note": "Approved by the Postman contract suite"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const adminToken = pm.collectionVariables.get("adminAuthToken");
+      if (!adminToken) {
+          // No admin token means this environment cannot exercise approval.
+          // Say so loudly rather than letting the next folder fail obscurely.
+          pm.test("adminAuthToken is configured", function () {
+              pm.expect.fail("adminAuthToken is required to approve requests");
+          });
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Records the decision without minting a key", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("status", "approved");
+          pm.expect(body).to.have.property("decidedAt").that.is.a("string").and.not.empty;
+          // Approval deliberately does not create the credential: the grower
+          // claims it themselves so the secret never passes through here.
+          pm.expect(body.apiKeyId, "apiKeyId").to.be.oneOf([null, undefined]);
+          pm.expect(body).to.not.have.property("key");
+      });

@@ -81,7 +81,10 @@ variables:
     description: Captured API key ID for follow-up key lifecycle requests
   - key: apiKeyIssued
     value: 'false'
-    description: Whether the run actually minted a key, which decides whether the key lifecycle asserts success or the not-found path
+    description: Set once the run has minted a key, so later requests can tell the lifecycle started
+  - key: adminAuthToken
+    value: ''
+    description: JWT for a user in the admin group, used by the API Access review and decision requests
 auth:
   type: bearer
   credentials:

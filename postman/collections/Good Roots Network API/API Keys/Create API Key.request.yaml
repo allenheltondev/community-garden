@@ -1,12 +1,13 @@
 $kind: http-request
 name: Create API Key
 description: |-
-  Mint a key against an approved access request. Without an approval this is a
-  403 — that gate is the whole point of the access request flow, since a key
-  self-issued outside it would sit on no usage plan.
+  Mint a key against the approval granted in the API Access folder. This is the
+  success path end to end: the gate opens, an API Gateway key is provisioned
+  onto the integration usage plan, the identifiers are persisted, and the
+  secret comes back exactly once.
 
-  Sets `apiKeyIssued` so the lifecycle requests below know whether they are
-  exercising a real key or the not-found path.
+  A 403 here means the approval did not land — that is a failure, not an
+  alternative outcome, so it is asserted as one.
 method: POST
 url: '{{baseUrl}}/me/api-keys'
 order: 1000
@@ -25,22 +26,14 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      pm.test("Status is 201 (approved) or 403 (not approved)", function () {
-          pm.expect([201, 403]).to.include(pm.response.code);
+      pm.test("Status code is 201", function () {
+          if (pm.response.code === 403) {
+              pm.expect.fail(
+                  "Approval did not take effect: " + pm.response.text()
+              );
+          }
+          pm.response.to.have.status(201);
       });
-
-      if (pm.response.code === 403) {
-          pm.test("Refusal explains that approval comes first", function () {
-              const body = pm.response.json();
-              pm.expect(body).to.have.property("error");
-              pm.expect(body.error).to.match(/approved/i);
-              // A refused create must not hand back a credential.
-              pm.expect(body).to.not.have.property("key");
-          });
-          pm.collectionVariables.set("apiKeyIssued", "false");
-          pm.collectionVariables.set("apiKeyId", "00000000-0000-4000-8000-000000000000");
-          return;
-      }
 
       pm.test("Response returns the one-time secret and metadata", function () {
           const body = pm.response.json();

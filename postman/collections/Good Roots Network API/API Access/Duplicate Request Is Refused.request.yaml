@@ -1,0 +1,33 @@
+$kind: http-request
+name: Duplicate Request Is Refused
+description: |-
+  One open request per grower. Asking again while a decision is outstanding is
+  a conflict, not a second queue entry for an admin to reconcile.
+method: POST
+url: '{{baseUrl}}/me/api-access-requests'
+order: 1500
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "integrationName": "Postman duplicate",
+      "intendedUse": "Asking a second time while the first is still open"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 409", function () {
+          pm.response.to.have.status(409);
+      });
+
+      pm.test("Explains that one is already open", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("error");
+          pm.expect(body.error).to.match(/already have an API access request/i);
+      });

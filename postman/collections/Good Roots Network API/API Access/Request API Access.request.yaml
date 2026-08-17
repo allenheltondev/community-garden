@@ -1,10 +1,9 @@
 $kind: http-request
 name: Request API Access
 description: |-
-  Ask for programmatic access. CI reuses the same grower between runs, so a
-  pending request may already exist from an earlier run — that answer is part
-  of the contract too (one open request per grower) and is asserted here rather
-  than treated as a flake.
+  Ask for programmatic access. The CI seeder clears this grower's prior
+  requests, so a clean 201 is the contract here; the one-open-request rule is
+  covered by the duplicate below rather than by accepting either answer.
 method: POST
 url: '{{baseUrl}}/me/api-access-requests'
 order: 1000
@@ -24,18 +23,9 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
-      pm.test("Status is 201 (created) or 409 (one already open)", function () {
-          pm.expect([201, 409]).to.include(pm.response.code);
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
       });
-
-      if (pm.response.code === 409) {
-          pm.test("Only one request may be open at a time", function () {
-              const body = pm.response.json();
-              pm.expect(body).to.have.property("error");
-              pm.expect(body.error).to.match(/already have an API access request/i);
-          });
-          return;
-      }
 
       pm.test("Returns the request as the grower will see it", function () {
           const body = pm.response.json();

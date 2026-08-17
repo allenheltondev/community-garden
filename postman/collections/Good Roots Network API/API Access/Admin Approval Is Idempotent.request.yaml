@@ -1,0 +1,37 @@
+$kind: http-request
+name: Admin Approval Is Idempotent
+description: |-
+  Send the same approval again. A decision whose response was lost has to be
+  safe to retry, so replaying it returns the recorded decision rather than a
+  conflict — and must not emit a second event, or one approval posts to Slack
+  twice.
+method: POST
+url: '{{baseUrl}}/admin/api-access-requests/:requestId/approve'
+order: 6500
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{adminAuthToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: requestId
+    value: '{{apiAccessRequestId}}'
+    description: UUID of the request approved above
+body:
+  type: json
+  content: |-
+    {
+      "note": "Retry of the same decision"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Repeating the same decision is a success, not a conflict", function () {
+          pm.response.to.have.status(200);
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("status", "approved");
+      });
