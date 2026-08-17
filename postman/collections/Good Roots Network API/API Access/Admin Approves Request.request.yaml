@@ -34,7 +34,11 @@ scripts:
   - type: beforeRequest
     language: text/javascript
     code: |-
-      const adminToken = pm.collectionVariables.get("adminAuthToken");
+      // pm.variables resolves across every scope. CI supplies this through
+      // `--env-var`, which lands in the environment scope, so reading it with
+      // pm.collectionVariables finds nothing even though `{{adminAuthToken}}`
+      // in the auth block below substitutes correctly.
+      const adminToken = pm.variables.get("adminAuthToken");
       if (!adminToken) {
           // No admin token means this environment cannot exercise approval.
           // Say so loudly rather than letting the next folder fail obscurely.
