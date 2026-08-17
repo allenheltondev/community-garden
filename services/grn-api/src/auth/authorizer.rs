@@ -166,7 +166,8 @@ async fn handle_api_key_auth(
 
     let row = client
         .query_opt(
-            "select ak.id, ak.user_id, u.user_type, u.tier, u.email::text as email
+            "select ak.id, ak.user_id, ak.aws_api_key_id, u.user_type, u.tier,
+                    u.email::text as email
                from api_keys ak
                join users u on u.id = ak.user_id
               where ak.key_hash = $1
@@ -187,6 +188,7 @@ async fn handle_api_key_auth(
         .get::<_, Option<String>>("tier")
         .unwrap_or_else(|| "free".to_string());
     let email = row.get::<_, Option<String>>("email");
+    let aws_api_key_id = row.get::<_, Option<String>>("aws_api_key_id");
 
     // Best-effort last-used tracking; a failure here must not block auth. With
     // authorizer result caching this only runs on cache misses.
@@ -211,19 +213,36 @@ async fn handle_api_key_auth(
         ("authMethod", Some("api_key".to_string())),
     ]);
 
-    // Integrators are metered against their own API Gateway key rather than the
-    // shared first-party one, which is what puts them on the integration usage
-    // plan's throttle and quota. The API Gateway key's *value* is this same
-    // hash — set when the key is provisioned — so the identifier is derived
-    // from the presented token with no extra lookup and no second secret at
-    // rest. Only the key id is stored against the row, never a key value.
     Ok(generate_policy_with_usage_key(
         &principal_id,
         "Allow",
         &api_arn,
         context,
-        Some(key_hash),
+        api_key_usage_identifier(aws_api_key_id.as_deref(), key_hash, first_party_usage_key()),
     ))
+}
+
+/// Which usage plan an API key caller is metered against.
+///
+/// A key provisioned through the approval flow has an API Gateway key behind
+/// it whose *value* is this same hash, so returning the hash puts the caller on
+/// the integration plan with no extra lookup and no second secret at rest.
+///
+/// Keys predating that flow — the self-serve keys from migration 0038 — have no
+/// API Gateway key at all. Returning their hash would hand API Gateway an
+/// identifier it cannot resolve, and once enforcement is on that is a 403 for
+/// every grandfathered integration. They fall back to the first-party key
+/// instead, so they keep working until they are reissued.
+fn api_key_usage_identifier(
+    aws_api_key_id: Option<&str>,
+    key_hash: String,
+    first_party: Option<String>,
+) -> Option<String> {
+    if aws_api_key_id.is_some_and(|id| !id.trim().is_empty()) {
+        Some(key_hash)
+    } else {
+        first_party
+    }
 }
 
 fn sha256_hex(input: &str) -> String {
@@ -762,6 +781,46 @@ mod tests {
         assert!(!is_public_get_path("/grnxyz/catalog/crops"));
         assert!(!is_public_get_path("/catalog/crops/123"));
         assert!(!is_public_get_path("/shared-gardens"));
+    }
+
+    /// A key issued through the approval flow meters against its own API
+    /// Gateway key, whose value is this hash.
+    #[test]
+    fn provisioned_keys_meter_against_themselves() {
+        assert_eq!(
+            api_key_usage_identifier(
+                Some("agw-key-1"),
+                "hash-1".to_string(),
+                Some("first-party".to_string())
+            ),
+            Some("hash-1".to_string())
+        );
+    }
+
+    /// Self-serve keys predating migration 0041 have no API Gateway key. Their
+    /// hash resolves to nothing, so with enforcement on they would 403; the
+    /// first-party key keeps them working until they are reissued.
+    #[test]
+    fn legacy_keys_fall_back_to_the_first_party_plan() {
+        for legacy in [None, Some(""), Some("   ")] {
+            assert_eq!(
+                api_key_usage_identifier(
+                    legacy,
+                    "hash-1".to_string(),
+                    Some("first-party".to_string())
+                ),
+                Some("first-party".to_string()),
+                "{legacy:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_keys_carry_no_identifier_when_first_party_is_unset() {
+        assert_eq!(
+            api_key_usage_identifier(None, "hash-1".to_string(), None),
+            None
+        );
     }
 
     /// A denied caller must never be handed a usage identifier: it would let a

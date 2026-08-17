@@ -87,7 +87,7 @@ pub async fn create_api_key(
     // Keys are approval-gated: minting one consumes an approved request that
     // has not already produced a key. Without that, anyone could self-issue a
     // credential that a usage plan is meant to meter.
-    let client = db::connect().await?;
+    let mut client = db::connect().await?;
     let Some(access_request_id) = claimable_request(&client, user_id).await? else {
         return json_response(
             403,
@@ -103,11 +103,18 @@ pub async fn create_api_key(
     let key_prefix: String = secret.chars().take(API_KEY_PREFIX.len() + 8).collect();
     let key_hash = sha256_hex(&secret);
 
-    // Claim the approval in the database first. The unique index on
+    // Everything from here to the commit is one transaction, so a failure at
+    // any point — including the Lambda being killed mid-flight, which drops the
+    // connection — leaves the approval unspent rather than stranding a grower
+    // with a consumed decision and no credential. The only residue in that case
+    // is an API Gateway key nobody holds the secret for.
+    let transaction = client.transaction().await.map_err(|e| db_error(&e))?;
+
+    // Claim the approval before provisioning. The unique index on
     // access_request_id is what makes one approval mint one key: two concurrent
     // creates both pass the check above, and the loser must fall out here
     // rather than after it has already provisioned a second credential.
-    let claimed = client
+    let claimed = transaction
         .query_opt(
             "insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id)
              values ($1, $2, $3, $4, $5)
@@ -132,32 +139,21 @@ pub async fn create_api_key(
     // never sees these identifiers — the authorizer uses them on their behalf,
     // and the hash it already computes to authenticate the key doubles as the
     // API Gateway key value, so nothing extra has to be stored or looked up.
-    //
-    // A failure here means the credential would exist on no usage plan, which
-    // is worse than failing the create, so the claim is rolled back by hand.
-    let provisioned = match api_gateway_keys::provision(
+    let provisioned = api_gateway_keys::provision(
         &format!("grn-{user_id}-{key_prefix}"),
         &format!("GRN API access for request {access_request_id}"),
         &key_hash,
     )
-    .await
-    {
-        Ok(provisioned) => provisioned,
-        Err(error) => {
-            release_claim(&client, api_key_id).await;
-            return Err(error);
-        }
-    };
+    .await?;
 
-    if let Some(key) = provisioned.as_ref() {
-        client
-            .execute(
-                "update api_keys set aws_api_key_id = $1, usage_plan_id = $2, updated_at = now()
-                  where id = $3",
-                &[&key.aws_api_key_id, &key.usage_plan_id, &api_key_id],
-            )
-            .await
-            .map_err(|e| db_error(&e))?;
+    // Record the identifiers and commit. If either step fails the claim rolls
+    // back, so the API Gateway key it would have pointed at has to go too —
+    // otherwise it lives on unreferenced, with no row left to revoke it from.
+    if let Err(error) = persist_provisioning(transaction, api_key_id, provisioned.as_ref()).await {
+        if let Some(key) = provisioned.as_ref() {
+            api_gateway_keys::revoke(&key.aws_api_key_id).await;
+        }
+        return Err(error);
     }
 
     info!(
@@ -264,21 +260,30 @@ pub async fn delete_api_key(
         .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
-/// Undo a claim whose API Gateway provisioning failed, so the approval can be
-/// used again. A hard delete rather than a revoke: the secret was never
-/// returned to the caller, so there is no credential to keep history for, and
-/// a revoked row would spend the approval for good.
-async fn release_claim(client: &tokio_postgres::Client, api_key_id: Uuid) {
-    if let Err(error) = client
-        .execute("delete from api_keys where id = $1", &[&api_key_id])
-        .await
-    {
-        tracing::error!(
-            error = %error,
-            api_key_id = %api_key_id,
-            "Failed to release API key claim after provisioning failed"
-        );
+/// Write the API Gateway identifiers against the claimed row and commit.
+///
+/// Split out so both failure modes — the update and the commit — share one
+/// compensation path at the call site, and so `create_api_key` stays inside
+/// the line budget.
+async fn persist_provisioning(
+    transaction: tokio_postgres::Transaction<'_>,
+    api_key_id: Uuid,
+    provisioned: Option<&api_gateway_keys::ProvisionedKey>,
+) -> Result<(), lambda_http::Error> {
+    if let Some(key) = provisioned {
+        transaction
+            .execute(
+                "update api_keys set aws_api_key_id = $1, usage_plan_id = $2, updated_at = now()
+                  where id = $3",
+                &[&key.aws_api_key_id, &key.usage_plan_id, &api_key_id],
+            )
+            .await
+            .map_err(|e| db_error(&e))?;
     }
+
+    // Taking the transaction by value means an early return here drops it, and
+    // dropping a tokio-postgres transaction rolls it back.
+    transaction.commit().await.map_err(|e| db_error(&e))
 }
 
 fn validate_name(name: &str) -> Result<String, lambda_http::Error> {

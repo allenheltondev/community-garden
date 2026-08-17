@@ -112,8 +112,12 @@ pub async fn list_my_requests(
                     r.decision_note, r.decided_at, r.created_at,
                     k.id as api_key_id
                from api_access_requests r
+               -- Revoked keys are joined in deliberately, matching
+               -- claimable_request: the approval stays spent after a
+               -- revocation, so apiKeyId must stay set or the UI would offer a
+               -- create the API is bound to refuse.
                left join api_keys k
-                 on k.access_request_id = r.id and k.revoked_at is null
+                 on k.access_request_id = r.id
               where r.user_id = $1
               order by r.created_at desc",
             &[&user_id],

@@ -427,7 +427,11 @@ jobs:
     # would silently skip the frontend deploy too. The SAM update is a
     # no-op when no backend artifacts changed, so the cost is small.
     # (admin/store backends already use the same pattern below.)
-    if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true'
+    #
+    # admin_frontend is here for the same reason: the admin build reads the
+    # GRN frontend and API URLs from this job's outputs, and a skipped
+    # dependency skips the dependent job rather than just leaving it empty.
+    if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true' || inputs.admin_frontend == 'true'
     environment:
       name: staging
     env:

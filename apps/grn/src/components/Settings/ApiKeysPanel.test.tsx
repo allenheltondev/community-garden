@@ -97,6 +97,28 @@ describe('ApiKeysPanel', () => {
     ).toBeInTheDocument();
   });
 
+  it('refetches the approval after creating a key, since creation spends it', async () => {
+    createApiKey.mockResolvedValue({
+      id: 'key-2',
+      name: 'New key',
+      keyPrefix: 'grnk_99887766',
+      key: 'grnk_99887766aabbccddeeff00112233445566778899aabbccddeeff0011',
+      lastUsedAt: null,
+      createdAt: '2026-06-22T00:00:00Z',
+    });
+
+    renderPanel();
+    await screen.findByText(/no api keys yet/i);
+    await waitFor(() => expect(listApiAccessRequests).toHaveBeenCalledTimes(1));
+
+    await userEvent.type(screen.getByLabelText(/key name/i), 'New key');
+    await userEvent.click(screen.getByRole('button', { name: /create key/i }));
+
+    // Without this the panel keeps offering a create the API now refuses,
+    // because the approval it read is stale.
+    await waitFor(() => expect(listApiAccessRequests.mock.calls.length).toBeGreaterThan(1));
+  });
+
   it('validates that a name is required before creating', async () => {
     renderPanel();
     await screen.findByText(/no api keys yet/i);

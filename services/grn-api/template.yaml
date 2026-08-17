@@ -160,6 +160,12 @@ Resources:
   # Doing (2) without (1) rejects every browser request, because with an
   # AUTHORIZER key source each caller must carry a usage identifier and Cognito
   # sessions have no key of their own.
+  #
+  # Self-serve keys issued before migration 0041 have no API Gateway key behind
+  # them. The authorizer meters those against the first-party key rather than a
+  # hash API Gateway cannot resolve, so they keep working — generously, not on
+  # the integration plan. Reissue them through the approval flow to move them
+  # onto IntegrationUsagePlan; nothing breaks in the meantime.
   IntegrationUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn:

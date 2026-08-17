@@ -48,6 +48,10 @@ export function ApiKeysPanel() {
     mutationFn: (keyName: string) => createApiKey(keyName),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      // Creating a key spends the approval. Both panels read that from this
+      // query, so without refetching it they keep offering a create the API
+      // will now refuse.
+      void queryClient.invalidateQueries({ queryKey: ['apiAccessRequests'] });
       setCreatedKey(created);
       setCopied(false);
       setName('');
