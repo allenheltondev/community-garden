@@ -44,35 +44,31 @@ pub async fn create_request(
 
     let client = db::connect().await?;
 
-    // The partial unique index enforces one open request; catching it here
-    // turns a constraint violation into an answer the UI can show.
-    let existing = client
+    // The partial unique index on (user_id) where status = 'pending' is what
+    // actually enforces one open request. Let the insert hit it and translate
+    // the violation, rather than checking first: a select-then-insert leaves a
+    // window where two concurrent requests both see nothing and the loser gets
+    // a 500 instead of the documented 409.
+    let inserted = client
         .query_opt(
-            "select id from api_access_requests where user_id = $1 and status = 'pending'",
-            &[&user_id],
-        )
-        .await
-        .map_err(|e| db_error(&e))?;
-
-    if existing.is_some() {
-        return json_response(
-            409,
-            &ErrorResponse {
-                error: "You already have an API access request awaiting review".to_string(),
-            },
-        );
-    }
-
-    let row = client
-        .query_one(
             "insert into api_access_requests (user_id, integration_name, intended_use, contact_email)
              values ($1, $2, $3, $4)
+             on conflict do nothing
              returning id, status, integration_name, intended_use, contact_email,
                        decision_note, decided_at, created_at",
             &[&user_id, &integration_name, &intended_use, &contact_email],
         )
         .await
         .map_err(|e| db_error(&e))?;
+
+    let Some(row) = inserted else {
+        return json_response(
+            409,
+            &ErrorResponse {
+                error: "You already have an API access request awaiting review".to_string(),
+            },
+        );
+    };
 
     let request_id: Uuid = row.get("id");
 
@@ -199,8 +195,14 @@ pub async fn admin_decide(
     let auth = require_admin(request)?;
     let admin_id = parse_uuid(&auth.user_id, "user id")?;
     let id = parse_uuid(request_id, "request id")?;
-    let payload: DecideApiAccessRequest =
-        parse_json_body(request).unwrap_or(DecideApiAccessRequest { note: None });
+    // The note is optional, so an absent body is fine — but a body that is
+    // present and malformed must not be silently read as "no note" and let an
+    // irreversible decision through on a request the caller got wrong.
+    let payload: DecideApiAccessRequest = if is_body_absent(request.body()) {
+        DecideApiAccessRequest { note: None }
+    } else {
+        parse_json_body(request)?
+    };
     let note = optional_text(payload.note.as_deref(), MAX_NOTE_LEN);
 
     let client = db::connect().await?;
@@ -280,12 +282,16 @@ pub async fn claimable_request(
     client: &tokio_postgres::Client,
     user_id: Uuid,
 ) -> Result<Option<Uuid>, lambda_http::Error> {
+    // Deliberately counts revoked keys too. An approval authorises one key; if
+    // the grower revokes it, the approval is spent, not returned to them — the
+    // alternative lets anyone mint an unlimited series of credentials from a
+    // single decision by revoking and re-creating.
     let row = client
         .query_opt(
             "select r.id
                from api_access_requests r
                left join api_keys k
-                 on k.access_request_id = r.id and k.revoked_at is null
+                 on k.access_request_id = r.id
               where r.user_id = $1
                 and r.status = 'approved'
                 and k.id is null
@@ -348,6 +354,17 @@ fn require_admin(request: &Request) -> Result<crate::auth::AuthContext, lambda_h
         ));
     }
     Ok(auth)
+}
+
+/// Whether the caller sent no body at all. An API Gateway proxy event with no
+/// body can arrive as `Body::Empty` or as an empty string, and both mean the
+/// optional note was omitted — anything else is content that must parse.
+fn is_body_absent(body: &Body) -> bool {
+    match body {
+        Body::Empty => true,
+        Body::Text(text) => text.trim().is_empty(),
+        Body::Binary(bytes) => bytes.is_empty(),
+    }
 }
 
 fn require_text(value: &str, field: &str, max_len: usize) -> Result<String, lambda_http::Error> {

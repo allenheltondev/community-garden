@@ -115,10 +115,13 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !If
-          - DeployCustomDomain
-          - !Sub "'${DomainProtocol}://grn.${DomainName}'"
-          - "'*'"
+        # Two front ends call this API (the GRN app and the admin console) and a
+        # static preflight value can only name one. Preflight therefore permits
+        # any origin to *ask*; the gate that matters is the router, which echoes
+        # Access-Control-Allow-Origin only for ORIGIN and ADMIN_ORIGIN, so a
+        # third-party page still cannot read a response. Every route also
+        # requires a bearer token, and no browser credentials are used.
+        AllowOrigin: "'*'"
       Auth:
         DefaultAuthorizer: LambdaAuthorizer
         AddDefaultAuthorizerToCorsPreflight: false
@@ -210,6 +213,44 @@ Resources:
       KeyId: !Ref FirstPartyApiKey
       KeyType: API_KEY
       UsagePlanId: !Ref FirstPartyUsagePlan
+
+  # GRN publishes to its own bus, but the notifications consumer — the thing
+  # that turns an event into a Slack message — has its rule on the default bus.
+  # Forward the access-request events across so approvals actually get noticed.
+  # Scoped to this one source rather than everything on the bus, so unrelated
+  # GRN events are not duplicated onto default.
+  ApiAccessEventForwardingRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${AWS::StackName}-api-access-to-default'
+      Description: Forward API access request events to the default bus for Slack notifications
+      EventBusName: !Ref EventBus
+      EventPattern:
+        source:
+          - grn.api-access
+      Targets:
+        - Id: DefaultBus
+          Arn: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default'
+          RoleArn: !GetAtt ApiAccessEventForwardingRole.Arn
+
+  ApiAccessEventForwardingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ForwardToDefaultBus
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default'
 
   SharedApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
@@ -478,6 +519,14 @@ Resources:
           ORIGIN: !If
             - DeployCustomDomain
             - !Sub "${DomainProtocol}://grn.${DomainName}"
+            - "*"
+          # The admin console reads and decides API access requests directly
+          # against this service, because the requests are GRN records and this
+          # is the service that owns them. The router echoes back whichever of
+          # these two origins the caller sent, and no others.
+          ADMIN_ORIGIN: !If
+            - DeployCustomDomain
+            - !Sub "${DomainProtocol}://admin.${DomainName}"
             - "*"
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret

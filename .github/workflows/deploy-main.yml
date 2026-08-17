@@ -1090,7 +1090,8 @@ jobs:
   deploy-admin-frontend:
     name: Deploy Admin Frontend
     runs-on: ubuntu-latest
-    needs: [deploy-admin-backend, deploy-okra-backend, deploy-store-backend]
+    # deploy-backend supplies the GRN frontend and API URLs consumed below.
+    needs: [deploy-admin-backend, deploy-okra-backend, deploy-store-backend, deploy-backend]
 
     steps:
       - name: Checkout code
@@ -1134,6 +1135,7 @@ jobs:
           VITE_AWS_REGION=${{ env.AWS_REGION }}
           VITE_FOUNDATION_URL=${{ steps.get-foundation-url.outputs.url }}
           VITE_GRN_URL=${{ needs.deploy-backend.outputs.frontend-url }}
+          VITE_GRN_API_URL=${{ needs.deploy-backend.outputs.api-url }}
           EOF
 
       - name: Build admin frontend

@@ -103,37 +103,62 @@ pub async fn create_api_key(
     let key_prefix: String = secret.chars().take(API_KEY_PREFIX.len() + 8).collect();
     let key_hash = sha256_hex(&secret);
 
-    // Provision the API Gateway side before writing the row: if the usage plan
-    // cannot be attached, no credential should exist at all. The grower never
-    // sees these identifiers — the authorizer uses them on their behalf, and
-    // the hash it already computes to authenticate the key doubles as the
+    // Claim the approval in the database first. The unique index on
+    // access_request_id is what makes one approval mint one key: two concurrent
+    // creates both pass the check above, and the loser must fall out here
+    // rather than after it has already provisioned a second credential.
+    let claimed = client
+        .query_opt(
+            "insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id)
+             values ($1, $2, $3, $4, $5)
+             on conflict do nothing
+             returning id, name, key_prefix, last_used_at, created_at",
+            &[&user_id, &name, &key_prefix, &key_hash, &access_request_id],
+        )
+        .await
+        .map_err(|e| db_error(&e))?;
+
+    let Some(row) = claimed else {
+        return json_response(
+            409,
+            &ErrorResponse {
+                error: "A key has already been issued for this approval".to_string(),
+            },
+        );
+    };
+    let api_key_id: Uuid = row.get("id");
+
+    // Provision the API Gateway side now that the approval is ours. The grower
+    // never sees these identifiers — the authorizer uses them on their behalf,
+    // and the hash it already computes to authenticate the key doubles as the
     // API Gateway key value, so nothing extra has to be stored or looked up.
-    let provisioned = api_gateway_keys::provision(
+    //
+    // A failure here means the credential would exist on no usage plan, which
+    // is worse than failing the create, so the claim is rolled back by hand.
+    let provisioned = match api_gateway_keys::provision(
         &format!("grn-{user_id}-{key_prefix}"),
         &format!("GRN API access for request {access_request_id}"),
         &key_hash,
     )
-    .await?;
-    let aws_api_key_id = provisioned.as_ref().map(|key| key.aws_api_key_id.clone());
-    let usage_plan_id = provisioned.as_ref().map(|key| key.usage_plan_id.clone());
+    .await
+    {
+        Ok(provisioned) => provisioned,
+        Err(error) => {
+            release_claim(&client, api_key_id).await;
+            return Err(error);
+        }
+    };
 
-    let row = client
-        .query_one(
-            "insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id, aws_api_key_id, usage_plan_id)
-             values ($1, $2, $3, $4, $5, $6, $7)
-             returning id, name, key_prefix, last_used_at, created_at",
-            &[
-                &user_id,
-                &name,
-                &key_prefix,
-                &key_hash,
-                &access_request_id,
-                &aws_api_key_id,
-                &usage_plan_id,
-            ],
-        )
-        .await
-        .map_err(|e| db_error(&e))?;
+    if let Some(key) = provisioned.as_ref() {
+        client
+            .execute(
+                "update api_keys set aws_api_key_id = $1, usage_plan_id = $2, updated_at = now()
+                  where id = $3",
+                &[&key.aws_api_key_id, &key.usage_plan_id, &api_key_id],
+            )
+            .await
+            .map_err(|e| db_error(&e))?;
+    }
 
     info!(
         correlation_id = correlation_id,
@@ -237,6 +262,23 @@ pub async fn delete_api_key(
         .status(204)
         .body(Body::Empty)
         .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
+/// Undo a claim whose API Gateway provisioning failed, so the approval can be
+/// used again. A hard delete rather than a revoke: the secret was never
+/// returned to the caller, so there is no credential to keep history for, and
+/// a revoked row would spend the approval for good.
+async fn release_claim(client: &tokio_postgres::Client, api_key_id: Uuid) {
+    if let Err(error) = client
+        .execute("delete from api_keys where id = $1", &[&api_key_id])
+        .await
+    {
+        tracing::error!(
+            error = %error,
+            api_key_id = %api_key_id,
+            "Failed to release API key claim after provisioning failed"
+        );
+    }
 }
 
 fn validate_name(name: &str) -> Result<String, lambda_http::Error> {

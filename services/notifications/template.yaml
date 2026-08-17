@@ -145,6 +145,9 @@ Resources:
                 - ogf.donations
                 - ogf.signups
                 - ogf.contact
+                # Published on the GRN stack's own bus and forwarded to default
+                # by a rule there, since this consumer only watches default.
+                - grn.api-access
               detail-type:
                 - submission.created
                 - seed-request.created
@@ -155,6 +158,9 @@ Resources:
                 - user.signed-up
                 - org-inquiry.received
                 - general-inquiry.received
+                - api-access.requested
+                - api-access.approved
+                - api-access.denied
 
 Outputs:
   ConsumerDeadLetterQueueUrl:

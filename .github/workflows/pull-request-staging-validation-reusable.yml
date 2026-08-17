@@ -827,7 +827,8 @@ jobs:
   deploy-staging-admin-frontend:
     name: Deploy Admin Staging Frontend
     runs-on: ubuntu-latest
-    needs: [deploy-staging-admin-backend, deploy-staging-okra]
+    # deploy-staging-backend supplies the GRN frontend and API URLs below.
+    needs: [deploy-staging-admin-backend, deploy-staging-okra, deploy-staging-backend]
     if: inputs.shared_all == 'true' || inputs.admin_frontend == 'true'
     env:
       AWS_REGION: us-east-1
@@ -884,6 +885,7 @@ jobs:
           VITE_AWS_REGION=${{ env.AWS_REGION }}
           VITE_FOUNDATION_URL=${{ steps.get-foundation-url.outputs.url }}
           VITE_GRN_URL=${{ needs.deploy-staging-backend.outputs.frontend-url }}
+          VITE_GRN_API_URL=${{ needs.deploy-staging-backend.outputs.api-url }}
           EOF
 
       - name: Build admin frontend

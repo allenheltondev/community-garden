@@ -73,6 +73,11 @@ create unique index if not exists idx_api_keys_aws_api_key_id
   on api_keys(aws_api_key_id)
   where aws_api_key_id is not null;
 
-create index if not exists idx_api_keys_access_request
+-- One approval mints one key. This is the claim: the create path inserts with
+-- `on conflict do nothing`, so two concurrent calls that both saw the approval
+-- as unclaimed cannot both produce a credential. It is unique rather than a
+-- plain index for that reason, and it counts revoked rows so revoking a key
+-- does not hand the approval back to be spent again.
+create unique index if not exists idx_api_keys_access_request
   on api_keys(access_request_id)
   where access_request_id is not null;

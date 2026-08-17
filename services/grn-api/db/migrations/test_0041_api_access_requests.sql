@@ -78,9 +78,35 @@ begin
     when unique_violation then null;
   end;
 
-  -- Self-serve keys carry no API Gateway identifiers and stay allowed.
+  -- One approval mints one key. This is what makes the create path's
+  -- `on conflict do nothing` a real claim rather than a hopeful check.
+  begin
+    insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id)
+    values (test_user_id, 'Second key', 'grnk_second', 'migration-check-hash-4', first_request_id);
+    raise exception 'A second key against one approval must be rejected';
+  exception
+    when unique_violation then null;
+  end;
+
+  -- Revoking the key does not hand the approval back: the row still occupies
+  -- the unique index, so the approval stays spent.
+  update api_keys set revoked_at = now() where id = test_key_id;
+
+  begin
+    insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id)
+    values (test_user_id, 'After revoke', 'grnk_revoked', 'migration-check-hash-5', first_request_id);
+    raise exception 'Revoking a key must not free its approval';
+  exception
+    when unique_violation then null;
+  end;
+
+  -- Self-serve keys carry no API Gateway identifiers and stay allowed. Several
+  -- may coexist: the unique index above is partial on access_request_id.
   insert into api_keys (user_id, name, key_prefix, key_hash)
   values (other_user_id, 'Self serve', 'grnk_selfserve', 'migration-check-hash-3');
+
+  insert into api_keys (user_id, name, key_prefix, key_hash)
+  values (other_user_id, 'Self serve 2', 'grnk_selfserve2', 'migration-check-hash-6');
 
   delete from users where id in (test_user_id, other_user_id, admin_user_id);
 
