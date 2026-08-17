@@ -508,14 +508,20 @@ Resources:
               Resource:
                 - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apikeys'
                 - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apikeys/*'
+                # The collection itself is needed to resolve the plan's name to
+                # its id, since the id cannot be passed in without a cycle.
+                - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/usageplans'
                 - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/usageplans/*'
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
           EVENT_BUS_NAME: !Ref EventBus
-          # Empty until the usage plan is deployed; the API then issues keys
-          # without attaching them rather than blocking an approval.
-          INTEGRATION_USAGE_PLAN_ID: !Ref IntegrationUsagePlan
+          # The plan's NAME, not !Ref its id. A Ref would make this function
+          # depend on the usage plan, which depends on the stage, which depends
+          # on this function — a cycle CloudFormation refuses to deploy. The
+          # handler resolves name to id at call time; if the plan is not there
+          # yet it issues the key unattached rather than blocking an approval.
+          INTEGRATION_USAGE_PLAN_NAME: !Sub 'grn-integrations-${EnvironmentName}'
           ORIGIN: !If
             - DeployCustomDomain
             - !Sub "${DomainProtocol}://grn.${DomainName}"

@@ -21,11 +21,57 @@ pub struct ProvisionedKey {
     pub usage_plan_id: String,
 }
 
-fn usage_plan_id() -> Option<String> {
-    std::env::var("INTEGRATION_USAGE_PLAN_ID")
+/// The plan is identified by name rather than id on purpose.
+///
+/// Passing `!Ref IntegrationUsagePlan` into this function's environment makes
+/// `CloudFormation` order the Lambda after the plan, the plan after the stage,
+/// and the stage after the Lambda — a cycle the stack cannot deploy through.
+/// The name is a plain string derived from the environment, so it creates no
+/// such edge, and the id is resolved here instead.
+fn usage_plan_name() -> Option<String> {
+    std::env::var("INTEGRATION_USAGE_PLAN_NAME")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+/// Pages of usage plans to walk before giving up. An account will have a
+/// handful; this only exists so a misbehaving pagination cursor cannot spin.
+const MAX_USAGE_PLAN_PAGES: usize = 20;
+
+async fn resolve_usage_plan_id(
+    client: &Client,
+    name: &str,
+) -> Result<Option<String>, lambda_http::Error> {
+    let mut position: Option<String> = None;
+
+    for _ in 0..MAX_USAGE_PLAN_PAGES {
+        let mut request = client.get_usage_plans().limit(500);
+        if let Some(cursor) = position.as_deref() {
+            request = request.position(cursor);
+        }
+
+        let page = request.send().await.map_err(|error| {
+            error!(error = %error, "Failed to list API Gateway usage plans");
+            lambda_http::Error::from("Failed to list API Gateway usage plans".to_string())
+        })?;
+
+        if let Some(id) = page
+            .items()
+            .iter()
+            .find(|plan| plan.name() == Some(name))
+            .and_then(|plan| plan.id())
+        {
+            return Ok(Some(id.to_string()));
+        }
+
+        position = page.position().map(ToString::to_string);
+        if position.is_none() {
+            break;
+        }
+    }
+
+    Ok(None)
 }
 
 async fn client() -> Client {
@@ -55,12 +101,20 @@ pub async fn provision(
     description: &str,
     value: &str,
 ) -> Result<Option<ProvisionedKey>, lambda_http::Error> {
-    let Some(plan_id) = usage_plan_id() else {
-        info!("No INTEGRATION_USAGE_PLAN_ID configured; issuing key without a usage plan");
+    let Some(plan_name) = usage_plan_name() else {
+        info!("No INTEGRATION_USAGE_PLAN_NAME configured; issuing key without a usage plan");
         return Ok(None);
     };
 
     let client = client().await;
+
+    let Some(plan_id) = resolve_usage_plan_id(&client, &plan_name).await? else {
+        info!(
+            usage_plan_name = %plan_name,
+            "Usage plan not found; issuing key without a usage plan"
+        );
+        return Ok(None);
+    };
 
     let created = client
         .create_api_key()
