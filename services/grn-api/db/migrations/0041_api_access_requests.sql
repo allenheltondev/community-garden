@@ -7,10 +7,12 @@
 -- plan for throttling and quota.
 --
 -- The API Gateway side is deliberately invisible to the grower: they hold one
--- GRN key, and the authorizer resolves it to the usage-plan key on their
--- behalf. Only the identifiers are stored here — never the API Gateway key
--- value, which is fetched from AWS for the single reveal and then only ever
--- referenced by id.
+-- GRN key, and the authorizer meters them on the usage plan on their behalf.
+-- The API Gateway key's value is the SHA-256 of the GRN key — the hash already
+-- stored in key_hash — so the authorizer derives the usage identifier from the
+-- presented token with no lookup, and nothing new is kept at rest. The columns
+-- added below hold identifiers only, so a key can be disabled and detached
+-- from its plan when the GRN key is revoked.
 
 create table if not exists api_access_requests (
   id uuid primary key default gen_random_uuid(),
