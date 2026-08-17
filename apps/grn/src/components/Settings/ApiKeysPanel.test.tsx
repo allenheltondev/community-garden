@@ -8,10 +8,18 @@ const listApiKeys = vi.hoisted(() => vi.fn());
 const createApiKey = vi.hoisted(() => vi.fn());
 const renameApiKey = vi.hoisted(() => vi.fn());
 const deleteApiKey = vi.hoisted(() => vi.fn());
+const listApiAccessRequests = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/api')>();
-  return { ...actual, listApiKeys, createApiKey, renameApiKey, deleteApiKey };
+  return {
+    ...actual,
+    listApiKeys,
+    createApiKey,
+    renameApiKey,
+    deleteApiKey,
+    listApiAccessRequests,
+  };
 });
 
 function renderPanel() {
@@ -29,6 +37,20 @@ describe('ApiKeysPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listApiKeys.mockResolvedValue({ items: [] });
+    // An approved, unclaimed request is what unlocks key creation.
+    listApiAccessRequests.mockResolvedValue([
+      {
+        id: 'request-1',
+        status: 'approved',
+        integrationName: 'Harvest Sync',
+        intendedUse: 'Mirror my harvest log',
+        contactEmail: null,
+        decisionNote: null,
+        decidedAt: '2026-08-02T00:00:00Z',
+        createdAt: '2026-08-01T00:00:00Z',
+        apiKeyId: null,
+      },
+    ]);
   });
 
   it('lists existing keys without exposing secrets', async () => {
@@ -117,5 +139,34 @@ describe('ApiKeysPanel', () => {
     await waitFor(() =>
       expect(renameApiKey).toHaveBeenCalledWith('key-1', 'Renamed')
     );
+  });
+
+  it('offers no key form until access has been approved', async () => {
+    listApiAccessRequests.mockResolvedValue([]);
+    renderPanel();
+
+    expect(await screen.findByText(/issued once your API access request is approved/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /create key/i })).not.toBeInTheDocument();
+    expect(createApiKey).not.toHaveBeenCalled();
+  });
+
+  it('offers no key form once the approval has been claimed', async () => {
+    listApiAccessRequests.mockResolvedValue([
+      {
+        id: 'request-1',
+        status: 'approved',
+        integrationName: 'Harvest Sync',
+        intendedUse: 'Mirror my harvest log',
+        contactEmail: null,
+        decisionNote: null,
+        decidedAt: '2026-08-02T00:00:00Z',
+        createdAt: '2026-08-01T00:00:00Z',
+        apiKeyId: 'key-1',
+      },
+    ]);
+    renderPanel();
+
+    await waitFor(() => expect(listApiAccessRequests).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /create key/i })).not.toBeInTheDocument();
   });
 });
