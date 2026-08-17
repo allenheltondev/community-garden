@@ -10,7 +10,7 @@ use std::str::FromStr;
 use tokio_postgres::config::{ChannelBinding, Config};
 use tokio_postgres::Client;
 use tokio_postgres_rustls::MakeRustlsConnect;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// Prefix on every GRN API key. Used to distinguish an API key from a JWT when
@@ -314,10 +314,76 @@ async fn handle_jwt_auth(
 }
 
 fn is_public_route(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> bool {
-    let method = event.http_method.as_ref().map(reqwest::Method::as_str);
-    let path = event.path.as_deref().unwrap_or_default();
+    let method = request_method(event);
+    let path = request_path(event);
+    let public = method.as_deref() == Some("GET") && is_public_get_path(&path);
 
-    method == Some("GET") && is_public_get_path(path)
+    // Public routes are being denied in deployed environments while this same
+    // check passes against the documented event shape in tests, so record what
+    // the authorizer actually resolved. Authorizer results are cached, so this
+    // runs on cache misses rather than every request.
+    info!(
+        method = method.as_deref().unwrap_or("<none>"),
+        path = path.as_str(),
+        event_path = event.path.as_deref().unwrap_or("<none>"),
+        method_arn = event.method_arn.as_deref().unwrap_or("<none>"),
+        resource = event.resource.as_deref().unwrap_or("<none>"),
+        public,
+        "Resolved route for authorization"
+    );
+
+    public
+}
+
+/// The request method, preferring the event's own field.
+///
+/// Falls back to the method ARN, which always carries it. A missing field
+/// should not silently turn a public GET into a denial.
+fn request_method(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> Option<String> {
+    event
+        .http_method
+        .as_ref()
+        .map(|method| reqwest::Method::as_str(method).to_string())
+        .or_else(|| method_arn_parts(event.method_arn.as_deref()?).map(|(method, _)| method))
+}
+
+/// The request path, preferring the event's own field.
+///
+/// Same reasoning as `request_method`: the method ARN is the second source.
+fn request_path(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> String {
+    let from_event = event
+        .path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty());
+
+    if let Some(path) = from_event {
+        return path.to_string();
+    }
+
+    event
+        .method_arn
+        .as_deref()
+        .and_then(method_arn_parts)
+        .map_or_else(String::new, |(_, path)| path)
+}
+
+/// Split `arn:…:api-id/stage/METHOD/resource/path` into its method and path.
+///
+/// Everything after the method is the path, rejoined, so a resource with
+/// slashes in it survives.
+fn method_arn_parts(method_arn: &str) -> Option<(String, String)> {
+    let mut parts = method_arn.split('/');
+    let _api = parts.next()?;
+    let _stage = parts.next()?;
+    let method = parts.next()?;
+
+    let path: Vec<&str> = parts.collect();
+    if method.is_empty() {
+        return None;
+    }
+
+    Some((method.to_string(), format!("/{}", path.join("/"))))
 }
 
 fn is_public_get_path(path: &str) -> bool {
@@ -771,6 +837,94 @@ mod tests {
         assert!(is_public_get_path("/catalog/crops/123/varieties"));
         assert!(is_public_get_path("/grn/shared-gardens/some-token"));
         assert!(is_public_get_path("/api/shared-gardens/some-token"));
+    }
+
+    /// The unit tests below cover `is_public_get_path` on strings, but the
+    /// gate that actually runs reads `path` and `httpMethod` off the event. If
+    /// either does not land where it is expected, every public route silently
+    /// falls through to the authenticated branch and is denied.
+    #[test]
+    fn is_public_route_matches_a_real_request_authorizer_event() {
+        let payload = serde_json::json!({
+            "type": "REQUEST",
+            "methodArn": "arn:aws:execute-api:us-east-1:111122223333:abc123/api/GET/catalog/crops",
+            "resource": "/{proxy+}",
+            "path": "/catalog/crops",
+            "httpMethod": "GET",
+            "headers": { "Authorization": "Bearer anything" },
+            "multiValueHeaders": {},
+            "queryStringParameters": {},
+            "multiValueQueryStringParameters": {},
+            "pathParameters": { "proxy": "catalog/crops" },
+            "stageVariables": {},
+            "requestContext": {
+                "path": "/api/catalog/crops",
+                "accountId": "111122223333",
+                "resourceId": "abc123",
+                "stage": "api",
+                "requestId": "test-request",
+                "resourcePath": "/{proxy+}",
+                "httpMethod": "GET",
+                "apiId": "abc123"
+            }
+        });
+
+        let event: ApiGatewayCustomAuthorizerRequestTypeRequest =
+            serde_json::from_value(payload).unwrap_or_default();
+
+        assert_eq!(event.path.as_deref(), Some("/catalog/crops"));
+        assert_eq!(
+            event.http_method.as_ref().map(reqwest::Method::as_str),
+            Some("GET")
+        );
+        assert!(
+            is_public_route(&event),
+            "the public catalog must not require a token"
+        );
+    }
+
+    /// If the event ever arrives without `path` or `httpMethod`, the method ARN
+    /// still carries both — and a public GET must not become a denial just
+    /// because a field went missing.
+    #[test]
+    fn public_route_resolves_from_the_method_arn_when_fields_are_absent() {
+        let event = ApiGatewayCustomAuthorizerRequestTypeRequest {
+            method_arn: Some(
+                "arn:aws:execute-api:us-east-1:111122223333:abc123/api/GET/catalog/crops"
+                    .to_string(),
+            ),
+            ..Default::default()
+        };
+
+        assert_eq!(request_method(&event).as_deref(), Some("GET"));
+        assert_eq!(request_path(&event), "/catalog/crops");
+        assert!(is_public_route(&event));
+    }
+
+    #[test]
+    fn method_arn_parts_keeps_slashes_in_the_resource_path() {
+        assert_eq!(
+            method_arn_parts(
+                "arn:aws:execute-api:us-east-1:1:abc/api/GET/catalog/crops/9/varieties"
+            ),
+            Some(("GET".to_string(), "/catalog/crops/9/varieties".to_string()))
+        );
+        assert_eq!(method_arn_parts("not-an-arn"), None);
+    }
+
+    /// The event's own field still wins when it is present.
+    #[test]
+    fn event_path_takes_precedence_over_the_method_arn() {
+        let event = ApiGatewayCustomAuthorizerRequestTypeRequest {
+            path: Some("/me".to_string()),
+            method_arn: Some(
+                "arn:aws:execute-api:us-east-1:1:abc/api/GET/catalog/crops".to_string(),
+            ),
+            ..Default::default()
+        };
+
+        assert_eq!(request_path(&event), "/me");
+        assert!(!is_public_route(&event));
     }
 
     #[test]
