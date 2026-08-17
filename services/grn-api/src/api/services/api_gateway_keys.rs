@@ -1,0 +1,149 @@
+//! Provisioning for the API Gateway side of an approved access request.
+//!
+//! The grower never sees or sends the API Gateway key. Their credential stays
+//! the GRN key (`grnk_…`); the authorizer looks up the matching API Gateway key
+//! value and returns it as the request's `usageIdentifierKey`, which is what
+//! lets a usage plan throttle and meter them. Everything in here is therefore
+//! invisible plumbing: identifiers are stored against the GRN key so access can
+//! be disabled later, and the key value itself is never persisted.
+
+use aws_config::BehaviorVersion;
+use aws_sdk_apigateway::Client;
+use tracing::{error, info};
+
+/// What a successful provisioning run produced, to be recorded against the
+/// issued GRN key.
+#[derive(Debug, Clone)]
+pub struct ProvisionedKey {
+    pub aws_api_key_id: String,
+    pub usage_plan_id: String,
+    /// The API Gateway key value. Held only long enough for the authorizer to
+    /// cache it or for the caller to hash it — never written to the database.
+    pub value: String,
+}
+
+fn usage_plan_id() -> Option<String> {
+    std::env::var("INTEGRATION_USAGE_PLAN_ID")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+async fn client() -> Client {
+    let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    Client::new(&config)
+}
+
+/// Create an API Gateway key for an approved request and attach it to the
+/// integration usage plan.
+///
+/// Returns `Ok(None)` when no usage plan is configured for the environment,
+/// which is the case before the plan is deployed: approval still issues the GRN
+/// key so the integrator is not blocked, and the key can be attached later.
+/// A failure to create the key is an error, because silently issuing an
+/// unthrottled credential is worse than failing the approval.
+pub async fn provision(
+    name: &str,
+    description: &str,
+) -> Result<Option<ProvisionedKey>, lambda_http::Error> {
+    let Some(plan_id) = usage_plan_id() else {
+        info!("No INTEGRATION_USAGE_PLAN_ID configured; issuing key without a usage plan");
+        return Ok(None);
+    };
+
+    let client = client().await;
+
+    let created = client
+        .create_api_key()
+        .name(name)
+        .description(description)
+        .enabled(true)
+        .generate_distinct_id(true)
+        .send()
+        .await
+        .map_err(|error| {
+            error!(error = %error, "Failed to create API Gateway key");
+            lambda_http::Error::from("Failed to create API Gateway key".to_string())
+        })?;
+
+    let key_id = created
+        .id()
+        .ok_or_else(|| lambda_http::Error::from("API Gateway key created without an id"))?
+        .to_string();
+    let value = created
+        .value()
+        .ok_or_else(|| lambda_http::Error::from("API Gateway key created without a value"))?
+        .to_string();
+
+    // Attach to the usage plan. If this fails the key exists but is unmetered,
+    // so it is disabled again rather than left dangling.
+    if let Err(error) = client
+        .create_usage_plan_key()
+        .usage_plan_id(&plan_id)
+        .key_id(&key_id)
+        .key_type("API_KEY")
+        .send()
+        .await
+    {
+        error!(error = %error, api_key_id = %key_id, "Failed to attach key to usage plan");
+        disable(&client, &key_id).await;
+        return Err(lambda_http::Error::from(
+            "Failed to attach API Gateway key to the usage plan".to_string(),
+        ));
+    }
+
+    info!(api_key_id = %key_id, usage_plan_id = %plan_id, "Provisioned API Gateway key");
+
+    Ok(Some(ProvisionedKey {
+        aws_api_key_id: key_id,
+        usage_plan_id: plan_id,
+        value,
+    }))
+}
+
+async fn disable(client: &Client, key_id: &str) {
+    let result = client
+        .update_api_key()
+        .api_key(key_id)
+        .patch_operations(
+            aws_sdk_apigateway::types::PatchOperation::builder()
+                .op(aws_sdk_apigateway::types::Op::Replace)
+                .path("/enabled")
+                .value("false")
+                .build(),
+        )
+        .send()
+        .await;
+
+    if let Err(error) = result {
+        error!(error = %error, api_key_id = %key_id, "Failed to disable API Gateway key");
+    }
+}
+
+/// Disable an API Gateway key when its GRN key is revoked. Best effort: the GRN
+/// key is already revoked by the time this runs, so the credential is dead
+/// either way and a failure here only leaves an unused key in AWS.
+pub async fn revoke(aws_api_key_id: &str) {
+    let client = client().await;
+    disable(&client, aws_api_key_id).await;
+}
+
+/// Look up the value of a provisioned key so the authorizer can return it as
+/// the request's usage identifier.
+pub async fn key_value(aws_api_key_id: &str) -> Option<String> {
+    let client = client().await;
+
+    match client
+        .get_api_key()
+        .api_key(aws_api_key_id)
+        .include_value(true)
+        .send()
+        .await
+    {
+        Ok(response) => response.value().map(str::to_string),
+        Err(error) => {
+            error!(error = %error, api_key_id = %aws_api_key_id, "Failed to read API Gateway key");
+            None
+        }
+    }
+}
