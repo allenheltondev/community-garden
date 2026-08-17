@@ -1,4 +1,5 @@
 import { Card, Panel, SectionHeading } from '@olivias/ui';
+import { ApiAccessRequestPanel } from '../components/Settings/ApiAccessRequestPanel';
 import { ApiKeysPanel } from '../components/Settings/ApiKeysPanel';
 import { ProfileForm } from '../components/Settings/ProfileForm';
 import type { UserProfile } from '../types/user';
@@ -65,6 +66,7 @@ export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
       )}
 
       <div id="api-keys">
+        <ApiAccessRequestPanel />
         <ApiKeysPanel />
       </div>
     </section>

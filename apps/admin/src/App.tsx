@@ -5,6 +5,7 @@ import { loadAdminSession, type AdminSession } from './auth/session';
 import { AppShell } from './shell/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { FinancePage } from './pages/FinancePage';
+import { ApiAccessPage } from './pages/ApiAccessPage';
 import { SeedRequestsPage } from './pages/SeedRequestsPage';
 import { OkraQueuePage } from './pages/OkraQueuePage';
 import { StorePage } from './pages/StorePage';
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage session={session} />} />
         <Route path="/finance" element={<FinancePage session={session} />} />
         <Route path="/seed-requests" element={<SeedRequestsPage session={session} />} />
+        <Route path="/api-access" element={<ApiAccessPage session={session} />} />
         <Route path="/okra-queue" element={<OkraQueuePage session={session} />} />
         <Route path="/store" element={<StorePage session={session} />} />
         <Route path="/store/orders" element={<StoreOrdersPage session={session} />} />

@@ -10,6 +10,10 @@ vi.mock('../components/Settings/ApiKeysPanel', () => ({
 
 vi.mock('../services/api', () => ({
   updateMe: vi.fn(),
+  listMyListings: vi.fn().mockResolvedValue({ items: [], limit: 50, offset: 0, hasMore: false, nextOffset: null }),
+  updateListing: vi.fn(),
+  listApiAccessRequests: vi.fn().mockResolvedValue([]),
+  createApiAccessRequest: vi.fn(),
 }));
 
 function renderSettings(profile: UserProfile) {

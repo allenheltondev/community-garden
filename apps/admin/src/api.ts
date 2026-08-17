@@ -160,6 +160,14 @@ function getOkraAdminApiBaseUrl(): string {
   return trimTrailingSlash(baseUrl);
 }
 
+function getGrnApiBaseUrl(): string {
+  const baseUrl = import.meta.env.VITE_GRN_API_URL;
+  if (!baseUrl) {
+    throw new Error('Missing VITE_GRN_API_URL for admin app.');
+  }
+  return trimTrailingSlash(baseUrl);
+}
+
 function getStoreApiBaseUrl(): string {
   const baseUrl = import.meta.env.VITE_STORE_API_URL;
   if (!baseUrl) {
@@ -708,4 +716,50 @@ export async function saveTestimonials(
     }
   );
   return response.items;
+}
+
+export interface ApiAccessRequestQueueItem {
+  id: string;
+  status: 'pending' | 'approved' | 'denied';
+  integrationName: string;
+  intendedUse: string;
+  contactEmail: string | null;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  userId: string;
+  userEmail: string | null;
+  userDisplayName: string | null;
+  userTier: string | null;
+}
+
+export interface ApiAccessRequestQueueResponse {
+  items: ApiAccessRequestQueueItem[];
+  total: number;
+}
+
+/**
+ * API access requests live in grn-api rather than admin-api: the request, the
+ * grower it belongs to, and the key it authorises are all GRN records, and the
+ * grn-api authorizer already carries the admin group.
+ */
+export async function listApiAccessRequests(
+  accessToken: string,
+  status: 'pending' | 'approved' | 'denied' = 'pending'
+): Promise<ApiAccessRequestQueueResponse> {
+  const url = `${getGrnApiBaseUrl()}/admin/api-access-requests?status=${status}`;
+  return requestJson<ApiAccessRequestQueueResponse>(url, accessToken);
+}
+
+export async function decideApiAccessRequest(
+  accessToken: string,
+  requestId: string,
+  decision: 'approve' | 'deny',
+  note?: string
+): Promise<void> {
+  const url = `${getGrnApiBaseUrl()}/admin/api-access-requests/${requestId}/${decision}`;
+  await requestJson<unknown>(url, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ note: note?.trim() || undefined }),
+  });
 }
