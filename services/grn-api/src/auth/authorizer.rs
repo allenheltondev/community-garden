@@ -557,7 +557,13 @@ fn generate_policy(
     resource: &str,
     context: Option<HashMap<String, String>>,
 ) -> PolicyResponse {
-    generate_policy_with_usage_key(principal_id, effect, resource, context, first_party_usage_key())
+    generate_policy_with_usage_key(
+        principal_id,
+        effect,
+        resource,
+        context,
+        first_party_usage_key(),
+    )
 }
 
 /// The shared key every first-party caller (the web app, signed in with
