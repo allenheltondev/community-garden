@@ -205,6 +205,59 @@ describe('renderEvent', () => {
     expect(result.summary).toBe('Garden Club ended for donor@example.com');
     expect(result.slack.text).toContain('Garden Club ended');
   });
+
+  it('renders a GRN API access request with a link into the admin queue', () => {
+    const result = renderEvent('grn.api-access', 'api-access.requested', {
+      requestId: 'req-1',
+      userId: 'user-1',
+      userEmail: 'ada@example.com',
+      tier: 'free',
+      integrationName: 'Harvest Sync',
+      intendedUse: 'Mirror my harvest log into a spreadsheet',
+      contactEmail: 'dev@example.com'
+    });
+
+    expect(result.summary).toBe('GRN API access requested by ada@example.com');
+    expect(result.slack.text).toContain('New GRN API access request');
+    expect(result.slack.text).toContain('Harvest Sync');
+    expect(result.slack.text).toContain('ada@example.com (free)');
+    expect(result.slack.text).toContain('Contact: dev@example.com');
+    expect(result.slack.text).toContain('https://admin.example.com/api-access');
+  });
+
+  it('escapes grower-supplied text in an access request', () => {
+    const result = renderEvent('grn.api-access', 'api-access.requested', {
+      integrationName: '<script>alert(1)</script>',
+      userEmail: 'ada@example.com'
+    });
+
+    expect(result.slack.text).toContain('&lt;script&gt;');
+    expect(result.slack.text).not.toContain('<script>');
+  });
+
+  it('says the grower claims the key when access is approved', () => {
+    const result = renderEvent('grn.api-access', 'api-access.approved', {
+      integrationName: 'Harvest Sync',
+      decisionNote: 'Looks legitimate'
+    });
+
+    expect(result.summary).toBe('GRN API access approved: Harvest Sync');
+    expect(result.slack.text).toContain('approved');
+    expect(result.slack.text).toContain('Looks legitimate');
+    expect(result.slack.text).toContain('create their key from GRN settings');
+  });
+
+  it('renders a denial without inviting a key to be created', () => {
+    const result = renderEvent('grn.api-access', 'api-access.denied', {
+      integrationName: 'Scraper 9000',
+      decisionNote: 'No stated use'
+    });
+
+    expect(result.summary).toBe('GRN API access denied: Scraper 9000');
+    expect(result.slack.text).toContain('denied');
+    expect(result.slack.text).not.toContain('create their key');
+  });
+
 });
 
 describe('isContactEvent', () => {

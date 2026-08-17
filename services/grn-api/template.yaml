@@ -121,6 +121,32 @@ Resources:
           LoggingLevel: ERROR
           DataTraceEnabled: True
 
+  # Throttle and quota for approved integrations. The key attached to this plan
+  # is provisioned per grower on approval and never handed to them: the
+  # authorizer resolves their GRN key to it, so the plan applies without the
+  # integrator sending anything extra.
+  #
+  # Enforcement is not switched on yet — no method sets ApiKeyRequired, because
+  # with an AUTHORIZER key source that would also demand a usage identifier for
+  # the web app's Cognito callers. Designating the integration surface is a
+  # follow-up; until then this plan meters nothing and is safe to deploy.
+  IntegrationUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiapiStage
+    Properties:
+      UsagePlanName: !Sub 'grn-integrations-${EnvironmentName}'
+      Description: Approved third-party integrations against the Good Roots API
+      ApiStages:
+        - ApiId: !Ref Api
+          Stage: api
+      Throttle:
+        BurstLimit: 20
+        RateLimit: 10
+      Quota:
+        Limit: 50000
+        Period: MONTH
+
   SharedApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
     Condition: DeploySharedApiBasePathMapping
@@ -357,10 +383,26 @@ Resources:
               Resource: !Sub
                 - '${SharedAssetsBucketArn}/journal-photos/*'
                 - SharedAssetsBucketArn: !ImportValue OGF-AssetsBucketArn
+            # Approving an API access request provisions the API Gateway key
+            # that carries the integrator's usage plan, and revoking their GRN
+            # key disables it again. Scoped to the key and usage-plan
+            # collections rather than the whole API surface.
+            - Effect: Allow
+              Action:
+                - apigateway:POST
+                - apigateway:PATCH
+                - apigateway:GET
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apikeys'
+                - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apikeys/*'
+                - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/usageplans/*'
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
           EVENT_BUS_NAME: !Ref EventBus
+          # Empty until the usage plan is deployed; the API then issues keys
+          # without attaching them rather than blocking an approval.
+          INTEGRATION_USAGE_PLAN_ID: !Ref IntegrationUsagePlan
           ORIGIN: !If
             - DeployCustomDomain
             - !Sub "${DomainProtocol}://grn.${DomainName}"
