@@ -1,0 +1,11 @@
+$kind: collection
+name: API Keys
+description: |-
+  Key issuance and lifecycle. Minting a key consumes an approved access
+  request, so this folder runs after "API Access", which leaves an approval
+  waiting via the seeded admin user.
+
+  Every assertion here is unconditional. An earlier version accepted "201 or
+  403" because CI had no way to approve; that let a broken approval path pass
+  as though it were the refusal branch.
+order: 11600

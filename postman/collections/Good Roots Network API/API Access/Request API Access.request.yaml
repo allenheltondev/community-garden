@@ -1,0 +1,46 @@
+$kind: http-request
+name: Request API Access
+description: |-
+  Ask for programmatic access. The CI seeder clears this grower's prior
+  requests, so a clean 201 is the contract here; the one-open-request rule is
+  covered by the duplicate below rather than by accepting either answer.
+method: POST
+url: '{{baseUrl}}/me/api-access-requests'
+order: 1000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "integrationName": "Postman harvest mirror",
+      "intendedUse": "Mirror my harvest log into a spreadsheet so I can plan next season."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+
+      pm.test("Returns the request as the grower will see it", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("id");
+          pm.expect(body).to.have.property("status", "pending");
+          pm.expect(body).to.have.property("integrationName", "Postman harvest mirror");
+          pm.expect(body).to.have.property("intendedUse");
+          pm.expect(body).to.have.property("createdAt");
+          // A pending request has no decision and no key behind it yet.
+          pm.expect(body.decidedAt, "decidedAt").to.be.oneOf([null, undefined]);
+          pm.expect(body.apiKeyId, "apiKeyId").to.be.oneOf([null, undefined]);
+          // The request record must never carry a credential.
+          pm.expect(body).to.not.have.property("key");
+
+          if (body.id) {
+              pm.collectionVariables.set("apiAccessRequestId", body.id);
+          }
+      });

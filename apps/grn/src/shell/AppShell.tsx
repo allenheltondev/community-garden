@@ -147,7 +147,7 @@ export function AppShell({ user, children }: AppShellProps) {
               personalLinks={[
                 { id: 'membership', label: 'Membership', href: '/settings#membership' },
                 { id: 'settings', label: 'Settings', href: '/settings' },
-                { id: 'api-keys', label: 'API keys', href: '/settings#api-keys' },
+                { id: 'api-keys', label: 'API keys', href: '/settings/api-keys' },
               ]}
               appLinks={[
                 { id: 'foundation', label: 'Foundation home', href: foundationHomeUrl },

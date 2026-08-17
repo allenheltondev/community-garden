@@ -35,13 +35,20 @@ function decodeSubFromJwt(idToken) {
 
 /**
  * Create-or-reuse a Cognito user with a deterministic email, set a known
- * password, and return fresh tokens via ADMIN_USER_PASSWORD_AUTH.
+ * password, put them in the right groups, and return fresh tokens via
+ * ADMIN_USER_PASSWORD_AUTH.
+ *
+ * Groups are applied *before* the token is minted, on purpose. The GRN
+ * authorizer reads `cognito:groups` out of the JWT's own claims to decide
+ * isAdmin, so a group added after authentication is invisible for the life of
+ * that token and an admin CI user would be refused by the admin endpoints.
  */
-async function getOrCreateUser(label) {
+async function getOrCreateUser(label, { tier, admin }) {
   const email = `ci+${label}@example.com`;
   const password = deterministicPassword(label);
 
   await ensureUser(email, password);
+  await ensureGroups(email, tier, admin);
 
   try {
     return await authenticateUser(email, password);
@@ -53,8 +60,40 @@ async function getOrCreateUser(label) {
       new AdminDeleteUserCommand({ UserPoolId: USER_POOL_ID, Username: email })
     );
     await ensureUser(email, password);
+    await ensureGroups(email, tier, admin);
     return await authenticateUser(email, password);
   }
+}
+
+async function ensureGroups(email, tier, admin) {
+  await ensureTierGroup(email, tier);
+  if (admin === true) {
+    await ensureAdminGroup(email);
+  }
+}
+
+/**
+ * Put a CI user in the shared pool's `admin` group. Only ever adds: the
+ * seeder never grants admin implicitly, so a user is admin exactly when their
+ * spec says so, and nothing else in the pool is demoted as a side effect.
+ */
+async function ensureAdminGroup(email) {
+  const response = await cognito.send(
+    new AdminListGroupsForUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: email,
+    })
+  );
+
+  if (groupNamesFromListResponse(response).includes(ADMIN_GROUP)) return;
+
+  await cognito.send(
+    new AdminAddUserToGroupCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: email,
+      GroupName: ADMIN_GROUP,
+    })
+  );
 }
 
 async function ensureUser(email, password) {
@@ -85,6 +124,7 @@ async function ensureUser(email, password) {
 }
 
 const TIER_GROUPS = ["free-tier", "supporter-tier", "pro-tier"];
+const ADMIN_GROUP = "admin";
 
 function tierToGroupName(tier) {
   switch (tier) {
@@ -223,15 +263,33 @@ export async function resetCiUserUsage(client, userId) {
 }
 
 /**
+ * Clear the CI user's API access requests so each run starts from a known
+ * state: no pending request, and no approval left over from a run that stopped
+ * between approving and creating a key.
+ *
+ * Without this the contract suite is not deterministic — a leftover approval
+ * makes "a second key needs a new approval" succeed instead of being refused,
+ * and a leftover pending request turns the first POST into a conflict.
+ *
+ * Issued keys are deliberately left alone. Deleting them would orphan the API
+ * Gateway keys behind them, and they do nothing to the outcome: the gate reads
+ * approvals, and `access_request_id` becomes null here rather than freeing an
+ * approval to be spent twice.
+ */
+export async function resetCiApiAccess(client, userId) {
+  await client.query(`DELETE FROM api_access_requests WHERE user_id = $1`, [userId]);
+}
+
+/**
  * Provision a single named user: create/reuse in Cognito, upsert in Postgres,
  * return tokens keyed by the caller-supplied name.
  */
-async function provisionUser(client, { name, role, tier }) {
-  const tokens = await getOrCreateUser(name);
-  await ensureTierGroup(tokens.email, tier);
+async function provisionUser(client, { name, role, tier, admin }) {
+  const tokens = await getOrCreateUser(name, { tier, admin });
   const userId = decodeSubFromJwt(tokens.id_token);
   await upsertUser(client, userId, tokens.email, { role, tier });
   await resetCiUserUsage(client, userId);
+  await resetCiApiAccess(client, userId);
   return { name, ...tokens };
 }
 

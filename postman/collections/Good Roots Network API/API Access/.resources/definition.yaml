@@ -1,0 +1,15 @@
+$kind: collection
+name: API Access
+description: |-
+  Approval-gated programmatic access. A grower asks for a key here; an admin
+  decides in the admin console. Only an approved request can be turned into an
+  API key, so this folder runs before "API Keys".
+
+  Two identities run here: `{{authToken}}` is the grower asking, and
+  `{{adminAuthToken}}` is a CI user in the shared pool's `admin` group who
+  reviews. That second token is what lets the suite drive request -> approve ->
+  create a key for real, rather than only proving that a grower is refused.
+
+  The refusal cases are still covered, from the grower's side: the admin queue
+  and the approve endpoint must both turn a non-admin caller away.
+order: 11500

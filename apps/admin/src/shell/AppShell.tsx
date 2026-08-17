@@ -63,6 +63,19 @@ const navItems: AdminNavItem[] = [
     ),
   },
   {
+    id: 'api-access',
+    path: '/api-access',
+    label: 'API access',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M12.65 10a6 6 0 1 0 0 4H17v3h3v-3h2v-4H12.65ZM7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
     id: 'okra-queue',
     path: '/okra-queue',
     label: 'Okra',

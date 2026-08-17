@@ -1,6 +1,9 @@
 $kind: http-request
 name: Delete API Key
-description: Revoke (soft-delete) the API key created earlier in this run.
+description: |-
+  Revoke (soft-delete) the API key created earlier in this run. Revoking also
+  disables the API Gateway key behind it, so the credential stops drawing on the
+  integration usage plan.
 method: DELETE
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 5000
@@ -32,3 +35,4 @@ scripts:
       });
 
       pm.collectionVariables.unset("apiKeyId");
+      pm.collectionVariables.unset("apiKeyIssued");

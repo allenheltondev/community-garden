@@ -73,6 +73,18 @@ variables:
   - key: putMeResponseSnapshot
     value: ''
     description: Temporary storage for PUT /me response snapshot (used for idempotency verification)
+  - key: apiAccessRequestId
+    value: ''
+    description: Captured API access request ID used by the admin authorization checks
+  - key: apiKeyId
+    value: ''
+    description: Captured API key ID for follow-up key lifecycle requests
+  - key: apiKeyIssued
+    value: 'false'
+    description: Set once the run has minted a key, so later requests can tell the lifecycle started
+  - key: adminAuthToken
+    value: ''
+    description: JWT for a user in the admin group, used by the API Access review and decision requests
 auth:
   type: bearer
   credentials:

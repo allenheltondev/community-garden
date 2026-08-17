@@ -247,6 +247,56 @@ function renderGeneralInquiryReceived(detail) {
   };
 }
 
+function renderApiAccessRequested(detail) {
+  const integration = truncate(detail.integrationName, 120) ?? '(unnamed integration)';
+  const who = detail.userEmail ?? detail.userId ?? 'unknown grower';
+  const lines = [
+    ':key: New GRN API access request',
+    `Integration: ${escapeSlackMrkdwn(integration)}`,
+    `Requested by: ${escapeSlackMrkdwn(who)}${detail.tier ? ` (${detail.tier})` : ''}`
+  ];
+
+  const contact = truncate(detail.contactEmail, 320);
+  if (contact) lines.push(`Contact: ${escapeSlackMrkdwn(contact)}`);
+
+  const intendedUse = truncate(detail.intendedUse, 600);
+  if (intendedUse) lines.push('', escapeSlackMrkdwn(intendedUse));
+
+  const review = adminUrl('/api-access');
+  if (review) lines.push('', `Review: ${review}`);
+
+  return {
+    summary: `GRN API access requested by ${who}`,
+    slack: { text: lines.join('\n') }
+  };
+}
+
+function renderApiAccessDecided(approved) {
+  return (detail) => {
+    const integration = truncate(detail.integrationName, 120) ?? '(unnamed integration)';
+    const lines = [
+      approved
+        ? ':white_check_mark: GRN API access approved'
+        : ':no_entry_sign: GRN API access denied',
+      `Integration: ${escapeSlackMrkdwn(integration)}`
+    ];
+
+    const note = truncate(detail.decisionNote, 600);
+    if (note) lines.push('', escapeSlackMrkdwn(note));
+
+    if (approved) {
+      // The key is claimed by the grower, so nobody should be waiting on a
+      // secret to appear in this channel.
+      lines.push('', 'The grower can now create their key from GRN settings.');
+    }
+
+    return {
+      summary: `GRN API access ${approved ? 'approved' : 'denied'}: ${integration}`,
+      slack: { text: lines.join('\n') }
+    };
+  };
+}
+
 const renderers = new Map([
   ['okra.submissions|submission.created', renderOkraSubmissionCreated],
   ['okra.seed-requests|seed-request.created', renderSeedRequestCreated],
@@ -256,7 +306,10 @@ const renderers = new Map([
   ['ogf.donations|garden-club.canceled', renderGardenClubCanceled],
   ['ogf.signups|user.signed-up', renderUserSignedUp],
   ['ogf.contact|org-inquiry.received', renderOrgInquiryReceived],
-  ['ogf.contact|general-inquiry.received', renderGeneralInquiryReceived]
+  ['ogf.contact|general-inquiry.received', renderGeneralInquiryReceived],
+  ['grn.api-access|api-access.requested', renderApiAccessRequested],
+  ['grn.api-access|api-access.approved', renderApiAccessDecided(true)],
+  ['grn.api-access|api-access.denied', renderApiAccessDecided(false)]
 ]);
 
 export function renderEvent(source, detailType, detail) {

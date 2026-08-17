@@ -1,8 +1,11 @@
 use crate::auth::extract_auth_context;
 use crate::db;
+use crate::handlers::api_access_request::claimable_request;
 use crate::models::api_key::{
     ApiKeyItem, ApiKeyListResponse, CreatedApiKeyResponse, UpsertApiKeyRequest,
 };
+use crate::models::crop::ErrorResponse;
+use crate::services::api_gateway_keys;
 use lambda_http::{Body, Request, Response};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -81,22 +84,77 @@ pub async fn create_api_key(
     let payload: UpsertApiKeyRequest = parse_json_body(request)?;
     let name = validate_name(&payload.name)?;
 
+    // Keys are approval-gated: minting one consumes an approved request that
+    // has not already produced a key. Without that, anyone could self-issue a
+    // credential that a usage plan is meant to meter.
+    let mut client = db::connect().await?;
+    let Some(access_request_id) = claimable_request(&client, user_id).await? else {
+        return json_response(
+            403,
+            &ErrorResponse {
+                error: "API access must be approved before a key can be created".to_string(),
+            },
+        );
+    };
+
     // Generate the secret. Two UUIDv4s give ~244 bits of entropy; the stored
     // prefix is non-secret and only used to identify the key in the UI.
     let secret = generate_api_key();
     let key_prefix: String = secret.chars().take(API_KEY_PREFIX.len() + 8).collect();
     let key_hash = sha256_hex(&secret);
 
-    let client = db::connect().await?;
-    let row = client
-        .query_one(
-            "insert into api_keys (user_id, name, key_prefix, key_hash)
-             values ($1, $2, $3, $4)
+    // Everything from here to the commit is one transaction, so a failure at
+    // any point — including the Lambda being killed mid-flight, which drops the
+    // connection — leaves the approval unspent rather than stranding a grower
+    // with a consumed decision and no credential. The only residue in that case
+    // is an API Gateway key nobody holds the secret for.
+    let transaction = client.transaction().await.map_err(|e| db_error(&e))?;
+
+    // Claim the approval before provisioning. The unique index on
+    // access_request_id is what makes one approval mint one key: two concurrent
+    // creates both pass the check above, and the loser must fall out here
+    // rather than after it has already provisioned a second credential.
+    let claimed = transaction
+        .query_opt(
+            "insert into api_keys (user_id, name, key_prefix, key_hash, access_request_id)
+             values ($1, $2, $3, $4, $5)
+             on conflict do nothing
              returning id, name, key_prefix, last_used_at, created_at",
-            &[&user_id, &name, &key_prefix, &key_hash],
+            &[&user_id, &name, &key_prefix, &key_hash, &access_request_id],
         )
         .await
         .map_err(|e| db_error(&e))?;
+
+    let Some(row) = claimed else {
+        return json_response(
+            409,
+            &ErrorResponse {
+                error: "A key has already been issued for this approval".to_string(),
+            },
+        );
+    };
+    let api_key_id: Uuid = row.get("id");
+
+    // Provision the API Gateway side now that the approval is ours. The grower
+    // never sees these identifiers — the authorizer uses them on their behalf,
+    // and the hash it already computes to authenticate the key doubles as the
+    // API Gateway key value, so nothing extra has to be stored or looked up.
+    let provisioned = api_gateway_keys::provision(
+        &format!("grn-{user_id}-{key_prefix}"),
+        &format!("GRN API access for request {access_request_id}"),
+        &key_hash,
+    )
+    .await?;
+
+    // Record the identifiers and commit. If either step fails the claim rolls
+    // back, so the API Gateway key it would have pointed at has to go too —
+    // otherwise it lives on unreferenced, with no row left to revoke it from.
+    if let Err(error) = persist_provisioning(transaction, api_key_id, provisioned.as_ref()).await {
+        if let Some(key) = provisioned.as_ref() {
+            api_gateway_keys::revoke(&key.aws_api_key_id).await;
+        }
+        return Err(error);
+    }
 
     info!(
         correlation_id = correlation_id,
@@ -170,16 +228,23 @@ pub async fn delete_api_key(
     // Soft delete (revoke) so the key can no longer authenticate but history
     // and last_used analytics are preserved.
     let revoked = client
-        .execute(
+        .query_opt(
             "update api_keys set revoked_at = now(), updated_at = now()
-              where id = $1 and user_id = $2 and revoked_at is null",
+              where id = $1 and user_id = $2 and revoked_at is null
+              returning aws_api_key_id",
             &[&id, &user_id],
         )
         .await
         .map_err(|e| db_error(&e))?;
 
-    if revoked == 0 {
+    let Some(row) = revoked else {
         return error_response(404, "API key not found");
+    };
+
+    // Disable the API Gateway side too, so a revoked key stops consuming the
+    // usage plan. Best effort: the GRN key is already dead in the database.
+    if let Some(aws_api_key_id) = row.get::<_, Option<String>>("aws_api_key_id") {
+        api_gateway_keys::revoke(&aws_api_key_id).await;
     }
 
     info!(
@@ -193,6 +258,32 @@ pub async fn delete_api_key(
         .status(204)
         .body(Body::Empty)
         .map_err(|e| lambda_http::Error::from(e.to_string()))
+}
+
+/// Write the API Gateway identifiers against the claimed row and commit.
+///
+/// Split out so both failure modes — the update and the commit — share one
+/// compensation path at the call site, and so `create_api_key` stays inside
+/// the line budget.
+async fn persist_provisioning(
+    transaction: tokio_postgres::Transaction<'_>,
+    api_key_id: Uuid,
+    provisioned: Option<&api_gateway_keys::ProvisionedKey>,
+) -> Result<(), lambda_http::Error> {
+    if let Some(key) = provisioned {
+        transaction
+            .execute(
+                "update api_keys set aws_api_key_id = $1, usage_plan_id = $2, updated_at = now()
+                  where id = $3",
+                &[&key.aws_api_key_id, &key.usage_plan_id, &api_key_id],
+            )
+            .await
+            .map_err(|e| db_error(&e))?;
+    }
+
+    // Taking the transaction by value means an early return here drops it, and
+    // dropping a tokio-postgres transaction rolls it back.
+    transaction.commit().await.map_err(|e| db_error(&e))
 }
 
 fn validate_name(name: &str) -> Result<String, lambda_http::Error> {

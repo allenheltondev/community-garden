@@ -1,0 +1,40 @@
+$kind: http-request
+name: Denying A Decided Request Conflicts
+description: |-
+  The opposite decision on an already-decided request is a real conflict, and
+  must stay one — otherwise "retry is safe" would quietly let an approval be
+  overturned by a stray click.
+method: POST
+url: '{{baseUrl}}/admin/api-access-requests/:requestId/deny'
+order: 6600
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{adminAuthToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: requestId
+    value: '{{apiAccessRequestId}}'
+    description: UUID of the request already approved above
+body:
+  type: json
+  content: |-
+    {
+      "note": "Should not overturn the approval"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 409", function () {
+          pm.response.to.have.status(409);
+      });
+
+      pm.test("Says what the request already is", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("error");
+          pm.expect(body.error).to.match(/already approved/i);
+      });

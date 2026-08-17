@@ -1,0 +1,37 @@
+$kind: http-request
+name: Admin Lists Queue
+description: |-
+  The review queue as an admin sees it. Carries the requester's identity so a
+  decision can be made without a second lookup — and must never carry the
+  credential itself.
+method: GET
+url: '{{baseUrl}}/admin/api-access-requests?status=pending'
+order: 5500
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{adminAuthToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Returns the pending queue with who is asking", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("items").that.is.an("array");
+          pm.expect(body).to.have.property("total");
+
+          const requestId = pm.collectionVariables.get("apiAccessRequestId");
+          const mine = body.items.find((item) => item.id === requestId);
+          pm.expect(mine, "the request made earlier in this run should be queued").to.exist;
+          pm.expect(mine).to.have.property("status", "pending");
+          pm.expect(mine).to.have.property("userId");
+          pm.expect(mine).to.have.property("integrationName");
+          // The admin console never sees a secret.
+          pm.expect(mine).to.not.have.property("key");
+          pm.expect(mine).to.not.have.property("keyHash");
+      });

@@ -75,9 +75,10 @@ describe('AppShell navigation', () => {
       '/settings#membership'
     );
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+    // API keys is a page of its own now, not an anchor within Settings.
     expect(screen.getByRole('menuitem', { name: 'API keys' })).toHaveAttribute(
       'href',
-      '/settings#api-keys'
+      '/settings/api-keys'
     );
   });
 

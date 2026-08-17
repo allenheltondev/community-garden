@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   groupNamesFromListResponse,
   planTierGroupChanges,
+  resetCiApiAccess,
   resetCiUserUsage,
 } from "../ci-auth-seed.mjs";
 
@@ -67,4 +68,39 @@ test("planTierGroupChanges adds the tier group for a user with none", () => {
   assert.equal(changes.targetGroup, "supporter-tier");
   assert.deepEqual(changes.groupsToRemove, []);
   assert.equal(changes.addTargetGroup, true);
+});
+
+test("resetCiApiAccess clears prior access requests so each run starts clean", async () => {
+  const calls = [];
+  const client = {
+    query: async (...args) => {
+      calls.push(args);
+    },
+  };
+
+  await resetCiApiAccess(client, "22222222-2222-2222-2222-222222222222");
+
+  assert.deepEqual(calls, [
+    [
+      "DELETE FROM api_access_requests WHERE user_id = $1",
+      ["22222222-2222-2222-2222-222222222222"],
+    ],
+  ]);
+});
+
+test("resetCiApiAccess leaves issued keys alone", async () => {
+  const statements = [];
+  const client = {
+    query: async (sql) => {
+      statements.push(sql);
+    },
+  };
+
+  await resetCiApiAccess(client, "22222222-2222-2222-2222-222222222222");
+
+  // Deleting keys would orphan the API Gateway keys behind them.
+  assert.equal(
+    statements.some((sql) => /delete\s+from\s+api_keys/i.test(sql)),
+    false
+  );
 });

@@ -1,6 +1,7 @@
 $kind: http-request
 name: Get API Key
-description: Retrieve a single API key's metadata by id.
+description: |-
+  Retrieve a single API key's metadata by id, for the key created above.
 method: GET
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 3000

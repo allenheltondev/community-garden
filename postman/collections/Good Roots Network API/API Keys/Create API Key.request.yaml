@@ -1,6 +1,13 @@
 $kind: http-request
 name: Create API Key
-description: Create a new API key and capture the one-time secret and id.
+description: |-
+  Mint a key against the approval granted in the API Access folder. This is the
+  success path end to end: the gate opens, an API Gateway key is provisioned
+  onto the integration usage plan, the identifiers are persisted, and the
+  secret comes back exactly once.
+
+  A 403 here means the approval did not land — that is a failure, not an
+  alternative outcome, so it is asserted as one.
 method: POST
 url: '{{baseUrl}}/me/api-keys'
 order: 1000
@@ -20,6 +27,11 @@ scripts:
     language: text/javascript
     code: |-
       pm.test("Status code is 201", function () {
+          if (pm.response.code === 403) {
+              pm.expect.fail(
+                  "Approval did not take effect: " + pm.response.text()
+              );
+          }
           pm.response.to.have.status(201);
       });
 
@@ -31,6 +43,10 @@ scripts:
           pm.expect(body).to.have.property("key");
           pm.expect(body.key).to.be.a("string").and.match(/^grnk_/);
           pm.expect(body.keyPrefix).to.match(/^grnk_/);
+          // The API Gateway key and usage plan behind this credential are
+          // deliberately invisible to the caller.
+          pm.expect(body).to.not.have.property("awsApiKeyId");
+          pm.expect(body).to.not.have.property("usagePlanId");
 
           if (!body.id) {
               pm.expect.fail("Missing api key id; aborting chained run.");
@@ -38,4 +54,5 @@ scripts:
               return;
           }
           pm.collectionVariables.set("apiKeyId", body.id);
+          pm.collectionVariables.set("apiKeyIssued", "true");
       });

@@ -4,6 +4,7 @@ import { Button } from '@olivias/ui';
 import {
   createApiKey,
   deleteApiKey,
+  listApiAccessRequests,
   listApiKeys,
   renameApiKey,
   type CreatedApiKey,
@@ -30,10 +31,27 @@ export function ApiKeysPanel() {
     staleTime: 30_000,
   });
 
+  // Keys are approval-gated, so the form is only usable with an approved
+  // request that has not already produced one. Without this the button would
+  // just relay a 403 from the API.
+  const requestsQuery = useQuery({
+    queryKey: ['apiAccessRequests'],
+    queryFn: listApiAccessRequests,
+    staleTime: 60 * 1000,
+  });
+
+  const canCreateKey = (requestsQuery.data ?? []).some(
+    (request) => request.status === 'approved' && !request.apiKeyId
+  );
+
   const createMutation = useMutation({
     mutationFn: (keyName: string) => createApiKey(keyName),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      // Creating a key spends the approval. Both panels read that from this
+      // query, so without refetching it they keep offering a create the API
+      // will now refuse.
+      void queryClient.invalidateQueries({ queryKey: ['apiAccessRequests'] });
       setCreatedKey(created);
       setCopied(false);
       setName('');
@@ -100,10 +118,11 @@ export function ApiKeysPanel() {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">API keys</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Your keys</h3>
         <p className="text-sm text-gray-600 mt-1">
-          Create keys to access the Good Roots Network API programmatically. A key acts as you, so
-          treat it like a password. Send it as <code>Authorization: Bearer &lt;key&gt;</code>.
+          A key acts as you, so treat it like a password. Send it as{' '}
+          <code>Authorization: Bearer &lt;key&gt;</code>. Keys are issued once your API access
+          request is approved.
         </p>
       </div>
 
@@ -129,21 +148,23 @@ export function ApiKeysPanel() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="text-sm">
-          <span className="block text-gray-600 mb-1">Key name</span>
-          <input
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="My laptop script"
-            maxLength={100}
-          />
-        </label>
-        <Button onClick={submitCreate} disabled={createMutation.isPending} variant="primary">
-          {createMutation.isPending ? 'Creating...' : 'Create key'}
-        </Button>
-      </div>
+      {canCreateKey ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label className="text-sm">
+            <span className="block text-gray-600 mb-1">Key name</span>
+            <input
+              className="w-full rounded-md border border-gray-300 px-3 py-2"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="My laptop script"
+              maxLength={100}
+            />
+          </label>
+          <Button onClick={submitCreate} disabled={createMutation.isPending} variant="primary">
+            {createMutation.isPending ? 'Creating...' : 'Create key'}
+          </Button>
+        </div>
+      ) : null}
 
       {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
 

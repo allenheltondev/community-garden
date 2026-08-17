@@ -1,7 +1,7 @@
 use crate::handlers::{
-    agent_task, ai_copilot, analytics, annotation, api_key, bed, billing, catalog, claim,
-    claim_read, crop, feed, garden_canvas, garden_review, garden_share, journal, listing,
-    listing_discovery, reminder, request, user,
+    agent_task, ai_copilot, analytics, annotation, api_access_request, api_key, bed, billing,
+    catalog, claim, claim_read, crop, feed, garden_canvas, garden_review, garden_share, journal,
+    listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -11,13 +11,60 @@ use serde::Serialize;
 use std::env;
 use tracing::{error, info};
 
-fn add_cors_headers(mut response: Response<Body>) -> Response<Body> {
-    let origin = env::var("ORIGIN").unwrap_or_else(|_| "http://localhost:5173".to_string());
+/// Origins allowed to read GRN API responses in a browser.
+///
+/// `ORIGIN` is the GRN app itself. `ADMIN_ORIGIN` is the admin console, which
+/// calls this API directly for the access-request queue — the requests live in
+/// GRN's database and this service owns them, so the alternative would be
+/// reaching into GRN tables from another service.
+///
+/// A wildcard is honoured as "any origin" for parity with the other services in
+/// the platform that set `ORIGIN: '*'` when no custom domain is configured.
+fn allowed_origins() -> Vec<String> {
+    [env::var("ORIGIN").ok(), env::var("ADMIN_ORIGIN").ok()]
+        .into_iter()
+        .flatten()
+        .map(|origin| origin.trim().to_string())
+        .filter(|origin| !origin.is_empty())
+        .collect()
+}
+
+/// Pick the `Access-Control-Allow-Origin` value for a request.
+///
+/// Echoes the caller's own origin when it is allowed, because a single static
+/// value cannot serve two front ends. Falls back to the first configured origin
+/// so a disallowed caller gets a value that will not match, rather than one
+/// that would let it read the response.
+fn resolve_allowed_origin(request_origin: Option<&str>) -> String {
+    pick_origin(&allowed_origins(), request_origin)
+}
+
+fn pick_origin(allowed: &[String], request_origin: Option<&str>) -> String {
+    if allowed.iter().any(|origin| origin == "*") {
+        return "*".to_string();
+    }
+
+    match request_origin {
+        Some(origin) if allowed.iter().any(|entry| entry == origin) => origin.to_string(),
+        _ => allowed
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "http://localhost:5173".to_string()),
+    }
+}
+
+fn add_cors_headers(mut response: Response<Body>, request_origin: Option<&str>) -> Response<Body> {
+    let origin = resolve_allowed_origin(request_origin);
 
     let headers = response.headers_mut();
 
     if let Ok(value) = origin.parse() {
         headers.insert("Access-Control-Allow-Origin", value);
+    }
+    // The response varies by request origin, so a shared cache must not serve
+    // the GRN app's copy to the admin console or the other way round.
+    if let Ok(value) = "Origin".parse() {
+        headers.insert("Vary", value);
     }
     if let Ok(value) = "GET,POST,PUT,DELETE,OPTIONS".parse() {
         headers.insert("Access-Control-Allow-Methods", value);
@@ -51,6 +98,15 @@ fn strip_path_prefix<'a>(path: &'a str, prefix: &str) -> &'a str {
         .unwrap_or(path)
 }
 
+fn request_origin_header(event: &Request) -> Option<String> {
+    event
+        .headers()
+        .get("origin")
+        .or_else(|| event.headers().get("Origin"))
+        .and_then(|value| value.to_str().ok())
+        .map(ToString::to_string)
+}
+
 pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_http::Error> {
     let correlation_id = extract_or_generate_correlation_id(event);
 
@@ -64,8 +120,10 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         "Request received"
     );
 
+    let request_origin = request_origin_header(event);
+
     if event.method().as_str() == "OPTIONS" {
-        return cors_preflight_response(&correlation_id);
+        return cors_preflight_response(&correlation_id, request_origin.as_deref());
     }
 
     let response = match (event.method().as_str(), request_path) {
@@ -140,7 +198,7 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
         }
     };
 
-    let response_with_cors = add_cors_headers(response);
+    let response_with_cors = add_cors_headers(response, request_origin.as_deref());
     let response_with_correlation =
         add_correlation_id_to_response(response_with_cors, &correlation_id);
 
@@ -172,7 +230,7 @@ async fn route_dynamic_routes(
     correlation_id: &str,
     request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    if let Some(result) = route_api_key_request(event, correlation_id, request_path).await {
+    if let Some(result) = route_credentials_request(event, correlation_id, request_path).await {
         return handle(result);
     }
 
@@ -285,13 +343,16 @@ async fn route_dynamic_routes(
         .map_err(|e| lambda_http::Error::from(e.to_string()))
 }
 
-fn cors_preflight_response(correlation_id: &str) -> Result<Response<Body>, lambda_http::Error> {
+fn cors_preflight_response(
+    correlation_id: &str,
+    request_origin: Option<&str>,
+) -> Result<Response<Body>, lambda_http::Error> {
     let response = Response::builder()
         .status(200)
         .body(Body::Empty)
         .map_err(|event| lambda_http::Error::from(event.to_string()))?;
     Ok(add_correlation_id_to_response(
-        add_cors_headers(response),
+        add_cors_headers(response, request_origin),
         correlation_id,
     ))
 }
@@ -317,6 +378,59 @@ async fn route_journal_request(
         _ => return None,
     };
     Some(result)
+}
+
+/// API access requests and the keys they authorise share a dispatch entry so
+/// the main route table stays within its line budget.
+async fn route_credentials_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if let Some(result) = route_api_access_request(event, correlation_id, request_path).await {
+        return Some(result);
+    }
+    route_api_key_request(event, correlation_id, request_path).await
+}
+
+async fn route_api_access_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if request_path == "/me/api-access-requests" {
+        return Some(match event.method().as_str() {
+            "GET" => api_access_request::list_my_requests(event, correlation_id).await,
+            "POST" => api_access_request::create_request(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+
+    // Admin queue. Authorization is checked in the handler from the
+    // authorizer's isAdmin context, which until now nothing consumed.
+    if request_path == "/admin/api-access-requests" {
+        return Some(match event.method().as_str() {
+            "GET" => api_access_request::admin_list_requests(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+
+    if let Some(rest) = request_path.strip_prefix("/admin/api-access-requests/") {
+        if let Some(id) = rest.strip_suffix("/approve") {
+            return Some(match event.method().as_str() {
+                "POST" => api_access_request::admin_decide(event, correlation_id, id, true).await,
+                _ => method_not_allowed(),
+            });
+        }
+        if let Some(id) = rest.strip_suffix("/deny") {
+            return Some(match event.method().as_str() {
+                "POST" => api_access_request::admin_decide(event, correlation_id, id, false).await,
+                _ => method_not_allowed(),
+            });
+        }
+    }
+
+    None
 }
 
 async fn route_api_key_request(
@@ -460,6 +574,16 @@ fn is_garden_designer_validation_message(message: &str) -> bool {
         || message.contains("contentLength must be")
 }
 
+/// API access request validation. The generic `name is required` check below is
+/// case-sensitive, so `integrationName is required` would otherwise fall
+/// through to a 500 instead of telling the caller what to fix.
+fn is_api_access_validation_message(message: &str) -> bool {
+    message.contains("integrationName is required")
+        || message.contains("integrationName must be")
+        || message.contains("intendedUse is required")
+        || message.contains("intendedUse must be")
+}
+
 fn is_journal_validation_message(message: &str) -> bool {
     message.contains("season must be")
         || message.contains("occurredOn")
@@ -530,6 +654,7 @@ fn map_api_error_to_response(
         || message.contains("requestId must reference an open request")
         || message.contains("requestId crop must match listing crop")
         || is_journal_validation_message(&message)
+        || is_api_access_validation_message(&message)
     {
         return crop::error_response(400, &message);
     }
@@ -608,8 +733,57 @@ fn onboarding_incomplete_response() -> Result<Response<Body>, lambda_http::Error
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{map_api_error_to_response, normalize_route_path};
+    use super::{map_api_error_to_response, normalize_route_path, pick_origin};
     use lambda_http::Body;
+
+    fn origins(entries: &[&str]) -> Vec<String> {
+        entries.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn cors_echoes_an_allowed_origin_back() {
+        let allowed = origins(&["https://grn.example.org", "https://admin.example.org"]);
+
+        assert_eq!(
+            pick_origin(&allowed, Some("https://admin.example.org")),
+            "https://admin.example.org"
+        );
+        assert_eq!(
+            pick_origin(&allowed, Some("https://grn.example.org")),
+            "https://grn.example.org"
+        );
+    }
+
+    /// The header must not reflect an origin we do not trust. Falling back to a
+    /// configured origin means the browser sees a mismatch and blocks the read.
+    #[test]
+    fn cors_refuses_to_reflect_an_unknown_origin() {
+        let allowed = origins(&["https://grn.example.org", "https://admin.example.org"]);
+
+        assert_eq!(
+            pick_origin(&allowed, Some("https://evil.example.com")),
+            "https://grn.example.org"
+        );
+        assert_eq!(pick_origin(&allowed, None), "https://grn.example.org");
+    }
+
+    /// Environments without a custom domain configure `*`, which stays a
+    /// wildcard rather than being echoed back as a single origin.
+    #[test]
+    fn cors_keeps_the_wildcard_when_configured() {
+        assert_eq!(
+            pick_origin(&origins(&["*", "*"]), Some("https://anywhere.example")),
+            "*"
+        );
+    }
+
+    #[test]
+    fn cors_falls_back_to_local_dev_when_nothing_is_configured() {
+        assert_eq!(
+            pick_origin(&[], Some("https://grn.example.org")),
+            "http://localhost:5173"
+        );
+    }
 
     #[test]
     fn normalize_route_path_strips_api_stage_prefix() {
@@ -733,6 +907,31 @@ mod tests {
         let error = lambda_http::Error::from("Listing not found".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 404);
+    }
+
+    /// `integrationName is required` does not contain the lowercase
+    /// `name is required` the generic check looks for, so without its own
+    /// clause it fell through to a 500 and told the caller nothing.
+    #[test]
+    fn map_api_error_maps_api_access_validation_to_400() {
+        for message in [
+            "integrationName is required",
+            "integrationName must be 120 characters or fewer",
+            "intendedUse is required",
+            "intendedUse must be 2000 characters or fewer",
+        ] {
+            let error = lambda_http::Error::from(message.to_string());
+            let response = map_api_error_to_response(&error).unwrap();
+            assert_eq!(response.status().as_u16(), 400, "{message}");
+        }
+    }
+
+    /// A grower hitting the admin queue must be refused, not handed a 500.
+    #[test]
+    fn map_api_error_maps_admin_only_access_to_403() {
+        let error = lambda_http::Error::from("Forbidden: admin access is required".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 403);
     }
 
     #[test]

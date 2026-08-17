@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import type { UserProfile } from '../types/user';
 import { SettingsPage } from './SettingsPage';
 
@@ -10,13 +11,19 @@ vi.mock('../components/Settings/ApiKeysPanel', () => ({
 
 vi.mock('../services/api', () => ({
   updateMe: vi.fn(),
+  listMyListings: vi.fn().mockResolvedValue({ items: [], limit: 50, offset: 0, hasMore: false, nextOffset: null }),
+  updateListing: vi.fn(),
+  listApiAccessRequests: vi.fn().mockResolvedValue([]),
+  createApiAccessRequest: vi.fn(),
 }));
 
 function renderSettings(profile: UserProfile) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <SettingsPage user={profile} refreshUser={vi.fn()} />
+      <MemoryRouter>
+        <SettingsPage user={profile} refreshUser={vi.fn()} />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -45,7 +52,7 @@ describe('SettingsPage', () => {
 
     expect(container.querySelector('#profile')).toHaveTextContent('Ada Lovelace');
     expect(container.querySelector('#membership')).toHaveTextContent('Supporter');
-    expect(container.querySelector('#api-keys')).toHaveTextContent('API key management');
+    expect(container.querySelector('#api-keys')).toHaveTextContent('Open API keys');
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
   });
 

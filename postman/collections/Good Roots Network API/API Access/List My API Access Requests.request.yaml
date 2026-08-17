@@ -1,0 +1,40 @@
+$kind: http-request
+name: List My API Access Requests
+description: |-
+  The grower's own view of what they have asked for. This is what drives the
+  pending/approved status on the API keys page, and it captures the request id
+  used by the admin-authorization checks below.
+method: GET
+url: '{{baseUrl}}/me/api-access-requests'
+order: 2000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Returns the grower's requests, newest first, without secrets", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("items").that.is.an("array");
+          pm.expect(body.items.length, "the request just made should be listed").to.be.at.least(1);
+
+          const item = body.items[0];
+          pm.expect(item).to.have.property("id");
+          pm.expect(item).to.have.property("status").that.is.oneOf(["pending", "approved", "denied"]);
+          pm.expect(item).to.have.property("integrationName");
+          pm.expect(item).to.have.property("intendedUse");
+          pm.expect(item).to.have.property("createdAt");
+          pm.expect(item).to.not.have.property("key");
+          pm.expect(item).to.not.have.property("keyHash");
+
+          const created = body.items.map((entry) => Date.parse(entry.createdAt));
+          const sorted = [...created].sort((a, b) => b - a);
+          pm.expect(created, "ordered newest first").to.eql(sorted);
+
+          pm.collectionVariables.set("apiAccessRequestId", item.id);
+      });

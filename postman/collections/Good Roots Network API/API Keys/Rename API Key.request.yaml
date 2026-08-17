@@ -1,6 +1,7 @@
 $kind: http-request
 name: Rename API Key
-description: Update an API key's name.
+description: |-
+  Update an API key's name.
 method: PUT
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 4000

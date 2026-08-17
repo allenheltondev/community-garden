@@ -59,6 +59,15 @@ struct PolicyResponse {
     policy_document: PolicyDocument,
     #[serde(skip_serializing_if = "Option::is_none")]
     context: Option<HashMap<String, String>>,
+    /// The API Gateway key this request should be metered against.
+    ///
+    /// Only consulted when the API's key source is AUTHORIZER and the method
+    /// requires a key; otherwise API Gateway ignores it. Returning it always
+    /// means enforcement can be switched on without another authorizer change,
+    /// and means the integrator never sends an `x-api-key` header — their GRN
+    /// key doubles as the usage-plan key, so the plan is invisible to them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    usage_identifier_key: Option<String>,
 }
 
 fn install_rustls_crypto_provider() {
@@ -157,7 +166,8 @@ async fn handle_api_key_auth(
 
     let row = client
         .query_opt(
-            "select ak.id, ak.user_id, u.user_type, u.tier, u.email::text as email
+            "select ak.id, ak.user_id, ak.aws_api_key_id, u.user_type, u.tier,
+                    u.email::text as email
                from api_keys ak
                join users u on u.id = ak.user_id
               where ak.key_hash = $1
@@ -178,6 +188,7 @@ async fn handle_api_key_auth(
         .get::<_, Option<String>>("tier")
         .unwrap_or_else(|| "free".to_string());
     let email = row.get::<_, Option<String>>("email");
+    let aws_api_key_id = row.get::<_, Option<String>>("aws_api_key_id");
 
     // Best-effort last-used tracking; a failure here must not block auth. With
     // authorizer result caching this only runs on cache misses.
@@ -202,7 +213,36 @@ async fn handle_api_key_auth(
         ("authMethod", Some("api_key".to_string())),
     ]);
 
-    Ok(generate_policy(&principal_id, "Allow", &api_arn, context))
+    Ok(generate_policy_with_usage_key(
+        &principal_id,
+        "Allow",
+        &api_arn,
+        context,
+        api_key_usage_identifier(aws_api_key_id.as_deref(), key_hash, first_party_usage_key()),
+    ))
+}
+
+/// Which usage plan an API key caller is metered against.
+///
+/// A key provisioned through the approval flow has an API Gateway key behind
+/// it whose *value* is this same hash, so returning the hash puts the caller on
+/// the integration plan with no extra lookup and no second secret at rest.
+///
+/// Keys predating that flow — the self-serve keys from migration 0038 — have no
+/// API Gateway key at all. Returning their hash would hand API Gateway an
+/// identifier it cannot resolve, and once enforcement is on that is a 403 for
+/// every grandfathered integration. They fall back to the first-party key
+/// instead, so they keep working until they are reissued.
+fn api_key_usage_identifier(
+    aws_api_key_id: Option<&str>,
+    key_hash: String,
+    first_party: Option<String>,
+) -> Option<String> {
+    if aws_api_key_id.is_some_and(|id| !id.trim().is_empty()) {
+        Some(key_hash)
+    } else {
+        first_party
+    }
 }
 
 fn sha256_hex(input: &str) -> String {
@@ -536,6 +576,32 @@ fn generate_policy(
     resource: &str,
     context: Option<HashMap<String, String>>,
 ) -> PolicyResponse {
+    generate_policy_with_usage_key(
+        principal_id,
+        effect,
+        resource,
+        context,
+        first_party_usage_key(),
+    )
+}
+
+/// The shared key every first-party caller (the web app, signed in with
+/// Cognito) is metered against. Without it, switching enforcement on would
+/// reject browser traffic, which carries no API key of its own.
+fn first_party_usage_key() -> Option<String> {
+    std::env::var("FIRST_PARTY_API_KEY_VALUE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn generate_policy_with_usage_key(
+    principal_id: &str,
+    effect: &str,
+    resource: &str,
+    context: Option<HashMap<String, String>>,
+    usage_identifier_key: Option<String>,
+) -> PolicyResponse {
     PolicyResponse {
         principal_id: principal_id.to_string(),
         policy_document: PolicyDocument {
@@ -547,6 +613,11 @@ fn generate_policy(
             }],
         },
         context: if effect == "Allow" { context } else { None },
+        usage_identifier_key: if effect == "Allow" {
+            usage_identifier_key
+        } else {
+            None
+        },
     }
 }
 
@@ -710,5 +781,93 @@ mod tests {
         assert!(!is_public_get_path("/grnxyz/catalog/crops"));
         assert!(!is_public_get_path("/catalog/crops/123"));
         assert!(!is_public_get_path("/shared-gardens"));
+    }
+
+    /// A key issued through the approval flow meters against its own API
+    /// Gateway key, whose value is this hash.
+    #[test]
+    fn provisioned_keys_meter_against_themselves() {
+        assert_eq!(
+            api_key_usage_identifier(
+                Some("agw-key-1"),
+                "hash-1".to_string(),
+                Some("first-party".to_string())
+            ),
+            Some("hash-1".to_string())
+        );
+    }
+
+    /// Self-serve keys predating migration 0041 have no API Gateway key. Their
+    /// hash resolves to nothing, so with enforcement on they would 403; the
+    /// first-party key keeps them working until they are reissued.
+    #[test]
+    fn legacy_keys_fall_back_to_the_first_party_plan() {
+        for legacy in [None, Some(""), Some("   ")] {
+            assert_eq!(
+                api_key_usage_identifier(
+                    legacy,
+                    "hash-1".to_string(),
+                    Some("first-party".to_string())
+                ),
+                Some("first-party".to_string()),
+                "{legacy:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_keys_carry_no_identifier_when_first_party_is_unset() {
+        assert_eq!(
+            api_key_usage_identifier(None, "hash-1".to_string(), None),
+            None
+        );
+    }
+
+    /// A denied caller must never be handed a usage identifier: it would let a
+    /// rejected request draw down someone else's plan.
+    #[test]
+    fn deny_carries_no_usage_identifier() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Deny",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            Some("first-party-key".to_string()),
+        );
+
+        assert!(policy.usage_identifier_key.is_none());
+    }
+
+    #[test]
+    fn allow_carries_the_usage_identifier_it_was_given() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Allow",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            Some("first-party-key".to_string()),
+        );
+
+        assert_eq!(
+            policy.usage_identifier_key.as_deref(),
+            Some("first-party-key")
+        );
+    }
+
+    /// The field is skipped entirely when absent. API Gateway rejects a null
+    /// `usageIdentifierKey` on a key-required method, so an unconfigured
+    /// environment has to look like it said nothing at all.
+    #[test]
+    fn missing_usage_identifier_is_omitted_from_the_payload() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Allow",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            None,
+        );
+        let json = serde_json::to_string(&policy).unwrap_or_default();
+
+        assert!(!json.contains("usageIdentifierKey"), "{json}");
     }
 }

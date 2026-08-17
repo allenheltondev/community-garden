@@ -1,5 +1,5 @@
+import { Link } from 'react-router-dom';
 import { Card, Panel, SectionHeading } from '@olivias/ui';
-import { ApiKeysPanel } from '../components/Settings/ApiKeysPanel';
 import { ProfileForm } from '../components/Settings/ProfileForm';
 import type { UserProfile } from '../types/user';
 
@@ -64,9 +64,15 @@ export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
         </Panel>
       )}
 
-      <div id="api-keys">
-        <ApiKeysPanel />
-      </div>
+      <Card id="api-keys" padding="6" className="grn-settings-card">
+        <h2>API keys</h2>
+        <p className="grn-settings-empty">
+          Build your own tools on top of your garden. Keys are issued by request.
+        </p>
+        <Link className="grn-settings-link" to="/settings/api-keys">
+          Open API keys
+        </Link>
+      </Card>
     </section>
   );
 }
