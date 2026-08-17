@@ -229,13 +229,11 @@ pub async fn admin_decide(
         .await
         .map_err(|e| db_error(&e))?;
 
+    // A decision that already landed is not a conflict when it is the same
+    // decision: the response may simply have been lost. Replay it as a success
+    // without re-emitting the event, so a retry does not post to Slack twice.
     let Some(row) = updated else {
-        return json_response(
-            409,
-            &ErrorResponse {
-                error: "That request has already been decided".to_string(),
-            },
-        );
+        return replay_decision(&client, id, status).await;
     };
 
     let requester_id: Uuid = row.get("user_id");
@@ -277,6 +275,55 @@ pub async fn admin_decide(
             decided_at: row
                 .get::<_, chrono::DateTime<chrono::Utc>>("decided_at")
                 .to_rfc3339(),
+        },
+    )
+}
+
+/// Answer a decision that changed nothing, distinguishing three cases: the
+/// same decision arriving twice (success), the opposite decision arriving after
+/// one was already recorded (conflict), and an id that does not exist (404).
+async fn replay_decision(
+    client: &tokio_postgres::Client,
+    id: Uuid,
+    status: &str,
+) -> Result<Response<Body>, lambda_http::Error> {
+    let existing = client
+        .query_opt(
+            "select status, decided_at from api_access_requests where id = $1",
+            &[&id],
+        )
+        .await
+        .map_err(|e| db_error(&e))?;
+
+    let Some(row) = existing else {
+        return json_response(
+            404,
+            &ErrorResponse {
+                error: "That request does not exist".to_string(),
+            },
+        );
+    };
+
+    let current: String = row.get("status");
+    if current != status {
+        return json_response(
+            409,
+            &ErrorResponse {
+                error: format!("That request was already {current}"),
+            },
+        );
+    }
+
+    json_response(
+        200,
+        &ApiAccessDecisionResponse {
+            id: id.to_string(),
+            status: current,
+            api_key_id: None,
+            decided_at: row
+                .get::<_, Option<chrono::DateTime<chrono::Utc>>>("decided_at")
+                .map(|value| value.to_rfc3339())
+                .unwrap_or_default(),
         },
     )
 }

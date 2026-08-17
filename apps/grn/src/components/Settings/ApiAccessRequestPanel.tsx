@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Textarea } from '@olivias/ui';
+import { Button, FormFeedback, Input, Textarea } from '@olivias/ui';
 import {
   createApiAccessRequest,
   listApiAccessRequests,
@@ -84,6 +84,22 @@ export function ApiAccessRequestPanel() {
 
   if (requestsQuery.isPending) {
     return <p className="grn-api-access__status">Checking your API access…</p>;
+  }
+
+  // A failed load must not look like "no history". Falling through would offer
+  // a grower with an open request the form again, and the API would refuse it.
+  if (requestsQuery.isError) {
+    return (
+      <section className="grn-api-access" aria-labelledby="api-access-heading">
+        <h2 id="api-access-heading">API access</h2>
+        <FormFeedback tone="error">
+          We could not check your API access. Reload to try again.
+        </FormFeedback>
+        <Button variant="ghost" onClick={() => void requestsQuery.refetch()}>
+          Try again
+        </Button>
+      </section>
+    );
   }
 
   // Nothing to ask for while a decision is outstanding: the status is the

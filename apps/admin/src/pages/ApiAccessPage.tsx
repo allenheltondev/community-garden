@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, FormFeedback, SectionHeading, Textarea } from '@olivias/ui';
 import {
   decideApiAccessRequest,
@@ -39,17 +39,29 @@ export function ApiAccessPage({ session }: ApiAccessPageProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
+  // Switching tabs starts a new load without cancelling the old one, and the
+  // slower of the two can land last. Only the most recent load may write to
+  // state, or the queue shows one status under another status's tab.
+  const loadId = useRef(0);
+
   const load = useCallback(() => {
+    loadId.current += 1;
+    const thisLoad = loadId.current;
     setLoading(true);
     return listApiAccessRequests(session.accessToken, status)
       .then((next) => {
+        if (loadId.current !== thisLoad) return;
         setRequests(next.items);
         setError(null);
       })
       .catch((err: Error) => {
+        if (loadId.current !== thisLoad) return;
         setError(err.message || 'Unable to load API access requests.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // A superseded load must not clear the spinner the live one set.
+        if (loadId.current === thisLoad) setLoading(false);
+      });
   }, [session.accessToken, status]);
 
   useEffect(() => {

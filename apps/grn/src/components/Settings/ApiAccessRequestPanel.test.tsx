@@ -113,6 +113,17 @@ describe('ApiAccessRequestPanel', () => {
     expect(screen.queryByRole('button', { name: 'Request a key' })).not.toBeInTheDocument();
   });
 
+  /// A failed load used to render as "no history", which invites a grower who
+  /// already has a pending request to submit another one and be refused.
+  it('says the check failed rather than offering to request again', async () => {
+    mockList.mockRejectedValue(new Error('Network down'));
+    renderPanel();
+
+    expect(await screen.findByText(/could not check your API access/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request a key' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
   it('tells an approved grower to create their key', async () => {
     mockList.mockResolvedValue([
       request({ status: 'approved', decidedAt: '2026-08-02T00:00:00Z' }),
