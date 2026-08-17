@@ -12,6 +12,7 @@ mod location;
 mod middleware;
 mod models;
 mod router;
+mod services;
 mod structured_json;
 mod tips_framework;
 

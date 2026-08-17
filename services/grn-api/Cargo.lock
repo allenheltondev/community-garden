@@ -195,6 +195,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-apigateway"
+version = "1.107.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc6da02c6eaa38e5ea241463bcf5c0d476e7f630bbf57f211be0d2baa38a3e8f"
+dependencies = [
+ "arc-swap",
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-observability",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "http 1.4.2",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-cognitoidentityprovider"
 version = "1.120.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -811,6 +836,7 @@ name = "community-garden"
 version = "0.1.0"
 dependencies = [
  "aws-config",
+ "aws-sdk-apigateway",
  "aws-sdk-cognitoidentityprovider",
  "aws-sdk-eventbridge",
  "aws-sdk-s3",
@@ -1651,7 +1677,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "tokio",
  "tower-service",
  "tracing",
@@ -2374,7 +2400,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls 0.23.40",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "thiserror",
  "tokio",
  "tracing",
@@ -2411,7 +2437,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "tracing",
  "windows-sys 0.60.2",
 ]

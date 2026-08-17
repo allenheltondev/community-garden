@@ -17,9 +17,6 @@ use tracing::{error, info};
 pub struct ProvisionedKey {
     pub aws_api_key_id: String,
     pub usage_plan_id: String,
-    /// The API Gateway key value. Held only long enough for the authorizer to
-    /// cache it or for the caller to hash it — never written to the database.
-    pub value: String,
 }
 
 fn usage_plan_id() -> Option<String> {
@@ -70,11 +67,6 @@ pub async fn provision(
         .id()
         .ok_or_else(|| lambda_http::Error::from("API Gateway key created without an id"))?
         .to_string();
-    let value = created
-        .value()
-        .ok_or_else(|| lambda_http::Error::from("API Gateway key created without a value"))?
-        .to_string();
-
     // Attach to the usage plan. If this fails the key exists but is unmetered,
     // so it is disabled again rather than left dangling.
     if let Err(error) = client
@@ -97,7 +89,6 @@ pub async fn provision(
     Ok(Some(ProvisionedKey {
         aws_api_key_id: key_id,
         usage_plan_id: plan_id,
-        value,
     }))
 }
 
@@ -126,24 +117,4 @@ async fn disable(client: &Client, key_id: &str) {
 pub async fn revoke(aws_api_key_id: &str) {
     let client = client().await;
     disable(&client, aws_api_key_id).await;
-}
-
-/// Look up the value of a provisioned key so the authorizer can return it as
-/// the request's usage identifier.
-pub async fn key_value(aws_api_key_id: &str) -> Option<String> {
-    let client = client().await;
-
-    match client
-        .get_api_key()
-        .api_key(aws_api_key_id)
-        .include_value(true)
-        .send()
-        .await
-    {
-        Ok(response) => response.value().map(str::to_string),
-        Err(error) => {
-            error!(error = %error, api_key_id = %aws_api_key_id, "Failed to read API Gateway key");
-            None
-        }
-    }
 }

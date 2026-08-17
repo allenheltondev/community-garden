@@ -1,7 +1,7 @@
 use crate::handlers::{
-    agent_task, ai_copilot, analytics, annotation, api_key, bed, billing, catalog, claim,
-    claim_read, crop, feed, garden_canvas, garden_review, garden_share, journal, listing,
-    listing_discovery, reminder, request, user,
+    agent_task, ai_copilot, analytics, annotation, api_access_request, api_key, bed, billing,
+    catalog, claim, claim_read, crop, feed, garden_canvas, garden_review, garden_share, journal,
+    listing, listing_discovery, reminder, request, user,
 };
 use crate::middleware::correlation::{
     add_correlation_id_to_response, extract_or_generate_correlation_id,
@@ -172,7 +172,7 @@ async fn route_dynamic_routes(
     correlation_id: &str,
     request_path: &str,
 ) -> Result<Response<Body>, lambda_http::Error> {
-    if let Some(result) = route_api_key_request(event, correlation_id, request_path).await {
+    if let Some(result) = route_credentials_request(event, correlation_id, request_path).await {
         return handle(result);
     }
 
@@ -317,6 +317,59 @@ async fn route_journal_request(
         _ => return None,
     };
     Some(result)
+}
+
+/// API access requests and the keys they authorise share a dispatch entry so
+/// the main route table stays within its line budget.
+async fn route_credentials_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if let Some(result) = route_api_access_request(event, correlation_id, request_path).await {
+        return Some(result);
+    }
+    route_api_key_request(event, correlation_id, request_path).await
+}
+
+async fn route_api_access_request(
+    event: &Request,
+    correlation_id: &str,
+    request_path: &str,
+) -> Option<Result<Response<Body>, lambda_http::Error>> {
+    if request_path == "/me/api-access-requests" {
+        return Some(match event.method().as_str() {
+            "GET" => api_access_request::list_my_requests(event, correlation_id).await,
+            "POST" => api_access_request::create_request(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+
+    // Admin queue. Authorization is checked in the handler from the
+    // authorizer's isAdmin context, which until now nothing consumed.
+    if request_path == "/admin/api-access-requests" {
+        return Some(match event.method().as_str() {
+            "GET" => api_access_request::admin_list_requests(event, correlation_id).await,
+            _ => method_not_allowed(),
+        });
+    }
+
+    if let Some(rest) = request_path.strip_prefix("/admin/api-access-requests/") {
+        if let Some(id) = rest.strip_suffix("/approve") {
+            return Some(match event.method().as_str() {
+                "POST" => api_access_request::admin_decide(event, correlation_id, id, true).await,
+                _ => method_not_allowed(),
+            });
+        }
+        if let Some(id) = rest.strip_suffix("/deny") {
+            return Some(match event.method().as_str() {
+                "POST" => api_access_request::admin_decide(event, correlation_id, id, false).await,
+                _ => method_not_allowed(),
+            });
+        }
+    }
+
+    None
 }
 
 async fn route_api_key_request(
