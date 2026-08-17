@@ -48,27 +48,42 @@ describe('ApiAccessRequestPanel', () => {
     mockCreate.mockResolvedValue(request());
   });
 
-  it('invites a grower with no history to ask for access', async () => {
+  it('offers a request button rather than an open form', async () => {
     renderPanel();
 
-    expect(
-      await screen.findByRole('button', { name: 'Request API access' })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Request a key' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/What are you building/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the form when the grower asks to request a key', async () => {
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+
     expect(screen.getByLabelText(/What are you building/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Why do you need a key/i)).toBeInTheDocument();
+  });
+
+  it('closes the form again on cancel', async () => {
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByLabelText(/What are you building/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request a key' })).toBeInTheDocument();
   });
 
   it('sends what the admin needs to decide', async () => {
     renderPanel();
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+    await userEvent.type(screen.getByLabelText(/What are you building/i), 'Harvest Sync');
     await userEvent.type(
-      await screen.findByLabelText(/What are you building/i),
-      'Harvest Sync'
-    );
-    await userEvent.type(
-      screen.getByLabelText(/What would you use the API for/i),
+      screen.getByLabelText(/Why do you need a key/i),
       'Mirror my harvest log into a spreadsheet'
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Request API access' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
     expect(mockCreate.mock.calls[0][0]).toEqual({
@@ -80,22 +95,22 @@ describe('ApiAccessRequestPanel', () => {
   it('will not send a request with nothing to review', async () => {
     renderPanel();
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Request API access' })
-    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/what you are building/i);
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it('shows a pending request instead of the form', async () => {
+  it('shows a pending status and nothing to fill in while a decision is out', async () => {
     mockList.mockResolvedValue([request()]);
     renderPanel();
 
-    expect(await screen.findByText(/is with the team/i)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Request API access' })
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText(/Pending review/i)).toBeInTheDocument();
+    expect(screen.getByText('Harvest Sync')).toBeInTheDocument();
+    // The grower's own words are echoed back so they can see what was sent.
+    expect(screen.getByText('Mirror my harvest log')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request a key' })).not.toBeInTheDocument();
   });
 
   it('tells an approved grower to create their key', async () => {
@@ -104,10 +119,8 @@ describe('ApiAccessRequestPanel', () => {
     ]);
     renderPanel();
 
-    expect(await screen.findByText(/API access is approved/i)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Request API access' })
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText(/Approved/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request a key' })).not.toBeInTheDocument();
   });
 
   it('lets a denied grower ask again, and says why it was denied', async () => {
@@ -121,16 +134,17 @@ describe('ApiAccessRequestPanel', () => {
     renderPanel();
 
     expect(await screen.findByText(/Tell us more about the use case/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Request API access' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request a key' })).toBeInTheDocument();
   });
 
   it('surfaces a rejected request rather than clearing the form', async () => {
     mockCreate.mockRejectedValue(new Error('You already have an API access request awaiting review'));
     renderPanel();
 
-    await userEvent.type(await screen.findByLabelText(/What are you building/i), 'Harvest Sync');
-    await userEvent.type(screen.getByLabelText(/What would you use the API for/i), 'Mirror it');
-    await userEvent.click(screen.getByRole('button', { name: 'Request API access' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+    await userEvent.type(screen.getByLabelText(/What are you building/i), 'Harvest Sync');
+    await userEvent.type(screen.getByLabelText(/Why do you need a key/i), 'Mirror it');
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/already have an API access request/i);
   });
@@ -143,8 +157,10 @@ describe('ApiAccessRequestPanel', () => {
 
     // The key exists, so the "create your key" nudge is wrong — but a grower
     // may well be building a second integration.
-    expect(await screen.findByText('You have API access. Ask again below if you are building something new.')).toBeInTheDocument();
-    expect(screen.queryByText(/Create your key below/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Request API access' })).toBeInTheDocument();
+    expect(
+      await screen.findByText('You have API access. Ask again if you are building something new.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/create your key below/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request a key' })).toBeInTheDocument();
   });
 });

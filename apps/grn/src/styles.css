@@ -6136,3 +6136,29 @@ body {
   background: rgba(168, 104, 31, 0.16);
   color: #7a3f10;
 }
+
+.grn-settings-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--og-color-moss);
+  font-weight: 650;
+}
+
+.grn-api-keys-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.grn-api-access__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.grn-api-access h2 {
+  margin: 0;
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+  letter-spacing: normal;
+}

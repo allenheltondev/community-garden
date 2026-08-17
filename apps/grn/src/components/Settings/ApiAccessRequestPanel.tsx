@@ -10,18 +10,21 @@ import { createLogger } from '../../utils/logging';
 
 const logger = createLogger('api-access-request');
 
-function latestRequest(requests: ApiAccessRequestItem[]): ApiAccessRequestItem | null {
-  return requests[0] ?? null;
+function formatDate(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
 }
 
 /**
- * Asking for API access. Keys are approval-gated, so this is the way in: the
- * request goes to the foundation's admins, and once approved the grower
- * creates their own key from the panel below — the secret never travels
- * through an admin console or a Slack channel.
+ * Where a grower asks for API access and then watches for an answer.
+ *
+ * The form stays behind a button: most people arriving at this page are
+ * looking at the keys they already have, and an open form implies filling it
+ * in is the expected next step.
  */
 export function ApiAccessRequestPanel() {
   const queryClient = useQueryClient();
+  const [isRequesting, setIsRequesting] = useState(false);
   const [integrationName, setIntegrationName] = useState('');
   const [intendedUse, setIntendedUse] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -39,17 +42,16 @@ export function ApiAccessRequestPanel() {
       setIntegrationName('');
       setIntendedUse('');
       setFormError(null);
+      setIsRequesting(false);
       await queryClient.invalidateQueries({ queryKey: ['apiAccessRequests'] });
     },
     onError: (error) => {
-      setFormError(
-        error instanceof Error ? error.message : 'Your request could not be sent.'
-      );
+      setFormError(error instanceof Error ? error.message : 'Your request could not be sent.');
     },
   });
 
   const requests = requestsQuery.data ?? [];
-  const current = latestRequest(requests);
+  const current: ApiAccessRequestItem | null = requests[0] ?? null;
   const pending = current?.status === 'pending';
   const approvedUnclaimed = requests.some(
     (request) => request.status === 'approved' && !request.apiKeyId
@@ -64,7 +66,7 @@ export function ApiAccessRequestPanel() {
       return;
     }
     if (!intendedUse.trim()) {
-      setFormError('Tell us what you would use the API for.');
+      setFormError('Tell us why you need a key.');
       return;
     }
     mutation.mutate({
@@ -73,50 +75,61 @@ export function ApiAccessRequestPanel() {
     });
   };
 
+  const cancel = () => {
+    setIsRequesting(false);
+    setFormError(null);
+    setIntegrationName('');
+    setIntendedUse('');
+  };
+
   if (requestsQuery.isPending) {
     return <p className="grn-api-access__status">Checking your API access…</p>;
   }
 
+  // Nothing to ask for while a decision is outstanding: the status is the
+  // whole point of the page until it changes.
+  if (pending && current) {
+    return (
+      <section className="grn-api-access" aria-labelledby="api-access-heading">
+        <h2 id="api-access-heading">Your request</h2>
+        <p className="grn-api-access__pending" role="status">
+          <strong>Pending review</strong> — you asked for a key for{' '}
+          <strong>{current.integrationName}</strong> on {formatDate(current.createdAt)}. We will let
+          you know as soon as it has been looked at.
+        </p>
+        <p className="grn-api-access__intro">{current.intendedUse}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="grn-api-access" aria-labelledby="api-access-heading">
-      <h3 id="api-access-heading">API access</h3>
+      <h2 id="api-access-heading">API access</h2>
 
       {approvedUnclaimed ? (
         <p className="grn-api-access__approved" role="status">
-          Your API access is approved. Create your key below — you will see the secret once.
-        </p>
-      ) : null}
-
-      {pending ? (
-        <p className="grn-api-access__pending" role="status">
-          Your request for <strong>{current?.integrationName}</strong> is with the team. We will
-          email you when it is reviewed.
+          <strong>Approved</strong> — create your key below. You will see the secret once.
         </p>
       ) : null}
 
       {current?.status === 'denied' ? (
         <div className="grn-api-access__denied" role="status">
           <p>
-            Your last request was not approved
+            <strong>Not approved</strong>
             {current.decisionNote ? `: ${current.decisionNote}` : '.'}
           </p>
           <p>You are welcome to ask again with more detail.</p>
         </div>
       ) : null}
 
-      {hasLiveKey && !pending && !approvedUnclaimed ? (
+      {hasLiveKey && !approvedUnclaimed ? (
         <p className="grn-api-access__approved" role="status">
-          You have API access. Ask again below if you are building something new.
+          You have API access. Ask again if you are building something new.
         </p>
       ) : null}
 
-      {!pending && !approvedUnclaimed ? (
+      {isRequesting ? (
         <>
-          <p className="grn-api-access__intro">
-            The Good Roots API is open to growers building their own tools. Tell us what you have
-            in mind and we will get back to you.
-          </p>
-
           <Input
             label="What are you building?"
             type="text"
@@ -129,10 +142,10 @@ export function ApiAccessRequestPanel() {
           />
 
           <Textarea
-            label="What would you use the API for?"
+            label="Why do you need a key?"
             value={intendedUse}
             onChange={(event) => setIntendedUse(event.target.value)}
-            placeholder="I want to mirror my harvest log into my own spreadsheet each evening."
+            placeholder="Tell us about your project — what you want to read or write, and how often. The more you tell us, the quicker this is to review."
             maxLength={2000}
             disabled={mutation.isPending}
             required
@@ -144,17 +157,37 @@ export function ApiAccessRequestPanel() {
             </p>
           ) : null}
 
-          <Button
-            variant="primary"
-            size="md"
-            onClick={submit}
-            loading={mutation.isPending}
-            disabled={mutation.isPending}
-          >
-            Request API access
-          </Button>
+          <div className="grn-api-access__actions">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={submit}
+              loading={mutation.isPending}
+              disabled={mutation.isPending}
+            >
+              Send request
+            </Button>
+            <Button variant="ghost" size="md" onClick={cancel} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+          </div>
         </>
-      ) : null}
+      ) : (
+        <>
+          {!approvedUnclaimed ? (
+            <p className="grn-api-access__intro">
+              Keys are issued by request so we know who is building on the API. Tell us about your
+              project and we will get back to you.
+            </p>
+          ) : null}
+
+          {!approvedUnclaimed ? (
+            <Button variant="primary" size="md" onClick={() => setIsRequesting(true)}>
+              Request a key
+            </Button>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }

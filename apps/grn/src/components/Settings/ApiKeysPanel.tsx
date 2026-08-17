@@ -114,7 +114,7 @@ export function ApiKeysPanel() {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">API keys</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Your keys</h3>
         <p className="text-sm text-gray-600 mt-1">
           A key acts as you, so treat it like a password. Send it as{' '}
           <code>Authorization: Bearer &lt;key&gt;</code>. Keys are issued once your API access
