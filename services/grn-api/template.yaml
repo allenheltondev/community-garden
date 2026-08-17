@@ -48,16 +48,17 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: >
-      Usage-plan identifier the web app's own traffic is metered against, 20-128
-      alphanumeric characters. Leave empty to leave first-party metering off.
-      Must be set before ApiKeyRequired is switched on, otherwise every
-      browser request is rejected for want of a usage identifier.
+      Optional override for the usage-plan identifier the web app's own traffic
+      is metered against, 20-128 alphanumeric characters. Leave empty to use a
+      value derived from the account and environment. This is not a credential:
+      with an AUTHORIZER key source API Gateway ignores any x-api-key a caller
+      sends, so the only way onto a plan is to pass the authorizer.
 Conditions:
   DeployCustomDomain: !And
     - !Not [!Equals [!Ref DomainName, ""]]
     - !Not [!Equals [!Ref DomainHostedZoneId, ""]]
   DeployCiAuthSeedFunction: !Not [!Equals [!Ref EnvironmentName, prod]]
-  MeterFirstPartyTraffic: !Not [!Equals [!Ref FirstPartyApiKeyValue, ""]]
+  HasFirstPartyKeyOverride: !Not [!Equals [!Ref FirstPartyApiKeyValue, ""]]
   DeploySharedApiBasePathMapping: !And
     - !Not [!Equals [!Ref DomainName, ""]]
     - !Not [!Equals [!Ref DomainHostedZoneId, ""]]
@@ -146,26 +147,38 @@ Resources:
   #
   # ENFORCEMENT
   # -----------
+  # Everything enforcement needs is in place and the authorizer now returns a
+  # usage-plan identifier for every caller. The switch itself is one line —
+  # `Auth: {ApiKeyRequired: true}` on the ApiProxy event below — and it must go
+  # in a LATER deploy than this one, not the same one.
+  #
+  # The reason is the authorizer result cache. ReauthorizeEvery is unset, so
+  # API Gateway caches each policy for 300s keyed on the Authorization header.
+  # Policies cached before FIRST_PARTY_API_KEY_VALUE was populated carry no
+  # usage identifier, and serving one of those against a key-requiring method
+  # is a 403. Deploying the identifier first lets the cache refill with it;
+  # after five minutes every cached policy carries a key and the switch is a
+  # no-op for callers.
+  #
   # The API is a single `/{proxy+}` ANY method — path dispatch happens inside
   # the Rust router, so API Gateway has no notion of a "crop endpoint". That
   # makes ApiKeyRequired all-or-nothing: it cannot be scoped to plants, crops,
   # or garden planning without splitting the proxy into per-path resources.
-  # Scoping comes instead from *which plan a key sits on* — integrators land on
-  # IntegrationUsagePlan, the web app on FirstPartyUsagePlan — so the two are
-  # metered separately whether or not enforcement is on.
+  # Scoping comes instead from *which plan a key sits on*: integrators land on
+  # this plan and are throttled, the web app lands on FirstPartyUsagePlan and is
+  # effectively not.
   #
-  # To switch enforcement on, in this order:
-  #   1. deploy with FirstPartyApiKeyValue set (20-128 alphanumeric chars),
-  #   2. add `Auth: {ApiKeyRequired: true}` to the ApiProxy event below.
-  # Doing (2) without (1) rejects every browser request, because with an
-  # AUTHORIZER key source each caller must carry a usage identifier and Cognito
-  # sessions have no key of their own.
+  # Two kinds of caller have no key of their own and rely on that fallback:
+  # Cognito sessions (the web app and admin console) and unauthenticated public
+  # catalog reads. Both are metered as first-party. So are self-serve keys
+  # issued before migration 0041, which have no API Gateway key behind them —
+  # returning their hash would hand API Gateway an identifier it cannot resolve
+  # and 403 them. Reissue those through the approval flow to move them onto
+  # this plan; nothing breaks in the meantime.
   #
-  # Self-serve keys issued before migration 0041 have no API Gateway key behind
-  # them. The authorizer meters those against the first-party key rather than a
-  # hash API Gateway cannot resolve, so they keep working — generously, not on
-  # the integration plan. Reissue them through the approval flow to move them
-  # onto IntegrationUsagePlan; nothing breaks in the meantime.
+  # To turn enforcement back off later, delete the `Auth` block from ApiProxy.
+  # Leave the plans and the key in place: they are what the authorizer already
+  # returns, and removing them is what would break callers.
   IntegrationUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn:
@@ -183,14 +196,14 @@ Resources:
         Limit: 50000
         Period: MONTH
 
-  # The web app's own traffic. Cognito callers carry no key, so the authorizer
-  # hands API Gateway this one shared value on their behalf. It is deliberately
-  # generous and quota-free: this plan exists to keep first-party requests
-  # working once enforcement is on, and to separate their metrics from
-  # integration traffic — not to ration the app against its own users.
+  # The web app's own traffic. Every browser caller shares this one key, so the
+  # throttle here is a single bucket for the whole app — it is set far above
+  # real load and carries no quota on purpose. This plan exists to keep
+  # first-party requests working under enforcement and to separate their
+  # metrics from integration traffic, not to ration the app against its own
+  # users. Lowering it would turn a shared bucket into an outage.
   FirstPartyUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
-    Condition: MeterFirstPartyTraffic
     DependsOn:
       - ApiapiStage
     Properties:
@@ -200,21 +213,25 @@ Resources:
         - ApiId: !Ref Api
           Stage: api
       Throttle:
-        BurstLimit: 2000
-        RateLimit: 1000
+        BurstLimit: 10000
+        RateLimit: 5000
 
   FirstPartyApiKey:
     Type: AWS::ApiGateway::ApiKey
-    Condition: MeterFirstPartyTraffic
     Properties:
       Name: !Sub 'grn-first-party-${EnvironmentName}'
       Description: Usage identifier the authorizer returns for Cognito callers
       Enabled: true
-      Value: !Ref FirstPartyApiKeyValue
+      # A CloudFormation parameter default cannot be computed, so the fallback
+      # lives here. Alphanumeric and comfortably over API Gateway's 20-character
+      # minimum, and unique per account and environment.
+      Value: !If
+        - HasFirstPartyKeyOverride
+        - !Ref FirstPartyApiKeyValue
+        - !Sub 'grnfirstparty${AWS::AccountId}${EnvironmentName}'
 
   FirstPartyUsagePlanKey:
     Type: AWS::ApiGateway::UsagePlanKey
-    Condition: MeterFirstPartyTraffic
     Properties:
       KeyId: !Ref FirstPartyApiKey
       KeyType: API_KEY
@@ -417,13 +434,14 @@ Resources:
           USER_POOL_ID: !ImportValue OGF-UserPoolId
           USER_POOL_CLIENT_ID: !ImportValue OGF-UserPoolClientId
           # Returned as the usageIdentifierKey for every caller that is not
-          # presenting a GRN API key. Unset until first-party metering is
-          # configured, in which case the authorizer returns no identifier —
-          # harmless while ApiKeyRequired is off.
+          # presenting a GRN API key: Cognito sessions, public catalog reads,
+          # preflight, and pre-0041 keys with no API Gateway key of their own.
+          # Enforcement is on, so this must always resolve — an empty value here
+          # is a 403 for the entire web app. Must match FirstPartyApiKey's Value.
           FIRST_PARTY_API_KEY_VALUE: !If
-            - MeterFirstPartyTraffic
+            - HasFirstPartyKeyOverride
             - !Ref FirstPartyApiKeyValue
-            - !Ref 'AWS::NoValue'
+            - !Sub 'grnfirstparty${AWS::AccountId}${EnvironmentName}'
 
   CiAuthSeedUsersFunction:
     Type: AWS::Serverless::Function
@@ -554,6 +572,9 @@ Resources:
             RestApiId: !Ref Api
             Path: /{proxy+}
             Method: ANY
+            # ApiKeyRequired goes here to switch enforcement on. Do it in a
+            # separate deploy from the one that first populates
+            # FIRST_PARTY_API_KEY_VALUE — see the ENFORCEMENT note above.
 
   RollingGeoAggregationWorkerFunction:
     Type: AWS::Serverless::Function
