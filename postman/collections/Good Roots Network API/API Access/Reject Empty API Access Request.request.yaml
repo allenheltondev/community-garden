@@ -1,0 +1,34 @@
+$kind: http-request
+name: Reject Empty API Access Request
+description: |-
+  A request with nothing for an admin to review is a 400, not a 500. The field
+  names are camelCase, which the generic validation mapping does not catch, so
+  this is the assertion that keeps the mapping honest.
+method: POST
+url: '{{baseUrl}}/me/api-access-requests'
+order: 3000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "integrationName": "   ",
+      "intendedUse": "Mirror my harvest log"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 400", function () {
+          pm.response.to.have.status(400);
+      });
+
+      pm.test("Names the field that needs filling in", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("error");
+          pm.expect(body.error).to.match(/integrationName/);
+      });

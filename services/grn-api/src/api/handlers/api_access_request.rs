@@ -341,7 +341,11 @@ fn row_to_admin_item(row: &Row) -> AdminApiAccessRequestItem {
 fn require_admin(request: &Request) -> Result<crate::auth::AuthContext, lambda_http::Error> {
     let auth = extract_auth_context(request)?;
     if !auth.is_admin {
-        return Err(lambda_http::Error::from("forbidden:admin".to_string()));
+        // The "Forbidden:" prefix is what the router maps to a 403; without it
+        // a non-admin caller gets a 500 instead of a refusal.
+        return Err(lambda_http::Error::from(
+            "Forbidden: admin access is required".to_string(),
+        ));
     }
     Ok(auth)
 }
@@ -406,7 +410,8 @@ fn query_param(request: &Request, name: &str) -> Option<String> {
 }
 
 fn parse_uuid(value: &str, field_name: &str) -> Result<Uuid, lambda_http::Error> {
-    Uuid::parse_str(value).map_err(|_| lambda_http::Error::from(format!("Invalid {field_name}")))
+    Uuid::parse_str(value)
+        .map_err(|_| lambda_http::Error::from(format!("{field_name} must be a valid UUID")))
 }
 
 fn parse_json_body<T: serde::de::DeserializeOwned>(

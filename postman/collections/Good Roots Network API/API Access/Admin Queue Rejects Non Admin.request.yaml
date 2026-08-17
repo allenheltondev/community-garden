@@ -1,0 +1,25 @@
+$kind: http-request
+name: Admin Queue Rejects Non Admin
+description: |-
+  The review queue exposes every requester's email and tier, so a grower token
+  must be refused outright. A 403 here is the contract; anything else (a 500, or
+  worse, a 200) is a leak.
+method: GET
+url: '{{baseUrl}}/admin/api-access-requests'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 403", function () {
+          pm.response.to.have.status(403);
+      });
+
+      pm.test("No other grower's details come back", function () {
+          const raw = pm.response.text();
+          pm.expect(raw).to.not.match(/userEmail/);
+          pm.expect(raw).to.not.match(/"items"/);
+      });

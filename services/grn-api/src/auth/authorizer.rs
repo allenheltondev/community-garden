@@ -59,6 +59,15 @@ struct PolicyResponse {
     policy_document: PolicyDocument,
     #[serde(skip_serializing_if = "Option::is_none")]
     context: Option<HashMap<String, String>>,
+    /// The API Gateway key this request should be metered against.
+    ///
+    /// Only consulted when the API's key source is AUTHORIZER and the method
+    /// requires a key; otherwise API Gateway ignores it. Returning it always
+    /// means enforcement can be switched on without another authorizer change,
+    /// and means the integrator never sends an `x-api-key` header — their GRN
+    /// key doubles as the usage-plan key, so the plan is invisible to them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    usage_identifier_key: Option<String>,
 }
 
 fn install_rustls_crypto_provider() {
@@ -202,7 +211,19 @@ async fn handle_api_key_auth(
         ("authMethod", Some("api_key".to_string())),
     ]);
 
-    Ok(generate_policy(&principal_id, "Allow", &api_arn, context))
+    // Integrators are metered against their own API Gateway key rather than the
+    // shared first-party one, which is what puts them on the integration usage
+    // plan's throttle and quota. The API Gateway key's *value* is this same
+    // hash — set when the key is provisioned — so the identifier is derived
+    // from the presented token with no extra lookup and no second secret at
+    // rest. Only the key id is stored against the row, never a key value.
+    Ok(generate_policy_with_usage_key(
+        &principal_id,
+        "Allow",
+        &api_arn,
+        context,
+        Some(key_hash),
+    ))
 }
 
 fn sha256_hex(input: &str) -> String {
@@ -536,6 +557,26 @@ fn generate_policy(
     resource: &str,
     context: Option<HashMap<String, String>>,
 ) -> PolicyResponse {
+    generate_policy_with_usage_key(principal_id, effect, resource, context, first_party_usage_key())
+}
+
+/// The shared key every first-party caller (the web app, signed in with
+/// Cognito) is metered against. Without it, switching enforcement on would
+/// reject browser traffic, which carries no API key of its own.
+fn first_party_usage_key() -> Option<String> {
+    std::env::var("FIRST_PARTY_API_KEY_VALUE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn generate_policy_with_usage_key(
+    principal_id: &str,
+    effect: &str,
+    resource: &str,
+    context: Option<HashMap<String, String>>,
+    usage_identifier_key: Option<String>,
+) -> PolicyResponse {
     PolicyResponse {
         principal_id: principal_id.to_string(),
         policy_document: PolicyDocument {
@@ -547,6 +588,11 @@ fn generate_policy(
             }],
         },
         context: if effect == "Allow" { context } else { None },
+        usage_identifier_key: if effect == "Allow" {
+            usage_identifier_key
+        } else {
+            None
+        },
     }
 }
 
@@ -710,5 +756,53 @@ mod tests {
         assert!(!is_public_get_path("/grnxyz/catalog/crops"));
         assert!(!is_public_get_path("/catalog/crops/123"));
         assert!(!is_public_get_path("/shared-gardens"));
+    }
+
+    /// A denied caller must never be handed a usage identifier: it would let a
+    /// rejected request draw down someone else's plan.
+    #[test]
+    fn deny_carries_no_usage_identifier() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Deny",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            Some("first-party-key".to_string()),
+        );
+
+        assert!(policy.usage_identifier_key.is_none());
+    }
+
+    #[test]
+    fn allow_carries_the_usage_identifier_it_was_given() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Allow",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            Some("first-party-key".to_string()),
+        );
+
+        assert_eq!(
+            policy.usage_identifier_key.as_deref(),
+            Some("first-party-key")
+        );
+    }
+
+    /// The field is skipped entirely when absent. API Gateway rejects a null
+    /// `usageIdentifierKey` on a key-required method, so an unconfigured
+    /// environment has to look like it said nothing at all.
+    #[test]
+    fn missing_usage_identifier_is_omitted_from_the_payload() {
+        let policy = generate_policy_with_usage_key(
+            "user",
+            "Allow",
+            "arn:aws:execute-api:us-east-1:1:abc/api/*/*",
+            None,
+            None,
+        );
+        let json = serde_json::to_string(&policy).unwrap_or_default();
+
+        assert!(!json.contains("usageIdentifierKey"), "{json}");
     }
 }

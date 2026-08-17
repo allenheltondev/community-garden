@@ -105,10 +105,13 @@ pub async fn create_api_key(
 
     // Provision the API Gateway side before writing the row: if the usage plan
     // cannot be attached, no credential should exist at all. The grower never
-    // sees these identifiers — the authorizer uses them on their behalf.
+    // sees these identifiers — the authorizer uses them on their behalf, and
+    // the hash it already computes to authenticate the key doubles as the
+    // API Gateway key value, so nothing extra has to be stored or looked up.
     let provisioned = api_gateway_keys::provision(
         &format!("grn-{user_id}-{key_prefix}"),
         &format!("GRN API access for request {access_request_id}"),
+        &key_hash,
     )
     .await?;
     let aws_api_key_id = provisioned.as_ref().map(|key| key.aws_api_key_id.clone());

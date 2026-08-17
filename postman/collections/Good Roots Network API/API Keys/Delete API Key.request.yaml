@@ -1,6 +1,9 @@
 $kind: http-request
 name: Delete API Key
-description: Revoke (soft-delete) the API key created earlier in this run.
+description: |-
+  Revoke (soft-delete) the API key created earlier in this run. Revoking also
+  disables the API Gateway key behind it, so the credential stops drawing on the
+  integration usage plan. Falls back to asserting the 404 when no key existed.
 method: DELETE
 url: '{{baseUrl}}/me/api-keys/:apiKeyId'
 order: 5000
@@ -27,8 +30,17 @@ scripts:
   - type: afterResponse
     language: text/javascript
     code: |-
+      if (pm.collectionVariables.get("apiKeyIssued") !== "true") {
+          pm.test("An id the caller does not own is a 404", function () {
+              pm.response.to.have.status(404);
+          });
+          pm.collectionVariables.unset("apiKeyId");
+          return;
+      }
+
       pm.test("Status code is 204", function () {
           pm.response.to.have.status(204);
       });
 
       pm.collectionVariables.unset("apiKeyId");
+      pm.collectionVariables.unset("apiKeyIssued");

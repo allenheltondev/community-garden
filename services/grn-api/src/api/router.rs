@@ -513,6 +513,16 @@ fn is_garden_designer_validation_message(message: &str) -> bool {
         || message.contains("contentLength must be")
 }
 
+/// API access request validation. The generic `name is required` check below is
+/// case-sensitive, so `integrationName is required` would otherwise fall
+/// through to a 500 instead of telling the caller what to fix.
+fn is_api_access_validation_message(message: &str) -> bool {
+    message.contains("integrationName is required")
+        || message.contains("integrationName must be")
+        || message.contains("intendedUse is required")
+        || message.contains("intendedUse must be")
+}
+
 fn is_journal_validation_message(message: &str) -> bool {
     message.contains("season must be")
         || message.contains("occurredOn")
@@ -583,6 +593,7 @@ fn map_api_error_to_response(
         || message.contains("requestId must reference an open request")
         || message.contains("requestId crop must match listing crop")
         || is_journal_validation_message(&message)
+        || is_api_access_validation_message(&message)
     {
         return crop::error_response(400, &message);
     }
@@ -786,6 +797,31 @@ mod tests {
         let error = lambda_http::Error::from("Listing not found".to_string());
         let response = map_api_error_to_response(&error).unwrap();
         assert_eq!(response.status().as_u16(), 404);
+    }
+
+    /// `integrationName is required` does not contain the lowercase
+    /// `name is required` the generic check looks for, so without its own
+    /// clause it fell through to a 500 and told the caller nothing.
+    #[test]
+    fn map_api_error_maps_api_access_validation_to_400() {
+        for message in [
+            "integrationName is required",
+            "integrationName must be 120 characters or fewer",
+            "intendedUse is required",
+            "intendedUse must be 2000 characters or fewer",
+        ] {
+            let error = lambda_http::Error::from(message.to_string());
+            let response = map_api_error_to_response(&error).unwrap();
+            assert_eq!(response.status().as_u16(), 400, "{message}");
+        }
+    }
+
+    /// A grower hitting the admin queue must be refused, not handed a 500.
+    #[test]
+    fn map_api_error_maps_admin_only_access_to_403() {
+        let error = lambda_http::Error::from("Forbidden: admin access is required".to_string());
+        let response = map_api_error_to_response(&error).unwrap();
+        assert_eq!(response.status().as_u16(), 403);
     }
 
     #[test]

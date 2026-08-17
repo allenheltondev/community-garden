@@ -1,11 +1,13 @@
 //! Provisioning for the API Gateway side of an approved access request.
 //!
 //! The grower never sees or sends the API Gateway key. Their credential stays
-//! the GRN key (`grnk_…`); the authorizer looks up the matching API Gateway key
-//! value and returns it as the request's `usageIdentifierKey`, which is what
-//! lets a usage plan throttle and meter them. Everything in here is therefore
-//! invisible plumbing: identifiers are stored against the GRN key so access can
-//! be disabled later, and the key value itself is never persisted.
+//! the GRN key (`grnk_…`); the API Gateway key's value is set to the SHA-256 of
+//! that credential, so the authorizer can hand API Gateway a
+//! `usageIdentifierKey` computed straight from the presented token — no lookup,
+//! and nothing at rest that the authorizer does not already store. That
+//! identifier is what lets a usage plan throttle and meter them. Everything in
+//! here is therefore invisible plumbing: the key id is recorded against the GRN
+//! key so access can be disabled later.
 
 use aws_config::BehaviorVersion;
 use aws_sdk_apigateway::Client;
@@ -34,6 +36,15 @@ async fn client() -> Client {
 /// Create an API Gateway key for an approved request and attach it to the
 /// integration usage plan.
 ///
+/// `value` must be the SHA-256 hex of the GRN key the grower was handed: it
+/// becomes the API Gateway key's value, which is the string the authorizer
+/// returns as `usageIdentifierKey` on that grower's requests. Hex keeps it
+/// inside the character set API Gateway accepts and well past its 20-character
+/// minimum. It is not a credential on its own — with an `AUTHORIZER` key
+/// source, API Gateway ignores any `x-api-key` a caller sends, so the only way
+/// to be metered against this key is to pass the authorizer holding the real
+/// `grnk_…` secret.
+///
 /// Returns `Ok(None)` when no usage plan is configured for the environment,
 /// which is the case before the plan is deployed: approval still issues the GRN
 /// key so the integrator is not blocked, and the key can be attached later.
@@ -42,6 +53,7 @@ async fn client() -> Client {
 pub async fn provision(
     name: &str,
     description: &str,
+    value: &str,
 ) -> Result<Option<ProvisionedKey>, lambda_http::Error> {
     let Some(plan_id) = usage_plan_id() else {
         info!("No INTEGRATION_USAGE_PLAN_ID configured; issuing key without a usage plan");
@@ -55,7 +67,7 @@ pub async fn provision(
         .name(name)
         .description(description)
         .enabled(true)
-        .generate_distinct_id(true)
+        .value(value)
         .send()
         .await
         .map_err(|error| {

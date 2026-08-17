@@ -43,11 +43,21 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional Stripe price id for GRN Pro checkout
+  FirstPartyApiKeyValue:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >
+      Usage-plan identifier the web app's own traffic is metered against, 20-128
+      alphanumeric characters. Leave empty to leave first-party metering off.
+      Must be set before ApiKeyRequired is switched on, otherwise every
+      browser request is rejected for want of a usage identifier.
 Conditions:
   DeployCustomDomain: !And
     - !Not [!Equals [!Ref DomainName, ""]]
     - !Not [!Equals [!Ref DomainHostedZoneId, ""]]
   DeployCiAuthSeedFunction: !Not [!Equals [!Ref EnvironmentName, prod]]
+  MeterFirstPartyTraffic: !Not [!Equals [!Ref FirstPartyApiKeyValue, ""]]
   DeploySharedApiBasePathMapping: !And
     - !Not [!Equals [!Ref DomainName, ""]]
     - !Not [!Equals [!Ref DomainHostedZoneId, ""]]
@@ -97,6 +107,11 @@ Resources:
       Name: !Sub "Good Roots Network API (${EnvironmentName})"
       TracingEnabled: false
       StageName: api
+      # Usage-plan keys come from the authorizer's `usageIdentifierKey`, never
+      # from an `x-api-key` header. That is what keeps the plan invisible:
+      # integrators send only their `grnk_…` bearer token, and a caller cannot
+      # put themselves on a plan by guessing a key value.
+      ApiKeySourceType: AUTHORIZER
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,Idempotency-Key,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
@@ -126,10 +141,22 @@ Resources:
   # authorizer resolves their GRN key to it, so the plan applies without the
   # integrator sending anything extra.
   #
-  # Enforcement is not switched on yet — no method sets ApiKeyRequired, because
-  # with an AUTHORIZER key source that would also demand a usage identifier for
-  # the web app's Cognito callers. Designating the integration surface is a
-  # follow-up; until then this plan meters nothing and is safe to deploy.
+  # ENFORCEMENT
+  # -----------
+  # The API is a single `/{proxy+}` ANY method — path dispatch happens inside
+  # the Rust router, so API Gateway has no notion of a "crop endpoint". That
+  # makes ApiKeyRequired all-or-nothing: it cannot be scoped to plants, crops,
+  # or garden planning without splitting the proxy into per-path resources.
+  # Scoping comes instead from *which plan a key sits on* — integrators land on
+  # IntegrationUsagePlan, the web app on FirstPartyUsagePlan — so the two are
+  # metered separately whether or not enforcement is on.
+  #
+  # To switch enforcement on, in this order:
+  #   1. deploy with FirstPartyApiKeyValue set (20-128 alphanumeric chars),
+  #   2. add `Auth: {ApiKeyRequired: true}` to the ApiProxy event below.
+  # Doing (2) without (1) rejects every browser request, because with an
+  # AUTHORIZER key source each caller must carry a usage identifier and Cognito
+  # sessions have no key of their own.
   IntegrationUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn:
@@ -146,6 +173,43 @@ Resources:
       Quota:
         Limit: 50000
         Period: MONTH
+
+  # The web app's own traffic. Cognito callers carry no key, so the authorizer
+  # hands API Gateway this one shared value on their behalf. It is deliberately
+  # generous and quota-free: this plan exists to keep first-party requests
+  # working once enforcement is on, and to separate their metrics from
+  # integration traffic — not to ration the app against its own users.
+  FirstPartyUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: MeterFirstPartyTraffic
+    DependsOn:
+      - ApiapiStage
+    Properties:
+      UsagePlanName: !Sub 'grn-first-party-${EnvironmentName}'
+      Description: Good Roots web app and admin console traffic
+      ApiStages:
+        - ApiId: !Ref Api
+          Stage: api
+      Throttle:
+        BurstLimit: 2000
+        RateLimit: 1000
+
+  FirstPartyApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: MeterFirstPartyTraffic
+    Properties:
+      Name: !Sub 'grn-first-party-${EnvironmentName}'
+      Description: Usage identifier the authorizer returns for Cognito callers
+      Enabled: true
+      Value: !Ref FirstPartyApiKeyValue
+
+  FirstPartyUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: MeterFirstPartyTraffic
+    Properties:
+      KeyId: !Ref FirstPartyApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref FirstPartyUsagePlan
 
   SharedApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
@@ -305,6 +369,14 @@ Resources:
           DATABASE_URL: !Ref DatabaseUrl
           USER_POOL_ID: !ImportValue OGF-UserPoolId
           USER_POOL_CLIENT_ID: !ImportValue OGF-UserPoolClientId
+          # Returned as the usageIdentifierKey for every caller that is not
+          # presenting a GRN API key. Unset until first-party metering is
+          # configured, in which case the authorizer returns no identifier —
+          # harmless while ApiKeyRequired is off.
+          FIRST_PARTY_API_KEY_VALUE: !If
+            - MeterFirstPartyTraffic
+            - !Ref FirstPartyApiKeyValue
+            - !Ref 'AWS::NoValue'
 
   CiAuthSeedUsersFunction:
     Type: AWS::Serverless::Function

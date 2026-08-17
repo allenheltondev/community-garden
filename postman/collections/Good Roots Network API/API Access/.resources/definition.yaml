@@ -1,0 +1,10 @@
+$kind: collection
+name: API Access
+description: |-
+  Approval-gated programmatic access. A grower asks for a key here; an admin
+  decides in the admin console. Only an approved request can be turned into an
+  API key, so this folder runs before "API Keys".
+
+  The CI token is a grower, never an admin, so the admin queue and decision
+  endpoints are covered from the outside: they must refuse a non-admin caller.
+order: 11500

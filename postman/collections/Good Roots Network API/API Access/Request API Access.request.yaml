@@ -1,0 +1,56 @@
+$kind: http-request
+name: Request API Access
+description: |-
+  Ask for programmatic access. CI reuses the same grower between runs, so a
+  pending request may already exist from an earlier run — that answer is part
+  of the contract too (one open request per grower) and is asserted here rather
+  than treated as a flake.
+method: POST
+url: '{{baseUrl}}/me/api-access-requests'
+order: 1000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "integrationName": "Postman harvest mirror",
+      "intendedUse": "Mirror my harvest log into a spreadsheet so I can plan next season."
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status is 201 (created) or 409 (one already open)", function () {
+          pm.expect([201, 409]).to.include(pm.response.code);
+      });
+
+      if (pm.response.code === 409) {
+          pm.test("Only one request may be open at a time", function () {
+              const body = pm.response.json();
+              pm.expect(body).to.have.property("error");
+              pm.expect(body.error).to.match(/already have an API access request/i);
+          });
+          return;
+      }
+
+      pm.test("Returns the request as the grower will see it", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.property("id");
+          pm.expect(body).to.have.property("status", "pending");
+          pm.expect(body).to.have.property("integrationName", "Postman harvest mirror");
+          pm.expect(body).to.have.property("intendedUse");
+          pm.expect(body).to.have.property("createdAt");
+          // A pending request has no decision and no key behind it yet.
+          pm.expect(body.decidedAt, "decidedAt").to.be.oneOf([null, undefined]);
+          pm.expect(body.apiKeyId, "apiKeyId").to.be.oneOf([null, undefined]);
+          // The request record must never carry a credential.
+          pm.expect(body).to.not.have.property("key");
+
+          if (body.id) {
+              pm.collectionVariables.set("apiAccessRequestId", body.id);
+          }
+      });

@@ -1,0 +1,44 @@
+$kind: http-request
+name: Self Approval Is Rejected
+description: |-
+  The approval endpoint is what mints API access, so a grower must not be able
+  to approve their own request. Uses the request id captured above — the id
+  being real is the point: the refusal has to come from the admin check, not
+  from a lookup miss.
+method: POST
+url: '{{baseUrl}}/admin/api-access-requests/:requestId/approve'
+order: 5000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: requestId
+    value: '{{apiAccessRequestId}}'
+    description: UUID of the grower's own access request
+body:
+  type: json
+  content: |-
+    {
+      "note": "Approving my own request should not be possible"
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const requestId = pm.collectionVariables.get("apiAccessRequestId");
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      pm.test("apiAccessRequestId is set and a valid UUID", function () {
+          pm.expect(requestId, "apiAccessRequestId is required").to.be.a("string").and.not.empty;
+          pm.expect(requestId).to.match(uuidRe);
+      });
+      if (!requestId || !uuidRe.test(requestId)) {
+          postman.setNextRequest(null);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 403", function () {
+          pm.response.to.have.status(403);
+      });

@@ -1,6 +1,9 @@
 $kind: http-request
 name: List API Keys
-description: List the user's active API keys and confirm secrets are never returned.
+description: |-
+  List the user's active API keys and confirm secrets are never returned. The
+  list is empty for a grower whose access has not been approved, so the shape
+  is what is asserted rather than a minimum length.
 method: GET
 url: '{{baseUrl}}/me/api-keys'
 order: 2000
@@ -18,11 +21,17 @@ scripts:
       pm.test("Response lists keys without secrets", function () {
           const body = pm.response.json();
           pm.expect(body).to.have.property("items").that.is.an("array");
-          pm.expect(body.items.length).to.be.at.least(1);
-          const item = body.items[0];
-          pm.expect(item).to.have.property("id");
-          pm.expect(item).to.have.property("name");
-          pm.expect(item).to.have.property("keyPrefix");
-          pm.expect(item).to.not.have.property("key");
-          pm.expect(item).to.not.have.property("keyHash");
+
+          if (pm.collectionVariables.get("apiKeyIssued") === "true") {
+              pm.expect(body.items.length, "the key just created should be listed").to.be.at.least(1);
+          }
+
+          for (const item of body.items) {
+              pm.expect(item).to.have.property("id");
+              pm.expect(item).to.have.property("name");
+              pm.expect(item).to.have.property("keyPrefix");
+              pm.expect(item).to.not.have.property("key");
+              pm.expect(item).to.not.have.property("keyHash");
+              pm.expect(item).to.not.have.property("awsApiKeyId");
+          }
       });
