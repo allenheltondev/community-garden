@@ -4,7 +4,7 @@ description: |-
   Fetch the public catalog of crops. No authentication required.
   Captures the first crop ID for the variety lookup in Step 2.
 method: GET
-url: '{{baseUrl}}/catalog/crops'
+url: '{{baseUrl}}/catalog/crops?cb={{$guid}}'
 order: 1000
 auth:
   type: none

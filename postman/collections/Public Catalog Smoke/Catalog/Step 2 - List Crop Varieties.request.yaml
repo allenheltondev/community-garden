@@ -3,7 +3,7 @@ name: Step 2 - List Crop Varieties
 description: |-
   Fetch varieties for the crop captured in Step 1. No authentication required.
 method: GET
-url: '{{baseUrl}}/catalog/crops/:cropId/varieties'
+url: '{{baseUrl}}/catalog/crops/:cropId/varieties?cb={{$guid}}'
 order: 2000
 auth:
   type: none
