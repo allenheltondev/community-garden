@@ -1236,7 +1236,16 @@ jobs:
       - name: Run public catalog smoke collection
         run: |
           postman collection run "postman/collections/Public Catalog Smoke" \
-            --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}"
+            --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
+            | tee /tmp/public-smoke.txt
+
+          # The CLI exits 0 when it parses a collection to nothing, which is how
+          # this job reported success for months while running no requests at
+          # all. Fail loudly on an empty run instead.
+          if grep -qE "^\|[[:space:]]+requests[[:space:]]+\|[[:space:]]+0[[:space:]]+\|" /tmp/public-smoke.txt; then
+            echo "The Public Catalog Smoke collection executed zero requests."
+            exit 1
+          fi
 
   postman-api-tests:
     name: GRN Staging Postman Validation

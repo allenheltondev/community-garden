@@ -7,7 +7,7 @@ method: GET
 url: '{{baseUrl}}/catalog/crops?cb={{$guid}}'
 order: 1000
 auth:
-  type: none
+  type: noauth
 scripts:
   - type: afterResponse
     language: text/javascript

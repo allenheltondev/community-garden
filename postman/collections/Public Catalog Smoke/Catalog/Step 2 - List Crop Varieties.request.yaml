@@ -6,7 +6,7 @@ method: GET
 url: '{{baseUrl}}/catalog/crops/:cropId/varieties?cb={{$guid}}'
 order: 2000
 auth:
-  type: none
+  type: noauth
 pathVariables:
   - key: cropId
     value: '{{catalogCropId}}'
