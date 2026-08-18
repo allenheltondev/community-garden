@@ -1235,6 +1235,10 @@ jobs:
 
       - name: Run public catalog smoke collection
         run: |
+          # Without pipefail the exit status is tee's, so a failing collection
+          # would be reported as a pass — the same class of silent green this
+          # job already had.
+          set -o pipefail
           postman collection run "postman/collections/Public Catalog Smoke" \
             --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
             | tee /tmp/public-smoke.txt
