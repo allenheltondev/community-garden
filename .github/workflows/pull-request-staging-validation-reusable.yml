@@ -1167,11 +1167,38 @@ jobs:
     if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true'
 
     steps:
-      - name: Verify unauthorized catalog request is rejected
+      # Read-only routes are public so a shared link works for someone who is
+      # not signed in. Anything beyond reading still needs a token. This job
+      # asserts both halves, because it previously asserted the opposite of the
+      # first one and kept the public catalog broken for a long time.
+      - name: Verify public reads work without a token
         run: |
           API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
-          HTTP_CODE=$(curl --silent --show-error --output /tmp/catalog.json --write-out "%{http_code}" "$API_URL/catalog/crops")
-          test "$HTTP_CODE" = "401"
+          CODE=$(curl --silent --show-error --output /tmp/catalog.json --write-out "%{http_code}" "$API_URL/catalog/crops")
+          echo "GET /catalog/crops -> $CODE"
+          test "$CODE" = "200"
+
+      - name: Verify an unknown shared garden is a 404, not an auth error
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$API_URL/shared-gardens/does-not-exist")
+          echo "GET /shared-gardens/does-not-exist -> $CODE"
+          test "$CODE" = "404"
+
+      - name: Verify protected reads still require a token
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$API_URL/me")
+          echo "GET /me -> $CODE"
+          test "$CODE" = "401"
+
+      - name: Verify writes still require a token
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            -X POST "$API_URL/crops" -H "Content-Type: application/json" -d '{"cropName":"probe"}')
+          echo "POST /crops -> $CODE"
+          test "$CODE" = "401"
 
   postman-public-smoke:
     name: GRN Public Catalog Smoke Test
