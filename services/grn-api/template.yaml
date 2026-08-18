@@ -174,10 +174,11 @@ Resources:
   # identifier existed carries none, and serving one of those against a
   # key-requiring method is a 403 for that caller until the entry expires.
   #
-  # The API is a single `/{proxy+}` ANY method — path dispatch happens inside
-  # the Rust router, so API Gateway has no notion of a "crop endpoint". That
-  # makes ApiKeyRequired all-or-nothing: it cannot be scoped to plants, crops,
-  # or garden planning without splitting the proxy into per-path resources.
+  # Everything except the three public reads is a single `/{proxy+}` ANY
+  # method — path dispatch happens inside the Rust router, so API Gateway has
+  # no notion of a "crop endpoint". That makes ApiKeyRequired all-or-nothing
+  # across authenticated traffic: it cannot be scoped to plants, crops, or
+  # garden planning without splitting the proxy into per-path resources.
   # Scoping comes instead from *which plan a key sits on*: integrators land on
   # this plan and are throttled, the web app lands on FirstPartyUsagePlan and is
   # effectively not.
@@ -596,10 +597,15 @@ Resources:
         # five minutes. Bypassing the authorizer for three GETs is cheaper and
         # narrower.
         #
-        # ApiKeyRequired is off here because there is no authorizer to return a
-        # usage identifier; the throttles in MethodSettings cover these paths
-        # instead. Anything beyond reading still goes through /{proxy+} and
-        # still needs a token.
+        # No ApiKeyRequired here at all, rather than an explicit false: SAM
+        # rejects an event-level false unless the API declares one, and
+        # declaring it API-wide would also apply it to the CORS preflight
+        # methods SAM generates — which have no authorizer to name a usage
+        # identifier, so browsers would fail preflight. Omitted, these methods
+        # default to requiring no key, which is what an anonymous read needs.
+        # The throttles in MethodSettings stand in for the usage plan.
+        # Anything beyond reading still goes through /{proxy+} and needs a
+        # token.
         PublicCatalogCrops:
           Type: Api
           Properties:
@@ -608,7 +614,6 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE
-              ApiKeyRequired: false
         PublicCatalogVarieties:
           Type: Api
           Properties:
@@ -617,7 +622,6 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE
-              ApiKeyRequired: false
         PublicSharedGarden:
           Type: Api
           Properties:
@@ -626,7 +630,6 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE
-              ApiKeyRequired: false
         ApiProxy:
           Type: Api
           Properties:
