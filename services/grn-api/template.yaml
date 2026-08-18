@@ -145,20 +145,16 @@ Resources:
   # authorizer resolves their GRN key to it, so the plan applies without the
   # integrator sending anything extra.
   #
-  # ENFORCEMENT
-  # -----------
-  # Everything enforcement needs is in place and the authorizer now returns a
-  # usage-plan identifier for every caller. The switch itself is one line —
-  # `Auth: {ApiKeyRequired: true}` on the ApiProxy event below — and it must go
-  # in a LATER deploy than this one, not the same one.
+  # ENFORCEMENT IS ON, via `Auth: {ApiKeyRequired: true}` on the ApiProxy event
+  # below. Every request must carry a usage-plan identifier, and the authorizer
+  # returns one for every caller it allows, so nothing is locked out.
   #
-  # The reason is the authorizer result cache. ReauthorizeEvery is unset, so
-  # API Gateway caches each policy for 300s keyed on the Authorization header.
-  # Policies cached before FIRST_PARTY_API_KEY_VALUE was populated carry no
-  # usage identifier, and serving one of those against a key-requiring method
-  # is a 403. Deploying the identifier first lets the cache refill with it;
-  # after five minutes every cached policy carries a key and the switch is a
-  # no-op for callers.
+  # It was switched on in a separate deploy from the one that first populated
+  # FIRST_PARTY_API_KEY_VALUE, and any future change here should respect the
+  # same ordering. ReauthorizeEvery is unset, so API Gateway caches each policy
+  # for 300s keyed on the Authorization header; a policy cached from before the
+  # identifier existed carries none, and serving one of those against a
+  # key-requiring method is a 403 for that caller until the entry expires.
   #
   # The API is a single `/{proxy+}` ANY method — path dispatch happens inside
   # the Rust router, so API Gateway has no notion of a "crop endpoint". That
@@ -572,9 +568,13 @@ Resources:
             RestApiId: !Ref Api
             Path: /{proxy+}
             Method: ANY
-            # ApiKeyRequired goes here to switch enforcement on. Do it in a
-            # separate deploy from the one that first populates
-            # FIRST_PARTY_API_KEY_VALUE — see the ENFORCEMENT note above.
+            Auth:
+              # Every request must carry a usage-plan identifier. The authorizer
+              # returns one for all of them: integrators get their own key,
+              # everyone else — Cognito sessions, public catalog reads,
+              # pre-0041 keys — gets the first-party key. See the ENFORCEMENT
+              # note above before changing this.
+              ApiKeyRequired: true
 
   RollingGeoAggregationWorkerFunction:
     Type: AWS::Serverless::Function
