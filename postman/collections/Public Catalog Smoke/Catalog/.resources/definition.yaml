@@ -1,0 +1,9 @@
+$kind: collection
+name: Catalog
+description: |-
+  The public catalog endpoints, run without a token.
+
+  These requests live in a folder rather than at the collection root because
+  the Postman CLI does not pick up root-level requests: the job ran zero
+  requests and reported success for as long as they sat there.
+order: 1000

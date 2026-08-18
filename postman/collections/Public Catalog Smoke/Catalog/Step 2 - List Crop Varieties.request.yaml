@@ -3,10 +3,10 @@ name: Step 2 - List Crop Varieties
 description: |-
   Fetch varieties for the crop captured in Step 1. No authentication required.
 method: GET
-url: '{{baseUrl}}/catalog/crops/:cropId/varieties'
+url: '{{baseUrl}}/catalog/crops/:cropId/varieties?cb={{$guid}}'
 order: 2000
 auth:
-  type: none
+  type: noauth
 pathVariables:
   - key: cropId
     value: '{{catalogCropId}}'
@@ -20,7 +20,9 @@ scripts:
       });
 
       pm.test("Response is JSON", function () {
-          pm.response.to.have.header("Content-Type", /application\/json/);
+          // .header(name, value) does an exact string match; passing a regex
+          // stringifies it and can never match. Assert on the value instead.
+          pm.expect(pm.response.headers.get("Content-Type")).to.match(/application\/json/);
       });
 
       const varieties = pm.response.json();

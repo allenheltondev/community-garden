@@ -139,6 +139,24 @@ Resources:
           HttpMethod: "*"
           LoggingLevel: ERROR
           DataTraceEnabled: True
+        # The public reads sit on no usage plan, since they have no authorizer
+        # to name one. These stage throttles are what stands in for that, so an
+        # unauthenticated path cannot be used to hammer the database.
+        - MetricsEnabled: True
+          ResourcePath: "/catalog/crops"
+          HttpMethod: "GET"
+          ThrottlingRateLimit: 25
+          ThrottlingBurstLimit: 50
+        - MetricsEnabled: True
+          ResourcePath: "/catalog/crops/{cropId}/varieties"
+          HttpMethod: "GET"
+          ThrottlingRateLimit: 25
+          ThrottlingBurstLimit: 50
+        - MetricsEnabled: True
+          ResourcePath: "/shared-gardens/{token}"
+          HttpMethod: "GET"
+          ThrottlingRateLimit: 25
+          ThrottlingBurstLimit: 50
 
   # Throttle and quota for approved integrations. The key attached to this plan
   # is provisioned per grower on approval and never handed to them: the
@@ -156,17 +174,21 @@ Resources:
   # identifier existed carries none, and serving one of those against a
   # key-requiring method is a 403 for that caller until the entry expires.
   #
-  # The API is a single `/{proxy+}` ANY method — path dispatch happens inside
-  # the Rust router, so API Gateway has no notion of a "crop endpoint". That
-  # makes ApiKeyRequired all-or-nothing: it cannot be scoped to plants, crops,
-  # or garden planning without splitting the proxy into per-path resources.
+  # Everything except the three public reads is a single `/{proxy+}` ANY
+  # method — path dispatch happens inside the Rust router, so API Gateway has
+  # no notion of a "crop endpoint". That makes ApiKeyRequired all-or-nothing
+  # across authenticated traffic: it cannot be scoped to plants, crops, or
+  # garden planning without splitting the proxy into per-path resources.
   # Scoping comes instead from *which plan a key sits on*: integrators land on
   # this plan and are throttled, the web app lands on FirstPartyUsagePlan and is
   # effectively not.
   #
-  # Two kinds of caller have no key of their own and rely on that fallback:
-  # Cognito sessions (the web app and admin console) and unauthenticated public
-  # catalog reads. Both are metered as first-party. So are self-serve keys
+  # Cognito sessions (the web app and admin console) have no key of their own
+  # and rely on that fallback, metered as first-party. The public read-only
+  # routes do not appear here at all: they bypass the authorizer on their own
+  # API Gateway resources and are bounded by stage throttles instead, since
+  # there is nothing to name a usage plan for an anonymous caller. So are
+  # self-serve keys
   # issued before migration 0041, which have no API Gateway key behind them —
   # returning their hash would hand API Gateway an identifier it cannot resolve
   # and 403 them. Reissue those through the approval flow to move them onto
@@ -562,6 +584,52 @@ Resources:
           RUST_LOG: info
           RUST_BACKTRACE: "1"
       Events:
+        # Read-only routes anyone may share a link to. These are declared as
+        # their own API Gateway resources so they bypass the authorizer
+        # entirely: the shared authorizer declares Authorization as an identity
+        # source, and API Gateway answers 401 without invoking it when a
+        # declared identity source is missing — which is every signed-out
+        # visitor, the exact audience a shared link has.
+        #
+        # Dropping that identity source was the alternative. It would also have
+        # disabled authorizer result caching, so every authenticated request
+        # would pay two Cognito calls and a database lookup instead of one per
+        # five minutes. Bypassing the authorizer for three GETs is cheaper and
+        # narrower.
+        #
+        # No ApiKeyRequired here at all, rather than an explicit false: SAM
+        # rejects an event-level false unless the API declares one, and
+        # declaring it API-wide would also apply it to the CORS preflight
+        # methods SAM generates — which have no authorizer to name a usage
+        # identifier, so browsers would fail preflight. Omitted, these methods
+        # default to requiring no key, which is what an anonymous read needs.
+        # The throttles in MethodSettings stand in for the usage plan.
+        # Anything beyond reading still goes through /{proxy+} and needs a
+        # token.
+        PublicCatalogCrops:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /catalog/crops
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        PublicCatalogVarieties:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /catalog/crops/{cropId}/varieties
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        PublicSharedGarden:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shared-gardens/{token}
+            Method: GET
+            Auth:
+              Authorizer: NONE
         ApiProxy:
           Type: Api
           Properties:

@@ -4,10 +4,10 @@ description: |-
   Fetch the public catalog of crops. No authentication required.
   Captures the first crop ID for the variety lookup in Step 2.
 method: GET
-url: '{{baseUrl}}/catalog/crops'
+url: '{{baseUrl}}/catalog/crops?cb={{$guid}}'
 order: 1000
 auth:
-  type: none
+  type: noauth
 scripts:
   - type: afterResponse
     language: text/javascript
@@ -19,7 +19,9 @@ scripts:
       });
 
       pm.test("Response is JSON", function () {
-          pm.response.to.have.header("Content-Type", /application\/json/);
+          // .header(name, value) does an exact string match; passing a regex
+          // stringifies it and can never match. Assert on the value instead.
+          pm.expect(pm.response.headers.get("Content-Type")).to.match(/application\/json/);
       });
 
       const crops = pm.response.json();

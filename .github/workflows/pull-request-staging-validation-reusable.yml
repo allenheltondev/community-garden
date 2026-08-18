@@ -1167,11 +1167,56 @@ jobs:
     if: inputs.shared_all == 'true' || inputs.grn_backend == 'true' || inputs.grn_frontend == 'true'
 
     steps:
-      - name: Verify unauthorized catalog request is rejected
+      # Read-only routes are public so a shared link works for someone who is
+      # not signed in. Anything beyond reading still needs a token. This job
+      # asserts both halves, because it previously asserted the opposite of the
+      # first one and kept the public catalog broken for a long time.
+      # Every request below carries a unique cache-buster. The API is
+      # edge-optimized, so CloudFront fronts it and caches 4xx responses for
+      # five minutes by default. This job runs seconds after a deploy, well
+      # inside that window, so a 401 served to anyone shortly BEFORE the deploy
+      # would be replayed here and fail a correct deployment. Busting the cache
+      # measures the origin, which is what these assertions are about.
+      #
+      # The public read also retries: an API Gateway stage deployment is
+      # eventually consistent, and this job starts immediately after one.
+      - name: Verify public reads work without a token
         run: |
           API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
-          HTTP_CODE=$(curl --silent --show-error --output /tmp/catalog.json --write-out "%{http_code}" "$API_URL/catalog/crops")
-          test "$HTTP_CODE" = "401"
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl --silent --show-error --output /tmp/catalog.json --write-out "%{http_code}" \
+              "$API_URL/catalog/crops?cb=$GITHUB_RUN_ID-$attempt-$RANDOM")
+            echo "attempt $attempt: GET /catalog/crops -> $CODE"
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "public catalog never became readable without a token"
+          cat /tmp/catalog.json || true
+          exit 1
+
+      - name: Verify an unknown shared garden is a 404, not an auth error
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            "$API_URL/shared-gardens/does-not-exist?cb=$GITHUB_RUN_ID-$RANDOM")
+          echo "GET /shared-gardens/does-not-exist -> $CODE"
+          test "$CODE" = "404"
+
+      - name: Verify protected reads still require a token
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            "$API_URL/me?cb=$GITHUB_RUN_ID-$RANDOM")
+          echo "GET /me -> $CODE"
+          test "$CODE" = "401"
+
+      - name: Verify writes still require a token
+        run: |
+          API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
+          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            -X POST "$API_URL/crops?cb=$GITHUB_RUN_ID-$RANDOM" -H "Content-Type: application/json" -d '{"cropName":"probe"}')
+          echo "POST /crops -> $CODE"
+          test "$CODE" = "401"
 
   postman-public-smoke:
     name: GRN Public Catalog Smoke Test
@@ -1190,8 +1235,21 @@ jobs:
 
       - name: Run public catalog smoke collection
         run: |
+          # Without pipefail the exit status is tee's, so a failing collection
+          # would be reported as a pass — the same class of silent green this
+          # job already had.
+          set -o pipefail
           postman collection run "postman/collections/Public Catalog Smoke" \
-            --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}"
+            --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
+            | tee /tmp/public-smoke.txt
+
+          # The CLI exits 0 when it parses a collection to nothing, which is how
+          # this job reported success for months while running no requests at
+          # all. Fail loudly on an empty run instead.
+          if grep -qE "^\|[[:space:]]+requests[[:space:]]+\|[[:space:]]+0[[:space:]]+\|" /tmp/public-smoke.txt; then
+            echo "The Public Catalog Smoke collection executed zero requests."
+            exit 1
+          fi
 
   postman-api-tests:
     name: GRN Staging Postman Validation

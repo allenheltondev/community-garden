@@ -12,6 +12,13 @@ description: |-
 
   ## Authentication
   None required. Both endpoints are public.
+
+  ## Why the cache-buster
+  The API is edge-optimized, so CloudFront fronts it and caches 4xx responses
+  for five minutes by default. This collection runs seconds after a deploy, so
+  a 401 served to anyone shortly before it would otherwise be replayed here and
+  fail a correct deployment. The `cb` query parameter makes each run measure
+  the origin; the API ignores it.
 variables:
   - key: baseUrl
     value: 'https://api.example.com'
@@ -19,3 +26,5 @@ variables:
   - key: catalogCropId
     value: ''
     description: Captured from Step 1 response
+auth:
+  type: noauth
