@@ -313,6 +313,23 @@ async fn handle_jwt_auth(
     Ok(generate_policy(&principal_id, "Allow", &api_arn, context))
 }
 
+/// Whether this request is one of the routes that needs no token.
+///
+/// KNOWN GAP: this cannot currently be reached by a genuinely anonymous
+/// caller. The authorizer is configured with `Identity.Headers: [Authorization]`
+/// in template.yaml, and API Gateway returns 401 *without invoking the
+/// authorizer* when a declared identity source is missing. A signed-out
+/// visitor sends no Authorization header, so the allow-list below never gets
+/// a say — which is why the public catalog and shared-garden links are dead
+/// for exactly the people they exist for.
+///
+/// Dropping the identity source would let every request through to this
+/// function, but it also disables authorizer result caching, which is a
+/// latency and cost decision rather than a straight bug fix. Left as is
+/// pending that call.
+///
+/// A request that *does* carry a header is also being denied on a public path,
+/// which the identity-source behaviour does not explain — hence the log below.
 fn is_public_route(event: &ApiGatewayCustomAuthorizerRequestTypeRequest) -> bool {
     let method = request_method(event);
     let path = request_path(event);
