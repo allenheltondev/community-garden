@@ -118,8 +118,8 @@ paths:
     $ref: 'openapi/paths/reminders.yaml#/~1reminders~1{reminderId}'
   /feed/derived:
     $ref: 'openapi/paths/feed.yaml#/~1feed~1derived'
-  /ai/copilot/weekly-plan:
-    $ref: 'openapi/paths/pro.yaml#/~1ai~1copilot~1weekly-plan'
+  /almanac/weekly-plan:
+    $ref: 'openapi/paths/pro.yaml#/~1almanac~1weekly-plan'
   /agent-tasks:
     $ref: 'openapi/paths/pro.yaml#/~1agent-tasks'
   /agent-tasks/{taskId}:
@@ -128,12 +128,12 @@ paths:
     $ref: 'openapi/paths/pro.yaml#/~1analytics~1pro~1events'
   /analytics/pro/kpis:
     $ref: 'openapi/paths/pro.yaml#/~1analytics~1pro~1kpis'
-  /ai/copilot/garden-review:
-    $ref: 'openapi/paths/pro.yaml#/~1ai~1copilot~1garden-review'
+  /almanac/garden-review:
+    $ref: 'openapi/paths/pro.yaml#/~1almanac~1garden-review'
   /garden/share:
-    $ref: 'openapi/paths/garden-share.yaml#/~1garden~1share'
-  /shared-gardens/{token}:
-    $ref: 'openapi/paths/garden-share.yaml#/~1shared-gardens~1{token}'
+    $ref: 'openapi/paths/garden.yaml#/~1garden~1share'
+  /gardens/{token}:
+    $ref: 'openapi/paths/garden.yaml#/~1gardens~1{token}'
   /journal:
     $ref: 'openapi/paths/journal.yaml#/~1journal'
   /journal/notes:

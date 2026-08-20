@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 // Public read-only sharing of the garden masterplan.
 //
-// Authenticated owners manage one link via /me/garden/share; anyone with
-// the token reads a privacy-trimmed snapshot via GET /shared-gardens/{token}
+// Authenticated owners manage one link via /garden/share; anyone with
+// the token reads a privacy-trimmed snapshot via GET /gardens/{token}
 // (allow-listed as a public route in the authorizer). Revoking keeps the
 // row and re-sharing mints a fresh token, so a leaked URL stays dead.
 

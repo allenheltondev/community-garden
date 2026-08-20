@@ -410,7 +410,7 @@ fn is_public_get_path(path: &str) -> bool {
         // Read-only shared-garden views are addressed by an unguessable
         // token; the handler returns a privacy-trimmed payload and a
         // constant 404 for unknown or revoked tokens.
-        || path.starts_with("/shared-gardens/")
+        || path.starts_with("/gardens/")
 }
 
 fn strip_path_prefix<'a>(path: &'a str, prefix: &str) -> &'a str {
@@ -846,8 +846,8 @@ mod tests {
 
         assert!(is_public_get_path("/api/grn/catalog/crops/123/varieties"));
         assert!(is_public_get_path("/catalog/crops/123/varieties"));
-        assert!(is_public_get_path("/grn/shared-gardens/some-token"));
-        assert!(is_public_get_path("/api/shared-gardens/some-token"));
+        assert!(is_public_get_path("/grn/gardens/some-token"));
+        assert!(is_public_get_path("/api/gardens/some-token"));
     }
 
     /// The unit tests below cover `is_public_get_path` on strings, but the
@@ -945,7 +945,20 @@ mod tests {
         assert!(!is_public_get_path("/grn/beds"));
         assert!(!is_public_get_path("/grnxyz/catalog/crops"));
         assert!(!is_public_get_path("/catalog/crops/123"));
-        assert!(!is_public_get_path("/shared-gardens"));
+        assert!(!is_public_get_path("/gardens"));
+    }
+
+    /// `/garden` is the owner's private canvas and `/gardens/{token}` is the
+    /// public share view — one character apart. Loosening the public prefix to
+    /// `/garden` would expose every grower's unshared garden, so pin both.
+    #[test]
+    fn private_garden_canvas_is_not_confused_with_the_public_share_view() {
+        assert!(!is_public_get_path("/garden"));
+        assert!(!is_public_get_path("/garden/share"));
+        assert!(!is_public_get_path("/api/grn/garden"));
+        assert!(is_public_get_path(
+            "/gardens/0123456789abcdef0123456789abcdef"
+        ));
     }
 
     /// A key issued through the approval flow meters against its own API

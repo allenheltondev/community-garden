@@ -64,14 +64,14 @@ describe('ApiReferencePage', () => {
     // These shipped ahead of the spec; the reference is only useful to a new
     // key holder if the newest surface area is actually in it.
     expect(screen.getAllByText('/me/api-access-requests').length).toBeGreaterThan(0);
-    expect(screen.getByText('/shared-gardens/{token}')).toBeInTheDocument();
+    expect(screen.getByText('/gardens/{token}')).toBeInTheDocument();
     expect(screen.getByText('/journal')).toBeInTheDocument();
   });
 
   it('shows path parameters and response codes for an endpoint', () => {
     renderPage();
 
-    const sharedGarden = screen.getByText('/shared-gardens/{token}').closest('li');
+    const sharedGarden = screen.getByText('/gardens/{token}').closest('li');
     expect(sharedGarden).not.toBeNull();
     const scope = within(sharedGarden as HTMLElement);
     expect(scope.getByText('Parameters')).toBeInTheDocument();

@@ -1,5 +1,5 @@
 # ── AI (Premium) ─────────────────────────────────────────
-/ai/copilot/weekly-plan:
+/almanac/weekly-plan:
   post:
     tags: [AI, Pro]
     summary: Generate AI weekly grow plan
@@ -27,7 +27,7 @@
       '500':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
 
-/ai/copilot/garden-review:
+/almanac/garden-review:
   post:
     tags: [AI, Pro]
     summary: Generate an AI garden review for the caller's garden

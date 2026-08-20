@@ -385,7 +385,7 @@
       ]
     },
     {
-      "path": "/ai/copilot/garden-review",
+      "path": "/almanac/garden-review",
       "method": "POST",
       "operationId": "generateGardenReview",
       "summary": "Generate an AI garden review for the caller's garden",
@@ -421,7 +421,7 @@
       ]
     },
     {
-      "path": "/ai/copilot/weekly-plan",
+      "path": "/almanac/weekly-plan",
       "method": "POST",
       "operationId": "generateWeeklyPlan",
       "summary": "Generate AI weekly grow plan",
@@ -1827,9 +1827,9 @@
     {
       "path": "/garden/share",
       "method": "DELETE",
-      "operationId": "revokeMyShareLink",
-      "summary": "Stop sharing your garden",
-      "description": "Revokes the link. Anyone holding it gets a 404 afterwards.",
+      "operationId": "revokeMyGardenShareLink",
+      "summary": "Revoke the caller's garden share link",
+      "description": null,
       "tags": [
         "Garden"
       ],
@@ -1839,27 +1839,17 @@
       "responses": [
         {
           "status": "204",
-          "description": "Sharing stopped",
+          "description": "Link revoked (or no link existed)",
           "shape": null
-        },
-        {
-          "status": "401",
-          "description": "Error payload",
-          "shape": "object"
-        },
-        {
-          "status": "500",
-          "description": "Error payload",
-          "shape": "object"
         }
       ]
     },
     {
       "path": "/garden/share",
       "method": "GET",
-      "operationId": "getMyShareLink",
-      "summary": "Get your garden's share link",
-      "description": "Returns the active share link, if the garden is currently shared.",
+      "operationId": "getMyGardenShareLink",
+      "summary": "Get the caller's active garden share link",
+      "description": null,
       "tags": [
         "Garden",
         "Idempotent"
@@ -1870,21 +1860,11 @@
       "responses": [
         {
           "status": "200",
-          "description": "The active share link",
-          "shape": "ShareLink"
-        },
-        {
-          "status": "401",
-          "description": "Error payload",
+          "description": "Active share link",
           "shape": "object"
         },
         {
           "status": "404",
-          "description": "The garden is not shared",
-          "shape": "object"
-        },
-        {
-          "status": "500",
           "description": "Error payload",
           "shape": "object"
         }
@@ -1893,12 +1873,11 @@
     {
       "path": "/garden/share",
       "method": "POST",
-      "operationId": "createMyShareLink",
-      "summary": "Share your garden",
-      "description": "Creates a share link, or returns the existing one with 200 when the\ngarden is already shared, so repeating the call cannot rotate a link\npeople have already been given.\n",
+      "operationId": "createMyGardenShareLink",
+      "summary": "Create (or return) the caller's garden share link",
+      "description": "Idempotent: an active link is returned unchanged; a revoked or\nmissing one gets a freshly minted token so a previously leaked URL\nstays dead.",
       "tags": [
-        "Garden",
-        "Idempotent"
+        "Garden"
       ],
       "requiresAuth": true,
       "parameters": [],
@@ -1906,21 +1885,46 @@
       "responses": [
         {
           "status": "200",
-          "description": "The garden was already shared; the existing link is returned",
-          "shape": "ShareLink"
+          "description": "Existing active share link",
+          "shape": "object"
         },
         {
           "status": "201",
           "description": "Newly created share link",
-          "shape": "ShareLink"
-        },
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/gardens/{token}",
+      "method": "GET",
+      "operationId": "getSharedGarden",
+      "summary": "Public read-only view of a shared garden",
+      "description": "Unauthenticated. Returns a privacy-trimmed snapshot of the garden:\ncanvas dimensions, bed and annotation geometry, and the names of\nnon-private crops. No user identity, free-text notes, or contact\ndata. Unknown and revoked tokens both return a constant 404.",
+      "tags": [
+        "Garden",
+        "Public",
+        "Idempotent"
+      ],
+      "requiresAuth": false,
+      "parameters": [
         {
-          "status": "401",
-          "description": "Error payload",
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Shared garden snapshot",
           "shape": "object"
         },
         {
-          "status": "500",
+          "status": "404",
           "description": "Error payload",
           "shape": "object"
         }
@@ -2943,46 +2947,6 @@
         {
           "status": "404",
           "description": "Error payload",
-          "shape": "object"
-        },
-        {
-          "status": "500",
-          "description": "Error payload",
-          "shape": "object"
-        }
-      ]
-    },
-    {
-      "path": "/shared-gardens/{token}",
-      "method": "GET",
-      "operationId": "getSharedGarden",
-      "summary": "View a shared garden",
-      "description": "Reads a garden someone has chosen to share. No authentication: the point\nof a share link is that it works for a visitor who is not signed in.\n",
-      "tags": [
-        "Garden",
-        "Idempotent",
-        "Public"
-      ],
-      "requiresAuth": false,
-      "parameters": [
-        {
-          "name": "token",
-          "in": "path",
-          "required": true,
-          "type": "string",
-          "description": "The share token from `GET /garden/share`."
-        }
-      ],
-      "requestBody": null,
-      "responses": [
-        {
-          "status": "200",
-          "description": "The shared garden",
-          "shape": "SharedGarden"
-        },
-        {
-          "status": "404",
-          "description": "Unknown or revoked token",
           "shape": "object"
         },
         {

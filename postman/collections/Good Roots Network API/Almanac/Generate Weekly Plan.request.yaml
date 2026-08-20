@@ -1,14 +1,12 @@
 $kind: http-request
-name: Generate Garden Review
+name: Generate Weekly Plan
 description: |-
-  Generate a structured AI garden review for the caller's beds and crops:
-  companion-planting conflicts, overplanted beds, idle beds, and missing
-  growing details.
-
+  Generate an AI-powered weekly gardening plan using the copilot feature.
+  
   Pro feature - requires active subscription.
 method: POST
-url: '{{baseUrl}}/ai/copilot/garden-review'
-order: 1500
+url: '{{baseUrl}}/almanac/weekly-plan'
+order: 1000
 headers:
   - key: Authorization
     value: 'Bearer {{authToken}}'
@@ -16,7 +14,11 @@ headers:
     value: application/json
 body:
   type: json
-  content: '{}'
+  content: |-
+    {
+      "geoKey": "9v6kn7",
+      "windowDays": 7
+    }
 scripts:
   - type: afterResponse
     language: text/javascript
@@ -31,7 +33,7 @@ scripts:
           pm.test("Feature lock response matches entitlement error contract", function () {
               const response = pm.response.json();
               pm.expect(response).to.have.property("error", "feature_locked");
-              pm.expect(response).to.have.property("entitlementKey", "ai.copilot.garden_review");
+              pm.expect(response).to.have.property("entitlementKey", "ai.copilot.weekly_grow_plan");
               pm.expect(response).to.have.property("requiredTier", "pro");
               pm.expect(response).to.have.property("upgradeHintKey", "upgrade.pro");
           });
@@ -40,25 +42,16 @@ scripts:
               pm.response.to.have.status(200);
           });
 
-          pm.test("Response matches garden review contract", function () {
+          pm.test("Response matches weekly plan contract", function () {
               const response = pm.response.json();
               pm.expect(response).to.have.property("modelId");
               pm.expect(response).to.have.property("modelVersion");
               pm.expect(response.modelVersion).to.be.a("string").and.not.empty;
+              pm.expect(response.modelVersion).to.include("tool_first_json");
               pm.expect(response).to.have.property("structuredJson", true);
-              pm.expect(response).to.have.property("generatedAt");
-              pm.expect(response).to.have.property("insights");
-              pm.expect(Array.isArray(response.insights)).to.be.true;
-          });
-
-          pm.test("Every insight carries the structured fields", function () {
-              const response = pm.response.json();
-              response.insights.forEach((insight) => {
-                  pm.expect(insight).to.have.property("severity");
-                  pm.expect(["warning", "tip", "info"]).to.include(insight.severity);
-                  pm.expect(insight).to.have.property("category");
-                  pm.expect(insight).to.have.property("title");
-                  pm.expect(insight).to.have.property("detail");
-              });
+              pm.expect(response).to.have.property("geoKey");
+              pm.expect(response).to.have.property("windowDays", 7);
+              pm.expect(response).to.have.property("recommendations");
+              pm.expect(Array.isArray(response.recommendations)).to.be.true;
           });
       }

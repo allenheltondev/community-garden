@@ -140,11 +140,11 @@ pub async fn route_request(event: &Request) -> Result<Response<Body>, lambda_htt
             handle(billing::handle_webhook(event, &correlation_id).await)?
         }
 
-        ("POST", "/ai/copilot/weekly-plan") => {
+        ("POST", "/almanac/weekly-plan") => {
             handle(ai_copilot::generate_weekly_plan(event, &correlation_id).await)?
         }
 
-        ("POST", "/ai/copilot/garden-review") => {
+        ("POST", "/almanac/garden-review") => {
             // Boxed: the review future is large and the dispatch frame is
             // already near clippy's stack-size budget.
             handle(
@@ -483,7 +483,7 @@ async fn route_garden_designer_request(
         });
     }
     // Public, token-addressed view (allow-listed in the authorizer).
-    if let Some(token) = request_path.strip_prefix("/shared-gardens/") {
+    if let Some(token) = request_path.strip_prefix("/gardens/") {
         return Some(match event.method().as_str() {
             "GET" => garden_share::get_shared_garden(token, correlation_id).await,
             _ => method_not_allowed(),

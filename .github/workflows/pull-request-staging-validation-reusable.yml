@@ -1198,8 +1198,8 @@ jobs:
         run: |
           API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
           CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
-            "$API_URL/shared-gardens/does-not-exist?cb=$GITHUB_RUN_ID-$RANDOM")
-          echo "GET /shared-gardens/does-not-exist -> $CODE"
+            "$API_URL/gardens/does-not-exist?cb=$GITHUB_RUN_ID-$RANDOM")
+          echo "GET /gardens/does-not-exist -> $CODE"
           test "$CODE" = "404"
 
       - name: Verify protected reads still require a token

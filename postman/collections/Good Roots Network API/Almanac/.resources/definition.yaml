@@ -1,0 +1,7 @@
+$kind: collection
+name: Almanac
+description: |-
+  The almanac: premium guidance endpoints for weekly grow plans and garden
+  reviews, plus the scheduled automation tasks that act on them.
+order: 7000
+

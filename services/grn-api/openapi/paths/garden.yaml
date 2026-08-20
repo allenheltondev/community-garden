@@ -315,7 +315,7 @@
       '204':
         description: Link revoked (or no link existed)
 
-/shared-gardens/{token}:
+/gardens/{token}:
   get:
     tags: [Garden, Public, Idempotent]
     summary: Public read-only view of a shared garden
@@ -325,6 +325,10 @@
       non-private crops. No user identity, free-text notes, or contact
       data. Unknown and revoked tokens both return a constant 404.
     operationId: getSharedGarden
+    # Tagged Public and described as unauthenticated, but without this the
+    # spec still inherited the document-wide bearer requirement — the two
+    # disagreed until the path was registered and the mismatch surfaced.
+    security: []
     parameters:
       - name: token
         in: path
