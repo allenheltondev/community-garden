@@ -1,0 +1,97 @@
+ApiAccessRequestItem:
+  type: object
+  title: ApiAccessRequestItem
+  required: [id, status, integrationName, intendedUse, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, approved, denied]
+    integrationName:
+      type: string
+      description: What the requester is building.
+    intendedUse:
+      type: string
+      description: Why they need programmatic access.
+    contactEmail:
+      type: [string, 'null']
+      format: email
+    decisionNote:
+      type: [string, 'null']
+      description: Reviewer's note, shown to the requester on a denial.
+    decidedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    apiKeyId:
+      type: [string, 'null']
+      format: uuid
+      description: Set once the requester has claimed a key against this approval.
+
+ApiAccessRequestList:
+  type: array
+  title: ApiAccessRequestList
+  items:
+    $ref: '#/ApiAccessRequestItem'
+
+CreateApiAccessRequest:
+  type: object
+  title: CreateApiAccessRequest
+  required: [integrationName, intendedUse]
+  properties:
+    integrationName:
+      type: string
+      maxLength: 120
+    intendedUse:
+      type: string
+      maxLength: 2000
+
+AdminApiAccessRequestItem:
+  type: object
+  title: AdminApiAccessRequestItem
+  description: A queue entry as a reviewer sees it, including who asked.
+  required: [id, status, integrationName, intendedUse, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, approved, denied]
+    integrationName:
+      type: string
+    intendedUse:
+      type: string
+    userId:
+      type: string
+      format: uuid
+    contactEmail:
+      type: [string, 'null']
+      format: email
+    decisionNote:
+      type: [string, 'null']
+    decidedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+AdminApiAccessRequestList:
+  type: array
+  title: AdminApiAccessRequestList
+  items:
+    $ref: '#/AdminApiAccessRequestItem'
+
+ApiAccessDecisionRequest:
+  type: object
+  title: ApiAccessDecisionRequest
+  properties:
+    note:
+      type: string
+      maxLength: 2000
+      description: Optional note recorded with the decision.

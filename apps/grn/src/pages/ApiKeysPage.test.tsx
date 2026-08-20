@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { ApiKeysPage } from './ApiKeysPage';
 import { createApiAccessRequest, listApiAccessRequests, listApiKeys } from '../services/api';
@@ -21,9 +22,11 @@ const mockCreateRequest = vi.mocked(createApiAccessRequest);
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ApiKeysPage />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <ApiKeysPage />
+      </QueryClientProvider>
+    </MemoryRouter>
   );
 }
 

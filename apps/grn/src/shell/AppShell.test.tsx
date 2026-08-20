@@ -36,7 +36,7 @@ describe('AppShell navigation', () => {
     window.localStorage.clear();
   });
 
-  it('renders the same three primary destinations in the desktop rail and mobile bar', () => {
+  it('renders the same four primary destinations in the desktop rail and mobile bar', () => {
     renderShell();
 
     const navigationRegions = screen.getAllByRole('navigation', { name: 'Primary navigation' });
@@ -44,7 +44,12 @@ describe('AppShell navigation', () => {
 
     for (const navigation of navigationRegions) {
       const links = within(navigation).getAllByRole('link');
-      expect(links.map((link) => link.textContent?.trim())).toEqual(['Today', 'Garden', 'Share']);
+      expect(links.map((link) => link.textContent?.trim())).toEqual([
+        'Today',
+        'Garden',
+        'Share',
+        'Settings',
+      ]);
     }
 
     expect(screen.queryByRole('link', { name: 'Planner' })).not.toBeInTheDocument();
@@ -56,6 +61,8 @@ describe('AppShell navigation', () => {
     ['/garden/plants/new', 'Garden'],
     ['/garden/plan/recommendations', 'Garden'],
     ['/share/find', 'Share'],
+    ['/settings/api-keys', 'Settings'],
+    ['/settings/api-keys/reference', 'Settings'],
   ])('keeps %s nested under %s', (pathname, activeLabel) => {
     renderShell(pathname);
 

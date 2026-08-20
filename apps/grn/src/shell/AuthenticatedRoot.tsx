@@ -49,6 +49,9 @@ const RemindersPage = lazy(() =>
 const ApiKeysPage = lazy(() =>
   import('../pages/ApiKeysPage').then((m) => ({ default: m.ApiKeysPage }))
 );
+const ApiReferencePage = lazy(() =>
+  import('../pages/ApiReferencePage').then((m) => ({ default: m.ApiReferencePage }))
+);
 const SettingsPage = lazy(() =>
   import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -99,6 +102,7 @@ export function AuthenticatedRoot() {
                 element={<SettingsPage user={user} refreshUser={refreshUser} />}
               />
               <Route path="/settings/api-keys" element={<ApiKeysPage />} />
+              <Route path="/settings/api-keys/reference" element={<ApiReferencePage />} />
               {Object.entries(LEGACY_ROUTE_REDIRECTS).map(([from, to]) => (
                 <Route key={from} path={from} element={<LegacyRouteRedirect to={to} />} />
               ))}

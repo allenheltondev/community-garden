@@ -1,0 +1,182 @@
+/me/api-access-requests:
+  get:
+    tags: [API Access, Idempotent]
+    summary: List your API access requests
+    description: |
+      Returns this user's access requests, newest first, so the requester can
+      see whether a decision has been made and whether a key has been claimed
+      against an approval.
+    operationId: listMyApiAccessRequests
+    responses:
+      '200':
+        description: Your access requests
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-access.yaml#/ApiAccessRequestList'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+  post:
+    tags: [API Access]
+    summary: Request API access
+    description: |
+      Opens a request for programmatic access. Approval is manual, and a key is
+      not minted here — once approved, the requester claims the secret
+      themselves via `POST /me/api-keys` so it never passes through a reviewer.
+
+      Only one request may be open at a time; asking again while one is pending
+      returns 409.
+    operationId: createApiAccessRequest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/api-access.yaml#/CreateApiAccessRequest'
+    responses:
+      '201':
+        description: The newly opened request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-access.yaml#/ApiAccessRequestItem'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '409':
+        description: A request is already open for this user
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/admin/api-access-requests:
+  get:
+    tags: [API Access, Admin, Idempotent]
+    summary: List the access request queue
+    description: Reviewer-only view of outstanding and decided requests.
+    operationId: adminListApiAccessRequests
+    responses:
+      '200':
+        description: The review queue
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-access.yaml#/AdminApiAccessRequestList'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        description: Admin access is required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/admin/api-access-requests/{requestId}/approve:
+  parameters:
+    - in: path
+      name: requestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  post:
+    tags: [API Access, Admin, Idempotent]
+    summary: Approve an access request
+    description: |
+      Records the approval. No credential is created here — approval only
+      unlocks the requester's ability to mint one key for themselves.
+
+      Repeating the same decision returns 200 without re-emitting the
+      notification; the opposite decision on an already-decided request
+      returns 409.
+    operationId: adminApproveApiAccessRequest
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/api-access.yaml#/ApiAccessDecisionRequest'
+    responses:
+      '200':
+        description: The decided request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-access.yaml#/ApiAccessRequestItem'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        description: Admin access is required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '409':
+        description: Already decided the other way
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/admin/api-access-requests/{requestId}/deny:
+  parameters:
+    - in: path
+      name: requestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  post:
+    tags: [API Access, Admin, Idempotent]
+    summary: Deny an access request
+    description: |
+      Records the refusal, with an optional note shown to the requester. The
+      same idempotency rules as approval apply.
+    operationId: adminDenyApiAccessRequest
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/api-access.yaml#/ApiAccessDecisionRequest'
+    responses:
+      '200':
+        description: The decided request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/api-access.yaml#/ApiAccessRequestItem'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '403':
+        description: Admin access is required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '409':
+        description: Already decided the other way
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'

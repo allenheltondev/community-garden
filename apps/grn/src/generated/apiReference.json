@@ -1,0 +1,3035 @@
+{
+  "title": "Good Roots Network API",
+  "version": "2.0.0",
+  "description": "REST API for the community food coordination platform. Covers user profiles,\ncrop libraries, surplus listings, food requests, claims, reminders,\nAI-assisted guidance, pro analytics, and billing.",
+  "source": "services/grn-api/openapi.yaml",
+  "tags": [
+    {
+      "name": "Profile",
+      "description": "Authenticated user profile and onboarding"
+    },
+    {
+      "name": "Entitlements",
+      "description": "Tier and entitlement introspection"
+    },
+    {
+      "name": "API Keys",
+      "description": "Personal API keys for programmatic access; authenticate as the owning user"
+    },
+    {
+      "name": "Billing",
+      "description": "Stripe checkout and webhook lifecycle"
+    },
+    {
+      "name": "Crop Library",
+      "description": "Per-user grower crop library CRUD"
+    },
+    {
+      "name": "Catalog",
+      "description": "Public read-only crop and variety catalog"
+    },
+    {
+      "name": "Listings",
+      "description": "Surplus listing creation, discovery, and management"
+    },
+    {
+      "name": "Requests",
+      "description": "Food requests from one grower to nearby growers"
+    },
+    {
+      "name": "Claims",
+      "description": "Claim lifecycle between growers"
+    },
+    {
+      "name": "Reminders",
+      "description": "Deterministic reminder scheduling"
+    },
+    {
+      "name": "Feed",
+      "description": "Derived feed with signals, AI summaries, and guidance"
+    },
+    {
+      "name": "AI",
+      "description": "Pro AI-assisted copilot features"
+    },
+    {
+      "name": "Agent Tasks",
+      "description": "Pro agentic automation tasks"
+    },
+    {
+      "name": "Analytics",
+      "description": "Pro analytics event tracking and KPIs"
+    },
+    {
+      "name": "Idempotent",
+      "description": "Safe to retry; repeated calls produce the same result"
+    },
+    {
+      "name": "Pro",
+      "description": "Requires pro tier entitlement; free-tier callers receive 403 feature_locked"
+    },
+    {
+      "name": "Grower Only",
+      "description": "Requires user_type grower; other types receive 403"
+    },
+    {
+      "name": "Public",
+      "description": "No authentication required"
+    },
+    {
+      "name": "API Access",
+      "description": "Requesting and reviewing programmatic API access"
+    },
+    {
+      "name": "Garden",
+      "description": "Garden canvas, beds, and public share links"
+    },
+    {
+      "name": "Journal",
+      "description": "The grower's private garden journal"
+    },
+    {
+      "name": "Admin",
+      "description": "Reviewer-only endpoints; non-admin callers receive 403"
+    }
+  ],
+  "operations": [
+    {
+      "path": "/admin/api-access-requests",
+      "method": "GET",
+      "operationId": "adminListApiAccessRequests",
+      "summary": "List the access request queue",
+      "description": "Reviewer-only view of outstanding and decided requests.",
+      "tags": [
+        "API Access",
+        "Admin",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "The review queue",
+          "shape": "array of object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Admin access is required",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/admin/api-access-requests/{requestId}/approve",
+      "method": "POST",
+      "operationId": "adminApproveApiAccessRequest",
+      "summary": "Approve an access request",
+      "description": "Records the approval. No credential is created here — approval only\nunlocks the requester's ability to mint one key for themselves.\n\nRepeating the same decision returns 200 without re-emitting the\nnotification; the opposite decision on an already-decided request\nreturns 409.\n",
+      "tags": [
+        "API Access",
+        "Admin",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "requestId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": false,
+        "contentType": "application/json",
+        "shape": "ApiAccessDecisionRequest"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "The decided request",
+          "shape": "ApiAccessRequestItem"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Admin access is required",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "Already decided the other way",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/admin/api-access-requests/{requestId}/deny",
+      "method": "POST",
+      "operationId": "adminDenyApiAccessRequest",
+      "summary": "Deny an access request",
+      "description": "Records the refusal, with an optional note shown to the requester. The\nsame idempotency rules as approval apply.\n",
+      "tags": [
+        "API Access",
+        "Admin",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "requestId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": false,
+        "contentType": "application/json",
+        "shape": "ApiAccessDecisionRequest"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "The decided request",
+          "shape": "ApiAccessRequestItem"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Admin access is required",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "Already decided the other way",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/agent-tasks",
+      "method": "GET",
+      "operationId": "listAgentTasks",
+      "summary": "List agent tasks",
+      "description": null,
+      "tags": [
+        "Agent Tasks",
+        "Pro",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Agent task list",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/agent-tasks",
+      "method": "POST",
+      "operationId": "createAgentTask",
+      "summary": "Create an agent task",
+      "description": null,
+      "tags": [
+        "Agent Tasks",
+        "Pro"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created agent task",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/agent-tasks/{taskId}",
+      "method": "PUT",
+      "operationId": "updateAgentTaskStatus",
+      "summary": "Update agent task status",
+      "description": null,
+      "tags": [
+        "Agent Tasks",
+        "Pro"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "taskId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated agent task",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/ai/copilot/garden-review",
+      "method": "POST",
+      "operationId": "generateGardenReview",
+      "summary": "Generate an AI garden review for the caller's garden",
+      "description": null,
+      "tags": [
+        "AI",
+        "Pro"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Structured garden review insights",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "429",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/ai/copilot/weekly-plan",
+      "method": "POST",
+      "operationId": "generateWeeklyPlan",
+      "summary": "Generate AI weekly grow plan",
+      "description": null,
+      "tags": [
+        "AI",
+        "Pro"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Weekly plan recommendations",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "429",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/analytics/pro/events",
+      "method": "POST",
+      "operationId": "trackProEvent",
+      "summary": "Track a pro analytics event",
+      "description": null,
+      "tags": [
+        "Analytics",
+        "Pro"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "202",
+          "description": "Event accepted",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/analytics/pro/kpis",
+      "method": "GET",
+      "operationId": "getProKpis",
+      "summary": "Get pro analytics KPIs",
+      "description": null,
+      "tags": [
+        "Analytics",
+        "Pro",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "days",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "KPI funnel data",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Pro entitlement required",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/annotations",
+      "method": "GET",
+      "operationId": "listMyAnnotations",
+      "summary": "List the current grower's garden annotations",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Garden annotations owned by the caller",
+          "shape": "array of object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/annotations",
+      "method": "POST",
+      "operationId": "createMyAnnotation",
+      "summary": "Create a garden annotation",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created annotation",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/annotations/{annotationId}",
+      "method": "DELETE",
+      "operationId": "deleteMyAnnotation",
+      "summary": "Archive (soft-delete) a garden annotation",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "annotationId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Archived",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/annotations/{annotationId}",
+      "method": "PUT",
+      "operationId": "updateMyAnnotation",
+      "summary": "Update a garden annotation",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "annotationId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated annotation",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/beds",
+      "method": "GET",
+      "operationId": "listMyBeds",
+      "summary": "List the current grower's garden beds",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Garden beds owned by the caller",
+          "shape": "array of object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/beds",
+      "method": "POST",
+      "operationId": "createMyBed",
+      "summary": "Create a garden bed",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created garden bed",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/beds/{bedId}",
+      "method": "DELETE",
+      "operationId": "deleteMyBed",
+      "summary": "Archive (soft-delete) a garden bed",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "bedId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Archived",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/beds/{bedId}",
+      "method": "PUT",
+      "operationId": "updateMyBed",
+      "summary": "Update a garden bed",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "bedId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated garden bed",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/billing/checkout-session",
+      "method": "POST",
+      "operationId": "createCheckoutSession",
+      "summary": "Create a Stripe checkout session for pro upgrade",
+      "description": null,
+      "tags": [
+        "Billing"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Checkout session with redirect URL",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/billing/webhook",
+      "method": "POST",
+      "operationId": "handleStripeWebhook",
+      "summary": "Receive Stripe webhook events",
+      "description": null,
+      "tags": [
+        "Billing",
+        "Idempotent",
+        "Public"
+      ],
+      "requiresAuth": false,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Webhook acknowledged",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/catalog/crops",
+      "method": "GET",
+      "operationId": "listCatalogCrops",
+      "summary": "List catalog crops",
+      "description": null,
+      "tags": [
+        "Catalog",
+        "Idempotent",
+        "Public"
+      ],
+      "requiresAuth": false,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Catalog crops",
+          "shape": "array of object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/catalog/crops/{cropId}/varieties",
+      "method": "GET",
+      "operationId": "listCatalogVarieties",
+      "summary": "List catalog varieties for a crop",
+      "description": null,
+      "tags": [
+        "Catalog",
+        "Idempotent",
+        "Public"
+      ],
+      "requiresAuth": false,
+      "parameters": [
+        {
+          "name": "cropId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Catalog varieties",
+          "shape": "array of object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/claims",
+      "method": "GET",
+      "operationId": "listClaims",
+      "summary": "List claims (filterable by listing or request)",
+      "description": null,
+      "tags": [
+        "Claims",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "listingId",
+          "in": "query",
+          "required": false,
+          "type": "string (uuid)",
+          "description": null
+        },
+        {
+          "name": "requestId",
+          "in": "query",
+          "required": false,
+          "type": "string (uuid)",
+          "description": null
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": null
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Paginated claims",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/claims",
+      "method": "POST",
+      "operationId": "createClaim",
+      "summary": "Create a claim on a listing",
+      "description": null,
+      "tags": [
+        "Claims"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created claim",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/claims/{claimId}",
+      "method": "PUT",
+      "operationId": "transitionClaim",
+      "summary": "Transition claim status",
+      "description": null,
+      "tags": [
+        "Claims"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "claimId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated claim",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops",
+      "method": "GET",
+      "operationId": "listMyCrops",
+      "summary": "List current user's crop library entries",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Crop library rows",
+          "shape": "array of object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops",
+      "method": "POST",
+      "operationId": "createMyCrop",
+      "summary": "Create a crop library entry",
+      "description": null,
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created crop library row",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}",
+      "method": "DELETE",
+      "operationId": "deleteMyCrop",
+      "summary": "Delete one crop library entry",
+      "description": null,
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Deleted",
+          "shape": null
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}",
+      "method": "GET",
+      "operationId": "getMyCrop",
+      "summary": "Get one crop library entry",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Crop library row",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}",
+      "method": "PUT",
+      "operationId": "updateMyCrop",
+      "summary": "Update one crop library entry",
+      "description": null,
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated crop library row",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}/harvests",
+      "method": "GET",
+      "operationId": "listCropHarvests",
+      "summary": "List harvests logged for one crop",
+      "description": "Returns the private harvest log for a single crop: the running total\nbrought in, the number of entries, and every logged harvest newest-first.\nThis is personal bookkeeping and is separate from surplus listings.\n",
+      "tags": [
+        "Crop Library",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Harvest log for the crop",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}/harvests",
+      "method": "POST",
+      "operationId": "recordCropHarvest",
+      "summary": "Log a harvest for one crop",
+      "description": "Records how much was brought in for this crop and returns the new entry\nplus the updated running total. When `unit` is omitted it falls back to\nthe crop's `default_unit`; when `harvestedOn` is omitted it defaults to\ntoday.\n",
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Harvest recorded",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}/harvests/{harvestId}",
+      "method": "DELETE",
+      "operationId": "deleteCropHarvest",
+      "summary": "Delete a logged harvest",
+      "description": "Permanently removes one harvest entry. The running total is recomputed on the next read.",
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        },
+        {
+          "name": "harvestId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Deleted",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/crops/{cropLibraryId}/harvests/{harvestId}",
+      "method": "PUT",
+      "operationId": "updateCropHarvest",
+      "summary": "Edit a logged harvest",
+      "description": "Updates one harvest entry and returns it plus the recomputed running\ntotal. When `harvestedOn` is omitted the existing date is kept; when\n`unit` is omitted it falls back to the crop's `default_unit`.\n",
+      "tags": [
+        "Crop Library"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "cropLibraryId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        },
+        {
+          "name": "harvestId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Harvest updated",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/feed/derived",
+      "method": "GET",
+      "operationId": "getDerivedFeed",
+      "summary": "Get derived feed with signals, AI summary, and guidance",
+      "description": null,
+      "tags": [
+        "Feed",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "geoKey",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": null
+        },
+        {
+          "name": "windowDays",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Derived feed",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden",
+      "method": "GET",
+      "operationId": "getMyGardenCanvas",
+      "summary": "Get the current grower's garden canvas",
+      "description": "Auto-creates a default canvas (360 in × 240 in, opacity 60) on first\naccess so the designer UI can render immediately without a separate\nprovisioning call.\n",
+      "tags": [
+        "Crop Library",
+        "Grower Only",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Canvas",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden",
+      "method": "PUT",
+      "operationId": "updateMyGardenCanvas",
+      "summary": "Update the current grower's garden canvas",
+      "description": null,
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated canvas",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden/background-upload-url",
+      "method": "POST",
+      "operationId": "createGardenBackgroundUploadUrl",
+      "summary": "Issue a presigned PUT URL for a garden background image",
+      "description": "Returns a 15-minute presigned URL the browser can PUT the image to.\nThe caller persists the returned `s3_key` on the canvas via\n`PUT /garden` once the upload completes.\n",
+      "tags": [
+        "Crop Library",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Presigned upload intent",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "503",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden/share",
+      "method": "DELETE",
+      "operationId": "revokeMyShareLink",
+      "summary": "Stop sharing your garden",
+      "description": "Revokes the link. Anyone holding it gets a 404 afterwards.",
+      "tags": [
+        "Garden"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Sharing stopped",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden/share",
+      "method": "GET",
+      "operationId": "getMyShareLink",
+      "summary": "Get your garden's share link",
+      "description": "Returns the active share link, if the garden is currently shared.",
+      "tags": [
+        "Garden",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "The active share link",
+          "shape": "ShareLink"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "The garden is not shared",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/garden/share",
+      "method": "POST",
+      "operationId": "createMyShareLink",
+      "summary": "Share your garden",
+      "description": "Creates a share link, or returns the existing one with 200 when the\ngarden is already shared, so repeating the call cannot rotate a link\npeople have already been given.\n",
+      "tags": [
+        "Garden",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "The garden was already shared; the existing link is returned",
+          "shape": "ShareLink"
+        },
+        {
+          "status": "201",
+          "description": "Newly created share link",
+          "shape": "ShareLink"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/journal",
+      "method": "GET",
+      "operationId": "getJournal",
+      "summary": "Read your garden journal",
+      "description": "Builds the private journal for a season from the grower's own records.\nDefaults to the current season when `season` is omitted.\n",
+      "tags": [
+        "Journal",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "season",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Four-digit year. Defaults to the current season."
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "The journal for that season",
+          "shape": "JournalResponse"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/journal/notes",
+      "method": "POST",
+      "operationId": "createJournalNote",
+      "summary": "Add a journal note",
+      "description": null,
+      "tags": [
+        "Journal",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "CreateNoteRequest"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "The saved note",
+          "shape": "JournalEntry"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/journal/notes/{noteId}",
+      "method": "DELETE",
+      "operationId": "deleteJournalNote",
+      "summary": "Delete a journal note",
+      "description": null,
+      "tags": [
+        "Journal"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "noteId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Deleted",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/journal/photo-upload-url",
+      "method": "POST",
+      "operationId": "createJournalPhotoUploadUrl",
+      "summary": "Get an upload URL for a journal photo",
+      "description": "Returns a short-lived presigned URL. Upload the photo with the returned\nmethod and headers, then reference the key when creating the note.\n",
+      "tags": [
+        "Journal"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Presigned upload intent",
+          "shape": "PhotoUploadIntent"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/listings",
+      "method": "POST",
+      "operationId": "createListing",
+      "summary": "Create a surplus listing",
+      "description": null,
+      "tags": [
+        "Listings",
+        "Idempotent",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created listing",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/listings/{listingId}",
+      "method": "PUT",
+      "operationId": "updateListing",
+      "summary": "Update a surplus listing",
+      "description": null,
+      "tags": [
+        "Listings",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "listingId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated listing",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/listings/discover",
+      "method": "GET",
+      "operationId": "discoverListings",
+      "summary": "Discover listings by geo context",
+      "description": null,
+      "tags": [
+        "Listings",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "geoKey",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Geohash prefix for geographic scoping"
+        },
+        {
+          "name": "radiusMiles",
+          "in": "query",
+          "required": false,
+          "type": "number (double)",
+          "description": null
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": null
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Paginated discoverable listings",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me",
+      "method": "GET",
+      "operationId": "getMe",
+      "summary": "Get current user profile",
+      "description": null,
+      "tags": [
+        "Profile",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Profile payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me",
+      "method": "PUT",
+      "operationId": "putMe",
+      "summary": "Update user profile and role-specific configuration",
+      "description": null,
+      "tags": [
+        "Profile",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "204",
+          "description": "Profile updated",
+          "shape": null
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-access-requests",
+      "method": "GET",
+      "operationId": "listMyApiAccessRequests",
+      "summary": "List your API access requests",
+      "description": "Returns this user's access requests, newest first, so the requester can\nsee whether a decision has been made and whether a key has been claimed\nagainst an approval.\n",
+      "tags": [
+        "API Access",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Your access requests",
+          "shape": "array of object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-access-requests",
+      "method": "POST",
+      "operationId": "createApiAccessRequest",
+      "summary": "Request API access",
+      "description": "Opens a request for programmatic access. Approval is manual, and a key is\nnot minted here — once approved, the requester claims the secret\nthemselves via `POST /me/api-keys` so it never passes through a reviewer.\n\nOnly one request may be open at a time; asking again while one is pending\nreturns 409.\n",
+      "tags": [
+        "API Access"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "CreateApiAccessRequest"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "The newly opened request",
+          "shape": "ApiAccessRequestItem"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "A request is already open for this user",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-keys",
+      "method": "GET",
+      "operationId": "listApiKeys",
+      "summary": "List the current user's API keys",
+      "description": "Returns non-secret metadata for the user's active API keys. Secrets are never returned here.",
+      "tags": [
+        "API Keys",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "API key metadata",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-keys",
+      "method": "POST",
+      "operationId": "createApiKey",
+      "summary": "Create an API key",
+      "description": "Creates a new API key for the current user and returns the full secret\nexactly once. The key authenticates as the owning user when sent as\n`Authorization: Bearer <key>`.\n",
+      "tags": [
+        "API Keys"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created API key, including the one-time secret",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-keys/{apiKeyId}",
+      "method": "DELETE",
+      "operationId": "deleteApiKey",
+      "summary": "Revoke an API key",
+      "description": "Revokes (soft-deletes) the key so it can no longer authenticate.",
+      "tags": [
+        "API Keys"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "apiKeyId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "204",
+          "description": "Revoked",
+          "shape": null
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-keys/{apiKeyId}",
+      "method": "GET",
+      "operationId": "getApiKey",
+      "summary": "Get one API key's metadata",
+      "description": null,
+      "tags": [
+        "API Keys",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "apiKeyId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "API key metadata",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/api-keys/{apiKeyId}",
+      "method": "PUT",
+      "operationId": "updateApiKey",
+      "summary": "Rename an API key",
+      "description": null,
+      "tags": [
+        "API Keys"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "apiKeyId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated API key metadata",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/me/entitlements",
+      "method": "GET",
+      "operationId": "getMyEntitlements",
+      "summary": "Get current user entitlements snapshot",
+      "description": null,
+      "tags": [
+        "Entitlements",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Entitlements snapshot",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/my/listings",
+      "method": "GET",
+      "operationId": "listMyListings",
+      "summary": "List current user's listings",
+      "description": null,
+      "tags": [
+        "Listings",
+        "Idempotent",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": null
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Paginated listings",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/my/listings/{listingId}",
+      "method": "GET",
+      "operationId": "getMyListing",
+      "summary": "Get one of current user's listings",
+      "description": null,
+      "tags": [
+        "Listings",
+        "Idempotent",
+        "Grower Only"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "listingId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Listing detail",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/reminders",
+      "method": "GET",
+      "operationId": "listReminders",
+      "summary": "List current user's reminders",
+      "description": null,
+      "tags": [
+        "Reminders",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Reminder list",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/reminders",
+      "method": "POST",
+      "operationId": "createReminder",
+      "summary": "Create a deterministic reminder",
+      "description": null,
+      "tags": [
+        "Reminders"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created reminder",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "401",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/reminders/{reminderId}",
+      "method": "PUT",
+      "operationId": "updateReminderStatus",
+      "summary": "Update reminder status (active/paused)",
+      "description": null,
+      "tags": [
+        "Reminders"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "reminderId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated reminder",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/requests",
+      "method": "POST",
+      "operationId": "createRequest",
+      "summary": "Create a food request",
+      "description": null,
+      "tags": [
+        "Requests",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "201",
+          "description": "Created request",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "409",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/requests/{requestId}",
+      "method": "PUT",
+      "operationId": "updateRequest",
+      "summary": "Update a food request",
+      "description": null,
+      "tags": [
+        "Requests"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "requestId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "shape": "object"
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "Updated request",
+          "shape": "object"
+        },
+        {
+          "status": "400",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "403",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/shared-gardens/{token}",
+      "method": "GET",
+      "operationId": "getSharedGarden",
+      "summary": "View a shared garden",
+      "description": "Reads a garden someone has chosen to share. No authentication: the point\nof a share link is that it works for a visitor who is not signed in.\n",
+      "tags": [
+        "Garden",
+        "Idempotent",
+        "Public"
+      ],
+      "requiresAuth": false,
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The share token from `GET /garden/share`."
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "The shared garden",
+          "shape": "SharedGarden"
+        },
+        {
+          "status": "404",
+          "description": "Unknown or revoked token",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    },
+    {
+      "path": "/users/{userId}",
+      "method": "GET",
+      "operationId": "getPublicUser",
+      "summary": "Get public user profile",
+      "description": null,
+      "tags": [
+        "Profile",
+        "Idempotent"
+      ],
+      "requiresAuth": true,
+      "parameters": [
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "type": "string (uuid)",
+          "description": null
+        }
+      ],
+      "requestBody": null,
+      "responses": [
+        {
+          "status": "200",
+          "description": "Public user profile",
+          "shape": "object"
+        },
+        {
+          "status": "404",
+          "description": "Error payload",
+          "shape": "object"
+        },
+        {
+          "status": "500",
+          "description": "Error payload",
+          "shape": "object"
+        }
+      ]
+    }
+  ]
+}

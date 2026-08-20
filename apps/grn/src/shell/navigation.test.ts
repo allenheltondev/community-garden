@@ -6,11 +6,15 @@ import {
 } from './navigation';
 
 describe('primary navigation', () => {
-  it('exposes only the three grower destinations', () => {
+  it('exposes the four grower destinations', () => {
+    // Settings is a primary destination rather than an avatar-menu-only
+    // link: people looking for their profile or API keys searched the nav
+    // for it and did not find it behind the avatar.
     expect(PRIMARY_NAVIGATION).toEqual([
       { id: 'today', label: 'Today', path: '/' },
       { id: 'garden', label: 'Garden', path: '/garden' },
       { id: 'share', label: 'Share', path: '/share' },
+      { id: 'settings', label: 'Settings', path: '/settings' },
     ]);
   });
 
@@ -25,6 +29,10 @@ describe('primary navigation', () => {
     ['share', '/share', true],
     ['share', '/share/find', true],
     ['share', '/settings', false],
+    ['settings', '/settings', true],
+    ['settings', '/settings/api-keys', true],
+    ['settings', '/settings/api-keys/reference', true],
+    ['settings', '/garden', false],
   ] as const)('marks %s active for %s as %s', (destination, pathname, expected) => {
     expect(isPrimaryDestinationActive(destination, pathname)).toBe(expected);
   });

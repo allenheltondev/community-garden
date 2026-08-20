@@ -1,0 +1,48 @@
+JournalResponse:
+  type: object
+  title: JournalResponse
+  required: [season, entries, summary]
+  properties:
+    season:
+      type: integer
+      description: The season (year) the entries were built for.
+    entries:
+      type: array
+      items:
+        type: object
+    summary:
+      type: object
+
+CreateNoteRequest:
+  type: object
+  title: CreateNoteRequest
+  required: [body]
+  properties:
+    body:
+      type: string
+    occurredOn:
+      type: string
+      format: date
+    photoKey:
+      type: string
+
+JournalEntry:
+  type: object
+  title: JournalEntry
+
+PhotoUploadIntent:
+  type: object
+  title: PhotoUploadIntent
+  required: [uploadUrl, method, headers]
+  properties:
+    uploadUrl:
+      type: string
+      format: uri
+    method:
+      type: string
+      enum: [PUT]
+    headers:
+      type: object
+      properties:
+        contentType:
+          type: string

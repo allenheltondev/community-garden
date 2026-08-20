@@ -1,0 +1,48 @@
+ShareLink:
+  type: object
+  title: ShareLink
+  required: [token, createdAt]
+  properties:
+    token:
+      type: string
+      description: Opaque token addressing the public view of this garden.
+    createdAt:
+      type: string
+      format: date-time
+
+SharedCanvas:
+  type: object
+  title: SharedCanvas
+  required: [widthInches, heightInches, northOffsetDeg]
+  properties:
+    widthInches:
+      type: integer
+    heightInches:
+      type: integer
+    northOffsetDeg:
+      type: integer
+
+SharedGarden:
+  type: object
+  title: SharedGarden
+  description: |
+    The public view of a shared garden. It deliberately carries no user
+    identity and none of the free-text fields where people write personal
+    details; sun and soil remain because they are horticultural context and
+    sharing is an explicit act by the owner.
+  required: [canvas, beds, annotations, crops]
+  properties:
+    canvas:
+      $ref: '#/SharedCanvas'
+    beds:
+      type: array
+      items:
+        type: object
+    annotations:
+      type: array
+      items:
+        type: object
+    crops:
+      type: array
+      items:
+        type: object
