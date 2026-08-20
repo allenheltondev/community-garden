@@ -1337,7 +1337,7 @@ jobs:
             --env-var "adminAuthToken=${{ steps.ci-auth.outputs.admin-auth-token }}" \
             --env-var "expectFeatureLocked=false"
 
-          postman collection run "postman/collections/Good Roots Network API/AI Features" \
+          postman collection run "postman/collections/Good Roots Network API/Almanac" \
             --env-var "baseUrl=${{ needs.deploy-staging-backend.outputs.api-url }}" \
             --env-var "authToken=${{ steps.ci-auth.outputs.free-auth-token }}" \
             --env-var "expectFeatureLocked=true"
