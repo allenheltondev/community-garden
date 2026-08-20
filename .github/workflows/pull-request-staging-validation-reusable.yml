@@ -1196,11 +1196,25 @@ jobs:
 
       - name: Verify an unknown shared garden is a 404, not an auth error
         run: |
+          # Retries for the same reason the catalog probe above does: this
+          # asserts an explicit no-auth API Gateway resource exists, and a
+          # freshly deployed one takes a moment to propagate. Until it does,
+          # the request falls through to the authenticated /{proxy+} and
+          # answers 401 — which is exactly the failure this test is meant to
+          # catch, so a single shot cannot tell "not deployed yet" from
+          # "genuinely not public".
           API_URL="${{ needs.deploy-staging-backend.outputs.api-url }}"
-          CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
-            "$API_URL/gardens/does-not-exist?cb=$GITHUB_RUN_ID-$RANDOM")
-          echo "GET /gardens/does-not-exist -> $CODE"
-          test "$CODE" = "404"
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+              "$API_URL/gardens/does-not-exist?cb=$GITHUB_RUN_ID-$attempt-$RANDOM")
+            echo "attempt $attempt: GET /gardens/does-not-exist -> $CODE"
+            if [ "$CODE" = "404" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "an unknown shared garden never answered 404 without a token"
+          echo "a persistent 401 means /gardens/{token} is not resolving to its"
+          echo "no-auth resource; check Auth.Authorizer: NONE in template.yaml"
+          exit 1
 
       - name: Verify protected reads still require a token
         run: |
