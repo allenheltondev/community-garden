@@ -67,11 +67,17 @@ export function SettingsPage({ user, refreshUser }: SettingsPageProps) {
       <Card id="api-keys" padding="6" className="grn-settings-card">
         <h2>API keys</h2>
         <p className="grn-settings-empty">
-          Build your own tools on top of your garden. Keys are issued by request.
+          Build your own tools on top of your garden. Keys are issued by request, and the
+          reference lists every endpoint you can call with one.
         </p>
-        <Link className="grn-settings-link" to="/settings/api-keys">
-          Open API keys
-        </Link>
+        <div className="grn-settings-actions">
+          <Link className="grn-settings-link" to="/settings/api-keys">
+            Manage API keys
+          </Link>
+          <Link className="grn-settings-link" to="/settings/api-keys/reference">
+            API reference
+          </Link>
+        </div>
       </Card>
     </section>
   );

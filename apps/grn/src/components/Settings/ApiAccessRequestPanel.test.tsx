@@ -174,4 +174,19 @@ describe('ApiAccessRequestPanel', () => {
     expect(screen.queryByText(/create your key below/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Request a key' })).toBeInTheDocument();
   });
+  it('renders the field wrappers the layout CSS widens', async () => {
+    // The fields used to render at a fraction of their intended width because
+    // styles.css stretched `> label` and `> .og-form-field`, and the shared
+    // Input/Textarea render neither. Nothing failed — the selectors just
+    // matched nothing. Assert the contract between markup and stylesheet so a
+    // component rename cannot quietly shrink these fields again.
+    const { container } = renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a key' }));
+
+    const panel = container.querySelector('.grn-api-access');
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector(':scope > .og-input')).not.toBeNull();
+    expect(panel?.querySelector(':scope > .og-textarea')).not.toBeNull();
+  });
 });

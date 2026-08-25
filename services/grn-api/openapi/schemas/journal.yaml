@@ -1,0 +1,87 @@
+JournalResponse:
+  type: object
+  title: JournalResponse
+  required: [season, entries, summary]
+  properties:
+    season:
+      type: integer
+      description: The season (year) the entries were built for.
+    entries:
+      type: array
+      items:
+        type: object
+    summary:
+      type: object
+
+CreateNoteRequest:
+  type: object
+  title: CreateNoteRequest
+  # Mirrors CreateNoteRequest in handlers/journal.rs: occurredOn and title are
+  # plain String fields and so are required by deserialization; body and
+  # photoKey are Option and default to absent.
+  required: [occurredOn, title]
+  properties:
+    occurredOn:
+      type: string
+      format: date
+      description: The day the note is about.
+    title:
+      type: string
+      description: Short label for the entry.
+    body:
+      type: string
+      description: Optional longer text.
+    photoKey:
+      type: string
+      description: Key returned by the photo upload intent, if a photo is attached.
+
+JournalEntry:
+  type: object
+  title: JournalEntry
+
+PhotoUploadIntent:
+  type: object
+  title: PhotoUploadIntent
+  # Mirrors PhotoUploadResponse in handlers/journal.rs. photoKey is not
+  # incidental metadata: it is what POST /journal/notes takes to attach the
+  # uploaded image, so a client without it can upload and go nowhere.
+  required: [uploadUrl, method, headers, photoKey, expiresInSeconds]
+  properties:
+    uploadUrl:
+      type: string
+      format: uri
+    method:
+      type: string
+      enum: [PUT]
+    headers:
+      type: object
+      description: |-
+        Headers to send with the presigned PUT. The key is `Content-Type`
+        verbatim: PhotoUploadHeaders carries an explicit
+        `#[serde(rename = "Content-Type")]`, which overrides the struct's
+        camelCase renaming, so this is not `contentType` on the wire.
+      required: ['Content-Type']
+      properties:
+        Content-Type:
+          type: string
+          example: image/jpeg
+    photoKey:
+      type: string
+      description: Pass as `photoKey` on POST /journal/notes to attach the upload.
+    expiresInSeconds:
+      type: integer
+      format: int64
+      description: Lifetime of the presigned URL.
+
+PhotoUploadRequest:
+  type: object
+  title: PhotoUploadRequest
+  # Both fields are non-Option in PhotoUploadRequest; omitting contentLength
+  # fails deserialization before the handler runs.
+  required: [contentType, contentLength]
+  properties:
+    contentType:
+      type: string
+    contentLength:
+      type: integer
+      format: int64

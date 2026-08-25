@@ -3,6 +3,16 @@
     tags: [Requests, Idempotent]
     summary: Create a food request
     operationId: createRequest
+    parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+        description: |-
+          Optional. Retrying with the same key returns the original result
+          rather than creating a duplicate; reusing a key for different
+          content is the 409 below.
     requestBody:
       required: true
       content:

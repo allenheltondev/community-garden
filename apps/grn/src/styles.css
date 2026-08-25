@@ -6097,9 +6097,29 @@ body {
   line-height: 1.5;
 }
 
-.grn-api-access > label,
-.grn-api-access > .og-form-field {
+/*
+ * The shared Input and Textarea render `.og-input` / `.og-textarea` wrappers,
+ * and neither carries a width. In a flex column with `align-items: flex-start`
+ * that collapses them to fit-content, which is what made these fields look
+ * scrunched up — `.og-input__field { width: 100% }` was resolving against an
+ * already-collapsed box.
+ *
+ * The previous rule here targeted `> label` and `> .og-form-field`, neither of
+ * which those components render, so it silently matched nothing. These are the
+ * wrapper classes they actually emit; widening this to `> *` would stretch the
+ * buttons across the panel too.
+ */
+.grn-api-access > .og-input,
+.grn-api-access > .og-textarea {
   width: 100%;
+  max-width: 42rem;
+}
+
+.grn-api-access__field-help {
+  margin: -0.35rem 0 0;
+  color: rgba(79, 56, 37, 0.7);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .grn-api-access__approved,
@@ -6156,9 +6176,261 @@ body {
   flex-wrap: wrap;
 }
 
+.grn-api-access__actions > * {
+  flex: 0 0 auto;
+}
+
+/* Give the "why do you need a key" answer room to actually be written in. */
+.grn-api-access .og-textarea__field {
+  min-height: 8.5rem;
+  resize: vertical;
+}
+
 .grn-api-access h2 {
   margin: 0;
   color: var(--og-color-soil);
   font-size: 1.15rem;
   letter-spacing: normal;
+}
+
+/* ===== API reference ===== */
+.grn-api-reference__meta {
+  margin: 0 0 1rem;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.9rem;
+}
+
+.grn-api-reference__search {
+  display: block;
+  max-width: 32rem;
+  margin-bottom: 1.25rem;
+}
+
+.grn-api-reference__search-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--og-color-soil);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.grn-api-reference__search-input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid rgba(79, 56, 37, 0.16);
+  border-radius: 1rem;
+  background: rgba(255, 252, 246, 0.98);
+  padding: 0.8rem 1rem;
+  color: var(--og-color-ink);
+  font: inherit;
+}
+
+.grn-api-reference__search-input:focus {
+  outline: none;
+  border-color: var(--og-color-moss);
+  box-shadow: 0 0 0 3px rgba(66, 107, 63, 0.18);
+}
+
+.grn-api-reference__count {
+  margin: 0 0 1rem;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.88rem;
+}
+
+.grn-api-reference__group {
+  margin-bottom: 2rem;
+}
+
+.grn-api-reference__group-title {
+  margin: 0 0 0.25rem;
+  color: var(--og-color-soil);
+  font-size: 1.15rem;
+}
+
+.grn-api-reference__group-body {
+  margin: 0 0 0.75rem;
+  max-width: 62ch;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.9rem;
+}
+
+.grn-api-reference__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grn-api-reference__endpoint {
+  padding: clamp(0.9rem, 2vw, 1.2rem);
+  border: 1px solid rgba(79, 56, 37, 0.13);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(255, 253, 248, 0.98), rgba(244, 239, 224, 0.94));
+}
+
+.grn-api-reference__signature {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.grn-api-reference__method {
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.5rem;
+  background: rgba(79, 56, 37, 0.12);
+  color: var(--og-color-soil);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.grn-api-reference__method--get { background: rgba(66, 107, 63, 0.16); color: #35542f; }
+.grn-api-reference__method--post { background: rgba(225, 181, 83, 0.24); color: #6d521d; }
+.grn-api-reference__method--put { background: rgba(93, 122, 168, 0.2); color: #33496f; }
+.grn-api-reference__method--patch { background: rgba(93, 122, 168, 0.2); color: #33496f; }
+.grn-api-reference__method--delete { background: rgba(168, 104, 31, 0.2); color: #7a3f10; }
+
+.grn-api-reference__path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92rem;
+  color: var(--og-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.grn-api-reference__badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.5rem;
+  background: rgba(79, 56, 37, 0.09);
+  color: rgba(79, 56, 37, 0.8);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.grn-api-reference__badge--public {
+  background: rgba(66, 107, 63, 0.16);
+  color: #35542f;
+}
+
+.grn-api-reference__summary {
+  margin: 0.55rem 0 0;
+  color: var(--og-color-soil);
+  font-size: 0.95rem;
+}
+
+.grn-api-reference__description {
+  margin: 0.35rem 0 0;
+  max-width: 66ch;
+  color: rgba(79, 56, 37, 0.78);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.grn-api-reference__detail {
+  margin-top: 0.7rem;
+}
+
+.grn-api-reference__detail h3 {
+  margin: 0 0 0.25rem;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grn-api-reference__detail ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.grn-api-reference__detail li,
+.grn-api-reference__detail p {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.85);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.grn-api-reference__detail code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--og-color-ink);
+}
+
+.grn-api-reference__param-meta {
+  margin-left: 0.4rem;
+  color: rgba(79, 56, 37, 0.62);
+  font-size: 0.8rem;
+}
+
+.grn-api-keys-page__reference {
+  margin: 0;
+  max-width: 62ch;
+  color: rgba(79, 56, 37, 0.78);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.grn-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.grn-settings-actions .grn-settings-link {
+  margin-top: 0;
+}
+
+.grn-api-reference__base {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.9rem;
+  align-items: baseline;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(79, 56, 37, 0.13);
+  border-radius: 1rem;
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.grn-api-reference__base dt {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grn-api-reference__base dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.grn-api-reference__base code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88rem;
+  color: var(--og-color-ink);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .grn-api-reference__base {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .grn-api-reference__base dd {
+    margin-bottom: 0.5rem;
+  }
 }

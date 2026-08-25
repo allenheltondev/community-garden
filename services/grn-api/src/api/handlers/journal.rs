@@ -969,4 +969,32 @@ mod tests {
         assert_eq!(summary.explanation_source, "recorded_facts");
         assert!(!summary.explanation.to_lowercase().contains("yield"));
     }
+    /// The presigned upload tells the caller which header to set, so the key
+    /// has to be `Content-Type` verbatim. `PhotoUploadHeaders` carries an
+    /// explicit rename that overrides the struct's camelCase renaming, and the
+    /// published `OpenAPI` schema documents it that way — this pins the wire
+    /// format so the two cannot drift apart silently.
+    #[test]
+    fn photo_upload_headers_serialize_content_type_verbatim() {
+        let response = PhotoUploadResponse {
+            upload_url: "https://example.test/upload".to_string(),
+            method: "PUT".to_string(),
+            headers: PhotoUploadHeaders {
+                content_type: "image/jpeg".to_string(),
+            },
+            photo_key: "journal/photo/abc".to_string(),
+            expires_in_seconds: 900,
+        };
+
+        // unwrap_or_default matches the idiom in garden_share's serialization
+        // tests; a failure yields Null and the assertions below fail loudly.
+        let json = serde_json::to_value(&response).unwrap_or_default();
+
+        assert_eq!(json["headers"]["Content-Type"], "image/jpeg");
+        assert!(json["headers"].get("contentType").is_none());
+        // The rest of the payload stays camelCase, so the rename is scoped.
+        assert_eq!(json["uploadUrl"], "https://example.test/upload");
+        assert_eq!(json["photoKey"], "journal/photo/abc");
+        assert_eq!(json["expiresInSeconds"], 900);
+    }
 }

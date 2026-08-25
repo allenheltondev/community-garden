@@ -48,6 +48,14 @@ const navigationIcons: Record<PrimaryDestinationId, ReactNode> = {
       />
     </svg>
   ),
+  settings: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm8.5-2a8.5 8.5 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a8.4 8.4 0 0 0-2.1-1.2L15.6 3H8.4l-.4 2.7a8.4 8.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a8.6 8.6 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a8.4 8.4 0 0 0 2.1 1.2l.4 2.7h7.2l.4-2.7a8.4 8.4 0 0 0 2.1-1.2l2.3 1 2-3.4-2-1.5c.06-.4.1-.8.1-1.2Z"
+        fill="currentColor"
+      />
+    </svg>
+  ),
 };
 
 const footerLinks = [

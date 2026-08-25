@@ -4,7 +4,7 @@ description: |-
   Unknown, malformed, and revoked tokens all return a constant 404 so the
   endpoint cannot be used to enumerate users.
 method: GET
-url: '{{baseUrl}}/shared-gardens/00000000000000000000000000000000'
+url: '{{baseUrl}}/gardens/00000000000000000000000000000000'
 order: 1620
 scripts:
   - type: afterResponse

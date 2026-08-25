@@ -5,7 +5,7 @@ description: |-
   privacy contract: geometry and crop names only, no user identity or
   free-text fields.
 method: GET
-url: '{{baseUrl}}/shared-gardens/{{gardenShareToken}}'
+url: '{{baseUrl}}/gardens/{{gardenShareToken}}'
 order: 1610
 scripts:
   - type: afterResponse

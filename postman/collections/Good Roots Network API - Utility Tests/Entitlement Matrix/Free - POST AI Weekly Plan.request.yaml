@@ -1,10 +1,10 @@
 $kind: http-request
-name: 'Free - POST /ai/copilot/weekly-plan → 403'
+name: 'Free - POST /almanac/weekly-plan → 403'
 description: |-
   Verifies that a free-tier token is rejected with 403 feature_locked
   when calling the pro AI weekly plan endpoint.
 method: POST
-url: '{{baseUrl}}/ai/copilot/weekly-plan'
+url: '{{baseUrl}}/almanac/weekly-plan'
 order: 1000
 auth:
   type: bearer

@@ -1026,7 +1026,7 @@ export interface GardenReviewResponse {
 
 /** Pro feature: throws ApiError with status 403 (feature_locked) on free tier. */
 export async function generateGardenReview(): Promise<GardenReviewResponse> {
-  return apiFetch<GardenReviewResponse>('/ai/copilot/garden-review', {
+  return apiFetch<GardenReviewResponse>('/almanac/garden-review', {
     method: 'POST',
     body: JSON.stringify({}),
   });
@@ -1394,7 +1394,7 @@ export async function updateReminderStatus(
 }
 
 export async function getWeeklyGrowPlan(geoKey: string, windowDays = 7): Promise<WeeklyPlanResponse> {
-  return apiFetch<WeeklyPlanResponse>('/ai/copilot/weekly-plan', {
+  return apiFetch<WeeklyPlanResponse>('/almanac/weekly-plan', {
     method: 'POST',
     body: JSON.stringify({ geoKey, windowDays }),
   });
@@ -1499,7 +1499,7 @@ export async function revokeMyGardenShare(): Promise<void> {
  * header — visitors are anonymous by design.
  */
 export async function fetchSharedGarden(token: string): Promise<SharedGardenSnapshot> {
-  const response = await fetch(`${getApiEndpoint()}/shared-gardens/${encodeURIComponent(token)}`, {
+  const response = await fetch(`${getApiEndpoint()}/gardens/${encodeURIComponent(token)}`, {
     headers: { 'X-Correlation-Id': uuidv4() },
   });
   if (!response.ok) {

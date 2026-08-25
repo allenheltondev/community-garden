@@ -47,6 +47,14 @@ tags:
     description: Requires user_type grower; other types receive 403
   - name: Public
     description: No authentication required
+  - name: API Access
+    description: Requesting and reviewing programmatic API access
+  - name: Garden
+    description: Garden canvas, beds, and public share links
+  - name: Journal
+    description: The grower's private garden journal
+  - name: Admin
+    description: Reviewer-only endpoints; non-admin callers receive 403
 paths:
   /me:
     $ref: 'openapi/paths/profile.yaml#/~1me'
@@ -110,8 +118,8 @@ paths:
     $ref: 'openapi/paths/reminders.yaml#/~1reminders~1{reminderId}'
   /feed/derived:
     $ref: 'openapi/paths/feed.yaml#/~1feed~1derived'
-  /ai/copilot/weekly-plan:
-    $ref: 'openapi/paths/pro.yaml#/~1ai~1copilot~1weekly-plan'
+  /almanac/weekly-plan:
+    $ref: 'openapi/paths/pro.yaml#/~1almanac~1weekly-plan'
   /agent-tasks:
     $ref: 'openapi/paths/pro.yaml#/~1agent-tasks'
   /agent-tasks/{taskId}:
@@ -120,6 +128,28 @@ paths:
     $ref: 'openapi/paths/pro.yaml#/~1analytics~1pro~1events'
   /analytics/pro/kpis:
     $ref: 'openapi/paths/pro.yaml#/~1analytics~1pro~1kpis'
+  /almanac/garden-review:
+    $ref: 'openapi/paths/pro.yaml#/~1almanac~1garden-review'
+  /garden/share:
+    $ref: 'openapi/paths/garden.yaml#/~1garden~1share'
+  /gardens/{token}:
+    $ref: 'openapi/paths/garden.yaml#/~1gardens~1{token}'
+  /journal:
+    $ref: 'openapi/paths/journal.yaml#/~1journal'
+  /journal/notes:
+    $ref: 'openapi/paths/journal.yaml#/~1journal~1notes'
+  /journal/notes/{noteId}:
+    $ref: 'openapi/paths/journal.yaml#/~1journal~1notes~1{noteId}'
+  /journal/photo-upload-url:
+    $ref: 'openapi/paths/journal.yaml#/~1journal~1photo-upload-url'
+  /me/api-access-requests:
+    $ref: 'openapi/paths/api-access.yaml#/~1me~1api-access-requests'
+  /admin/api-access-requests:
+    $ref: 'openapi/paths/api-access.yaml#/~1admin~1api-access-requests'
+  /admin/api-access-requests/{requestId}/approve:
+    $ref: 'openapi/paths/api-access.yaml#/~1admin~1api-access-requests~1{requestId}~1approve'
+  /admin/api-access-requests/{requestId}/deny:
+    $ref: 'openapi/paths/api-access.yaml#/~1admin~1api-access-requests~1{requestId}~1deny'
 components:
   securitySchemes:
     bearerAuth:

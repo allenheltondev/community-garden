@@ -52,7 +52,10 @@ describe('SettingsPage', () => {
 
     expect(container.querySelector('#profile')).toHaveTextContent('Ada Lovelace');
     expect(container.querySelector('#membership')).toHaveTextContent('Supporter');
-    expect(container.querySelector('#api-keys')).toHaveTextContent('Open API keys');
+    expect(container.querySelector('#api-keys')).toHaveTextContent('Manage API keys');
+    // The reference is reachable from settings too, so a grower who has not
+    // yet asked for a key can still read what the API offers.
+    expect(container.querySelector('#api-keys')).toHaveTextContent('API reference');
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
   });
 

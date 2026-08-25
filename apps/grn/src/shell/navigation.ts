@@ -1,4 +1,4 @@
-export type PrimaryDestinationId = 'today' | 'garden' | 'share';
+export type PrimaryDestinationId = 'today' | 'garden' | 'share' | 'settings';
 
 export interface PrimaryNavigationItem {
   id: PrimaryDestinationId;
@@ -7,14 +7,21 @@ export interface PrimaryNavigationItem {
 }
 
 /**
- * The signed-in information architecture has three stable destinations.
+ * The signed-in information architecture has four stable destinations.
  * Feature pages remain nested beneath these paths instead of becoming
  * additional top-level menu choices.
+ *
+ * Settings earns a slot rather than living only behind the avatar: people
+ * looking for their profile, address, or API keys went hunting in the nav
+ * and did not think to open an avatar menu to find them. Everything under
+ * settings — API keys included — is still reached from the Settings page
+ * itself, so the rail does not grow a slot per account concern.
  */
 export const PRIMARY_NAVIGATION: readonly PrimaryNavigationItem[] = [
   { id: 'today', label: 'Today', path: '/' },
   { id: 'garden', label: 'Garden', path: '/garden' },
   { id: 'share', label: 'Share', path: '/share' },
+  { id: 'settings', label: 'Settings', path: '/settings' },
 ];
 
 export const LEGACY_ROUTE_REDIRECTS = {
@@ -39,5 +46,7 @@ export function isPrimaryDestinationActive(
       return pathname === '/garden' || pathname.startsWith('/garden/');
     case 'share':
       return pathname === '/share' || pathname.startsWith('/share/');
+    case 'settings':
+      return pathname === '/settings' || pathname.startsWith('/settings/');
   }
 }

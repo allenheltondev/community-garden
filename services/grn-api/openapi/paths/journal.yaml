@@ -1,0 +1,112 @@
+/journal:
+  get:
+    tags: [Journal, Idempotent]
+    summary: Read your garden journal
+    description: |
+      Builds the private journal for a season from the grower's own records.
+      Defaults to the current season when `season` is omitted.
+    operationId: getJournal
+    parameters:
+      - in: query
+        name: season
+        required: false
+        schema:
+          type: integer
+        description: Four-digit year. Defaults to the current season.
+    responses:
+      '200':
+        description: The journal for that season
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/journal.yaml#/JournalResponse'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/journal/notes:
+  post:
+    tags: [Journal, Idempotent]
+    summary: Add a journal note
+    operationId: createJournalNote
+    parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+        description: |-
+          Required. Retrying with the same key returns the original result
+          instead of creating a second entry. Omitting it is a 400.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/journal.yaml#/CreateNoteRequest'
+    responses:
+      '201':
+        description: The saved note
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/journal.yaml#/JournalEntry'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/journal/notes/{noteId}:
+  parameters:
+    - in: path
+      name: noteId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  delete:
+    tags: [Journal]
+    summary: Delete a journal note
+    operationId: deleteJournalNote
+    responses:
+      '204':
+        description: Deleted
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '404':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+
+/journal/photo-upload-url:
+  post:
+    tags: [Journal]
+    summary: Get an upload URL for a journal photo
+    description: |
+      Returns a short-lived presigned URL. Upload the photo with the returned
+      method and headers, then reference the key when creating the note.
+    operationId: createJournalPhotoUploadUrl
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/journal.yaml#/PhotoUploadRequest'
+    responses:
+      '201':
+        description: Presigned upload intent
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/journal.yaml#/PhotoUploadIntent'
+      '400':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '401':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'
+      '500':
+        $ref: '../schemas/_responses.yaml#/ErrorResponse'

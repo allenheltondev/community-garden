@@ -1,0 +1,140 @@
+ApiAccessRequestItem:
+  type: object
+  title: ApiAccessRequestItem
+  required: [id, status, integrationName, intendedUse, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, approved, denied]
+    integrationName:
+      type: string
+      description: What the requester is building.
+    intendedUse:
+      type: string
+      description: Why they need programmatic access.
+    contactEmail:
+      type: [string, 'null']
+      format: email
+    decisionNote:
+      type: [string, 'null']
+      description: Reviewer's note, shown to the requester on a denial.
+    decidedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    apiKeyId:
+      type: [string, 'null']
+      format: uuid
+      description: Set once the requester has claimed a key against this approval.
+
+ApiAccessRequestListResponse:
+  type: object
+  title: ApiAccessRequestListResponse
+  # Matches ApiAccessRequestListResponse in models/api_access_request.rs — the
+  # handler serialises an envelope, not a bare array.
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ApiAccessRequestItem'
+
+CreateApiAccessRequest:
+  type: object
+  title: CreateApiAccessRequest
+  required: [integrationName, intendedUse]
+  properties:
+    integrationName:
+      type: string
+      maxLength: 120
+    intendedUse:
+      type: string
+      maxLength: 2000
+
+AdminApiAccessRequestItem:
+  type: object
+  title: AdminApiAccessRequestItem
+  description: A queue entry as a reviewer sees it, including who asked.
+  required: [id, status, integrationName, intendedUse, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, approved, denied]
+    integrationName:
+      type: string
+    intendedUse:
+      type: string
+    contactEmail:
+      type: [string, 'null']
+      format: email
+    decisionNote:
+      type: [string, 'null']
+    decidedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    userId:
+      type: string
+      format: uuid
+    userEmail:
+      type: [string, 'null']
+      format: email
+    userDisplayName:
+      type: [string, 'null']
+    userTier:
+      type: [string, 'null']
+      description: The requester's tier, so an admin can weigh the ask.
+
+AdminApiAccessRequestListResponse:
+  type: object
+  title: AdminApiAccessRequestListResponse
+  required: [items, total]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminApiAccessRequestItem'
+    total:
+      type: integer
+      format: int64
+      description: Total matching requests, for paging the queue.
+
+ApiAccessDecisionRequest:
+  type: object
+  title: ApiAccessDecisionRequest
+  properties:
+    note:
+      type: string
+      maxLength: 2000
+      description: Optional note recorded with the decision.
+
+ApiAccessDecisionResponse:
+  type: object
+  title: ApiAccessDecisionResponse
+  # ApiAccessDecisionResponse in models/api_access_request.rs is deliberately
+  # narrow: the reviewer gets the outcome, never the key secret.
+  required: [id, status, decidedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [approved, denied]
+    apiKeyId:
+      type: [string, 'null']
+      format: uuid
+      description: Set only once the requester has claimed a key.
+    decidedAt:
+      type: string
+      format: date-time

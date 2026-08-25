@@ -153,7 +153,7 @@ Resources:
           ThrottlingRateLimit: 25
           ThrottlingBurstLimit: 50
         - MetricsEnabled: True
-          ResourcePath: "/shared-gardens/{token}"
+          ResourcePath: "/gardens/{token}"
           HttpMethod: "GET"
           ThrottlingRateLimit: 25
           ThrottlingBurstLimit: 50
@@ -626,7 +626,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref Api
-            Path: /shared-gardens/{token}
+            Path: /gardens/{token}
             Method: GET
             Auth:
               Authorizer: NONE
