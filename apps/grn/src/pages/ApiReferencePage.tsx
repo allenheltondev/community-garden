@@ -205,6 +205,11 @@ export function ApiReferencePage() {
                         <li key={response.status}>
                           <code>{response.status}</code>
                           {response.description ? <span> — {response.description}</span> : null}
+                          {response.shape ? (
+                            <span className="grn-api-reference__param-meta">
+                              {response.shape}
+                            </span>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

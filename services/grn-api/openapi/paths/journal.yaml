@@ -87,11 +87,7 @@
       content:
         application/json:
           schema:
-            type: object
-            required: [contentType]
-            properties:
-              contentType:
-                type: string
+            $ref: '../schemas/journal.yaml#/PhotoUploadRequest'
     responses:
       '201':
         description: Presigned upload intent

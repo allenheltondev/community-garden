@@ -16,15 +16,24 @@ JournalResponse:
 CreateNoteRequest:
   type: object
   title: CreateNoteRequest
-  required: [body]
+  # Mirrors CreateNoteRequest in handlers/journal.rs: occurredOn and title are
+  # plain String fields and so are required by deserialization; body and
+  # photoKey are Option and default to absent.
+  required: [occurredOn, title]
   properties:
-    body:
-      type: string
     occurredOn:
       type: string
       format: date
+      description: The day the note is about.
+    title:
+      type: string
+      description: Short label for the entry.
+    body:
+      type: string
+      description: Optional longer text.
     photoKey:
       type: string
+      description: Key returned by the photo upload intent, if a photo is attached.
 
 JournalEntry:
   type: object
@@ -46,3 +55,16 @@ PhotoUploadIntent:
       properties:
         contentType:
           type: string
+
+PhotoUploadRequest:
+  type: object
+  title: PhotoUploadRequest
+  # Both fields are non-Option in PhotoUploadRequest; omitting contentLength
+  # fails deserialization before the handler runs.
+  required: [contentType, contentLength]
+  properties:
+    contentType:
+      type: string
+    contentLength:
+      type: integer
+      format: int64

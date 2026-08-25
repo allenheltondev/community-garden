@@ -79,4 +79,30 @@ describe('ApiReferencePage', () => {
     expect(scope.getByText('Responses')).toBeInTheDocument();
     expect(scope.getByText('404')).toBeInTheDocument();
   });
+  it('shows the response type, not just the status code', () => {
+    // The generator records a shape for every response; rendering only the
+    // status left that data stranded in apiReference.json, so a key holder
+    // could not see what an endpoint actually returns.
+    renderPage();
+
+    // That path has both a GET and a POST, so pick the endpoint by method.
+    const listRequests = screen
+      .getAllByText('/me/api-access-requests')
+      .map((node) => node.closest('li'))
+      .find((item) => item?.textContent?.startsWith('GET'));
+    expect(listRequests).toBeTruthy();
+    expect(
+      within(listRequests as HTMLElement).getByText('ApiAccessRequestListResponse')
+    ).toBeInTheDocument();
+  });
+
+  it('documents the journal note fields the handler actually requires', () => {
+    // handlers/journal.rs requires occurredOn and title and treats body as
+    // optional. A client built from the earlier schema sent {body} and was
+    // rejected at deserialization — the exact failure docs exist to prevent.
+    const note = reference.operations.find(
+      (operation) => operation.path === '/journal/notes' && operation.method === 'POST'
+    );
+    expect(note?.requestBody?.shape).toBe('CreateNoteRequest');
+  });
 });

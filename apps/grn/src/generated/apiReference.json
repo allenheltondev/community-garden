@@ -112,7 +112,7 @@
         {
           "status": "200",
           "description": "The review queue",
-          "shape": "array of object"
+          "shape": "AdminApiAccessRequestListResponse"
         },
         {
           "status": "401",
@@ -160,8 +160,8 @@
       "responses": [
         {
           "status": "200",
-          "description": "The decided request",
-          "shape": "ApiAccessRequestItem"
+          "description": "The recorded decision",
+          "shape": "ApiAccessDecisionResponse"
         },
         {
           "status": "400",
@@ -224,8 +224,8 @@
       "responses": [
         {
           "status": "200",
-          "description": "The decided request",
-          "shape": "ApiAccessRequestItem"
+          "description": "The recorded decision",
+          "shape": "ApiAccessDecisionResponse"
         },
         {
           "status": "400",
@@ -2071,7 +2071,7 @@
       "requestBody": {
         "required": true,
         "contentType": "application/json",
-        "shape": "object"
+        "shape": "PhotoUploadRequest"
       },
       "responses": [
         {
@@ -2350,7 +2350,7 @@
         {
           "status": "200",
           "description": "Your access requests",
-          "shape": "array of object"
+          "shape": "ApiAccessRequestListResponse"
         },
         {
           "status": "401",

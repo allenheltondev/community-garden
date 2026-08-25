@@ -13,7 +13,7 @@
         content:
           application/json:
             schema:
-              $ref: '../schemas/api-access.yaml#/ApiAccessRequestList'
+              $ref: '../schemas/api-access.yaml#/ApiAccessRequestListResponse'
       '401':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '500':
@@ -67,7 +67,7 @@
         content:
           application/json:
             schema:
-              $ref: '../schemas/api-access.yaml#/AdminApiAccessRequestList'
+              $ref: '../schemas/api-access.yaml#/AdminApiAccessRequestListResponse'
       '401':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '403':
@@ -106,11 +106,11 @@
             $ref: '../schemas/api-access.yaml#/ApiAccessDecisionRequest'
     responses:
       '200':
-        description: The decided request
+        description: The recorded decision
         content:
           application/json:
             schema:
-              $ref: '../schemas/api-access.yaml#/ApiAccessRequestItem'
+              $ref: '../schemas/api-access.yaml#/ApiAccessDecisionResponse'
       '400':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '401':
@@ -155,11 +155,11 @@
             $ref: '../schemas/api-access.yaml#/ApiAccessDecisionRequest'
     responses:
       '200':
-        description: The decided request
+        description: The recorded decision
         content:
           application/json:
             schema:
-              $ref: '../schemas/api-access.yaml#/ApiAccessRequestItem'
+              $ref: '../schemas/api-access.yaml#/ApiAccessDecisionResponse'
       '400':
         $ref: '../schemas/_responses.yaml#/ErrorResponse'
       '401':
