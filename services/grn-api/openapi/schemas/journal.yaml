@@ -55,9 +55,16 @@ PhotoUploadIntent:
       enum: [PUT]
     headers:
       type: object
+      description: |-
+        Headers to send with the presigned PUT. The key is `Content-Type`
+        verbatim: PhotoUploadHeaders carries an explicit
+        `#[serde(rename = "Content-Type")]`, which overrides the struct's
+        camelCase renaming, so this is not `contentType` on the wire.
+      required: ['Content-Type']
       properties:
-        contentType:
+        Content-Type:
           type: string
+          example: image/jpeg
     photoKey:
       type: string
       description: Pass as `photoKey` on POST /journal/notes to attach the upload.
