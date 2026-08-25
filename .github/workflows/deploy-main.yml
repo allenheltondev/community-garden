@@ -80,7 +80,7 @@ jobs:
         uses: jaxxstorm/action-install-gh-release@v1.12.0
         with:
           repo: cargo-lambda/cargo-lambda
-          tag: v1.2.1
+          tag: v1.9.2
           chmod: 0755
 
       - name: Cache Cargo dependencies
@@ -573,7 +573,7 @@ jobs:
         uses: jaxxstorm/action-install-gh-release@v1.12.0
         with:
           repo: cargo-lambda/cargo-lambda
-          tag: v1.2.1
+          tag: v1.9.2
           chmod: 0755
 
       - name: Install esbuild
