@@ -61,7 +61,24 @@
     summary: List the access request queue
     description: Reviewer-only view of outstanding and decided requests.
     operationId: adminListApiAccessRequests
+    parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum: [pending, approved, denied]
+          default: pending
+        description: |-
+          Which slice of the queue to return. Defaults to `pending` — omitting
+          it does not mean "all". Any other value is a 400.
     responses:
+      '400':
+        description: status was not one of pending, approved, denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/_responses.yaml#/ErrorSchema'
       '200':
         description: The review queue
         content:

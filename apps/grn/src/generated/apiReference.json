@@ -106,13 +106,26 @@
         "Idempotent"
       ],
       "requiresAuth": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Which slice of the queue to return. Defaults to `pending` — omitting\nit does not mean \"all\". Any other value is a 400."
+        }
+      ],
       "requestBody": null,
       "responses": [
         {
           "status": "200",
           "description": "The review queue",
           "shape": "AdminApiAccessRequestListResponse"
+        },
+        {
+          "status": "400",
+          "description": "status was not one of pending, approved, denied",
+          "shape": "object"
         },
         {
           "status": "401",
@@ -1985,7 +1998,15 @@
         "Idempotent"
       ],
       "requiresAuth": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "Idempotency-Key",
+          "in": "header",
+          "required": true,
+          "type": "string",
+          "description": "Required. Retrying with the same key returns the original result\ninstead of creating a second entry. Omitting it is a 400."
+        }
+      ],
       "requestBody": {
         "required": true,
         "contentType": "application/json",
@@ -2108,7 +2129,15 @@
         "Grower Only"
       ],
       "requiresAuth": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "type": "string",
+          "description": "Optional. Retrying with the same key returns the original result\nrather than creating a duplicate; reusing a key for different\ncontent is the 409 below."
+        }
+      ],
       "requestBody": {
         "required": true,
         "contentType": "application/json",
@@ -2829,6 +2858,13 @@
           "required": true,
           "type": "string (uuid)",
           "description": null
+        },
+        {
+          "name": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "type": "string",
+          "description": "Required when setting `status` to `completed`, which is the only\ntransition that records a completion — that case returns 400\nwithout it. Not needed for active/paused."
         }
       ],
       "requestBody": {
@@ -2870,7 +2906,15 @@
         "Idempotent"
       ],
       "requiresAuth": true,
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "type": "string",
+          "description": "Optional. Retrying with the same key returns the original result\nrather than creating a duplicate; reusing a key for different\ncontent is the 409 below."
+        }
+      ],
       "requestBody": {
         "required": true,
         "contentType": "application/json",

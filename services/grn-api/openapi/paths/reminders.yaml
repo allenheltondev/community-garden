@@ -50,6 +50,16 @@
     tags: [Reminders]
     summary: Update reminder status (active/paused)
     operationId: updateReminderStatus
+    parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+        description: |-
+          Required when setting `status` to `completed`, which is the only
+          transition that records a completion — that case returns 400
+          without it. Not needed for active/paused.
     requestBody:
       required: true
       content:

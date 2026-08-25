@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SectionHeading } from '@olivias/ui';
+import { getApiEndpoint } from '../config/amplify';
 import reference from '../generated/apiReference.json';
 
 interface ReferenceParameter {
@@ -55,6 +56,31 @@ function modifierTags(operation: ReferenceOperation): string[] {
   return operation.tags.filter((tag) => MODIFIER_TAGS.has(tag));
 }
 
+/**
+ * `aria-labelledby` is an IDREFS attribute, so a value containing a space is
+ * read as two separate id references. A tag like "API Access" would point at
+ * `tag-API` and `Access`, neither of which exists, leaving the section with no
+ * accessible name. Slugify once and use the same value on both ends.
+ */
+function tagId(tag: string): string {
+  return `tag-${tag.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+}
+
+/**
+ * The deployed host, so a key holder can build a request from this page alone
+ * rather than reading it out of network traffic. Read from the same config the
+ * app uses for its own calls, so staging and production stay correct without a
+ * second source of truth — and guarded, because getApiEndpoint throws when
+ * VITE_API_URL is unset rather than returning empty.
+ */
+function apiBaseUrl(): string | null {
+  try {
+    return getApiEndpoint();
+  } catch {
+    return null;
+  }
+}
+
 function matches(operation: ReferenceOperation, term: string): boolean {
   if (!term) return true;
   const haystack = [
@@ -71,6 +97,7 @@ function matches(operation: ReferenceOperation, term: string): boolean {
 
 export function ApiReferencePage() {
   const [search, setSearch] = useState('');
+  const baseUrl = useMemo(() => apiBaseUrl(), []);
 
   const groups = useMemo(() => {
     const byTag = new Map<string, ReferenceOperation[]>();
@@ -98,8 +125,21 @@ export function ApiReferencePage() {
     <section className="grn-section grn-api-reference">
       <SectionHeading
         title="API reference"
-        body={`Every endpoint the Good Roots Network API serves. Send your key as an Authorization header: \`Authorization: Bearer grnk_…\`.`}
+        body="Every endpoint the Good Roots Network API serves. Combine the base URL below with any path, and send your key in the Authorization header."
       />
+
+      {baseUrl ? (
+        <dl className="grn-api-reference__base">
+          <dt>Base URL</dt>
+          <dd>
+            <code>{baseUrl}</code>
+          </dd>
+          <dt>Authorization</dt>
+          <dd>
+            <code>Authorization: Bearer grnk_…</code>
+          </dd>
+        </dl>
+      ) : null}
 
       <p className="grn-api-reference__meta">
         Version {apiReference.version} · {apiReference.operations.length} endpoints ·{' '}
@@ -126,8 +166,8 @@ export function ApiReferencePage() {
       ) : null}
 
       {groups.map(([tag, operations]) => (
-        <section key={tag} className="grn-api-reference__group" aria-labelledby={`tag-${tag}`}>
-          <h2 id={`tag-${tag}`} className="grn-api-reference__group-title">
+        <section key={tag} className="grn-api-reference__group" aria-labelledby={tagId(tag)}>
+          <h2 id={tagId(tag)} className="grn-api-reference__group-title">
             {tag}
           </h2>
           {descriptions.get(tag) ? (

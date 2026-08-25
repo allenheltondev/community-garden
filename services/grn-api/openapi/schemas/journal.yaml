@@ -42,7 +42,10 @@ JournalEntry:
 PhotoUploadIntent:
   type: object
   title: PhotoUploadIntent
-  required: [uploadUrl, method, headers]
+  # Mirrors PhotoUploadResponse in handlers/journal.rs. photoKey is not
+  # incidental metadata: it is what POST /journal/notes takes to attach the
+  # uploaded image, so a client without it can upload and go nowhere.
+  required: [uploadUrl, method, headers, photoKey, expiresInSeconds]
   properties:
     uploadUrl:
       type: string
@@ -55,6 +58,13 @@ PhotoUploadIntent:
       properties:
         contentType:
           type: string
+    photoKey:
+      type: string
+      description: Pass as `photoKey` on POST /journal/notes to attach the upload.
+    expiresInSeconds:
+      type: integer
+      format: int64
+      description: Lifetime of the presigned URL.
 
 PhotoUploadRequest:
   type: object

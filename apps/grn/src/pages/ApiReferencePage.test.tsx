@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+
+// The real getApiEndpoint throws when VITE_API_URL is unset, which is the case
+// under test. Mocking it also pins the value the page is expected to render.
+vi.mock('../config/amplify', () => ({
+  getApiEndpoint: () => 'https://api.test.example/api',
+}));
+
 import { ApiReferencePage } from './ApiReferencePage';
 import reference from '../generated/apiReference.json';
 
@@ -104,5 +111,57 @@ describe('ApiReferencePage', () => {
       (operation) => operation.path === '/journal/notes' && operation.method === 'POST'
     );
     expect(note?.requestBody?.shape).toBe('CreateNoteRequest');
+  });
+  it('gives multiword groups an ARIA-safe id that actually resolves', () => {
+    // aria-labelledby is IDREFS, so "tag-API Access" is read as two references
+    // — tag-API and Access — and neither exists. Single-word tags hid this, so
+    // assert on a multiword one.
+    const { container } = renderPage();
+
+    const section = container.querySelector('.grn-api-reference__group[aria-labelledby="tag-api-access"]');
+    expect(section).not.toBeNull();
+    expect(section?.getAttribute('aria-labelledby')).not.toContain(' ');
+
+    // The reference must resolve to the heading that names the section.
+    const headingId = section?.getAttribute('aria-labelledby') as string;
+    const heading = container.querySelector(`#${headingId}`);
+    expect(heading?.textContent).toBe('API Access');
+  });
+
+  it('publishes the base URL so a request can be built from this page alone', () => {
+    renderPage();
+
+    // Relative paths are useless without the host; the page reads it from the
+    // same config the app uses for its own calls.
+    expect(screen.getByText('Base URL')).toBeInTheDocument();
+    expect(screen.getByText('https://api.test.example/api')).toBeInTheDocument();
+  });
+
+  it('documents the Idempotency-Key header the note handler demands', () => {
+    // create_note returns 400 without it, so a request assembled from the
+    // contract would fail by design if the header were left undocumented.
+    const note = reference.operations.find(
+      (operation) => operation.path === '/journal/notes' && operation.method === 'POST'
+    );
+    const header = note?.parameters.find((p) => p.name === 'Idempotency-Key');
+    expect(header?.in).toBe('header');
+    expect(header?.required).toBe(true);
+  });
+
+  it('documents the photo key that links an upload to a note', () => {
+    renderPage();
+
+    const upload = screen.getByText('/journal/photo-upload-url').closest('li');
+    expect(within(upload as HTMLElement).getByText('PhotoUploadIntent')).toBeInTheDocument();
+  });
+
+  it('documents the admin status filter and its pending default', () => {
+    const queue = reference.operations.find(
+      (operation) => operation.path === '/admin/api-access-requests'
+    );
+    const status = queue?.parameters.find((p) => p.name === 'status');
+    expect(status?.in).toBe('query');
+    // Omitting it does not mean "all" — the handler defaults to pending.
+    expect(status?.description).toMatch(/defaults to `pending`/i);
   });
 });

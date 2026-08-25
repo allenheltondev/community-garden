@@ -32,6 +32,15 @@
     tags: [Journal, Idempotent]
     summary: Add a journal note
     operationId: createJournalNote
+    parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+        description: |-
+          Required. Retrying with the same key returns the original result
+          instead of creating a second entry. Omitting it is a 400.
     requestBody:
       required: true
       content:

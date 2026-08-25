@@ -6390,3 +6390,47 @@ body {
 .grn-settings-actions .grn-settings-link {
   margin-top: 0;
 }
+
+.grn-api-reference__base {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.9rem;
+  align-items: baseline;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(79, 56, 37, 0.13);
+  border-radius: 1rem;
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.grn-api-reference__base dt {
+  margin: 0;
+  color: rgba(79, 56, 37, 0.75);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grn-api-reference__base dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.grn-api-reference__base code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88rem;
+  color: var(--og-color-ink);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .grn-api-reference__base {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .grn-api-reference__base dd {
+    margin-bottom: 0.5rem;
+  }
+}
